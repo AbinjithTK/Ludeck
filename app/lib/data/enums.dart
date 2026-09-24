@@ -96,3 +96,54 @@ enum Platform {
     return null;
   }
 }
+
+/// Where a share came from.
+///
+/// Deliberately NOT named SourcePlatform: `Platform` above means a console a
+/// copy lives on, and one word meaning two things in one file is how a later
+/// edit puts a YouTube link on a branch.
+///
+/// `text` is the case with no link at all, which is a normal share and not a
+/// failure: a friend typing "play Hollow Knight" is the app's whole premise.
+enum SourceKind {
+  youtube('YouTube'),
+  twitch('Twitch'),
+  tiktok('TikTok'),
+  instagram('Instagram'),
+  x('X'),
+  reddit('Reddit'),
+  steam('Steam'),
+
+  /// Any other page that served readable metadata. Blogs, news, forums.
+  web('Web'),
+
+  /// Shared text carrying no usable link.
+  text('Shared text');
+
+  const SourceKind(this.label);
+  final String label;
+}
+
+/// How a share was turned into a game, strongest first.
+///
+/// Stored per source because it decides how much to trust the row later, and
+/// because it is the only way to tell which resolver tier is actually earning
+/// its place once real shares start arriving.
+enum MatchMethod {
+  /// An id came back, so nothing was guessed. A Twitch clip carries the game
+  /// id outright; a Steam link carries an appid.
+  exact('Exact match'),
+
+  /// Matched on title, description or tags from the page's own metadata.
+  metadata('From the page details'),
+
+  /// Matched on shared prose. The weakest automatic tier, and the only one
+  /// where a common English word can masquerade as a title.
+  text('From the text'),
+
+  /// The user picked it. Beats every automatic tier by definition.
+  manual('You chose it');
+
+  const MatchMethod(this.label);
+  final String label;
+}

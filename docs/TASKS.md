@@ -438,6 +438,107 @@ Covered in `BUILD-PLAN.md`. The share card and the public tree page. This is the
 genuinely unoccupied position found across 1,286 projects, and it is also the Growth
 Loop category's measurable surface.
 
+## Phase F: share anything to the library
+
+Share a link OR plain text to Ludeck from any app and the game lands in the
+collection with its source attached. Approved 2026-09-24, deliberately WITHOUT
+an AI tier: the deterministic ladder plus a corroboration heuristic covers the
+realistic cases, and `Interpreter` is the seam where a model drops in later if
+testing shows it is actually needed.
+
+Resolver input is TEXT, not a URL. Pulling links out of that text is the first
+pass, not the interface. A share can name several games at once.
+
+### Step F1: source storage `DONE 2026-09-24`
+
+Schema v2. `sources` table, one-to-many from `games`, `ON DELETE CASCADE`.
+`url` nullable because shared prose has no link, and SQLite treats NULLs as
+distinct in a UNIQUE constraint, so two text recommendations for one game are
+correctly two rows while re-sharing one link stays idempotent.
+
+`_onUpgrade` used to throw outright, so the version bump needed a real stepwise
+migration keyed by the version it produces. `openLudeckDatabaseAt` exists so
+tests run the shipping migration rather than a copy. `kMigrationVersions` exists
+so a test catches the version bump with no migration behind it.
+
+`MatchMethod` is stored per source, strongest first: exact, metadata, text,
+manual. It decides how far to trust a row and shows which resolver tier is
+earning its place once real shares arrive.
+
+The privacy invariant is enforced in `scripts\check.ps1` rule 10 rather than a
+test, because the share layer does not exist yet and the rule must fire when
+that code is written, not when someone remembers to test it.
+
+### Step F2: resolver core, pure Dart, no network
+
+Text in, a set of distinct candidate games out, each with a `MatchMethod` and a
+confidence. URL extraction and canonicalisation first, then prose.
+
+The corroboration heuristic lives here and matters more than it looks: *Control*,
+*Journey*, *Inside*, *Limbo* and *Firewatch* are ordinary English words. A title
+match in prose only counts when gaming context sits near it (a gaming link in
+the same text, or play/played/playing/beat/finished/co-op). Without this the
+library fills with games from messages that were about nothing of the kind, and
+the user stops trusting it.
+
+Declare `abstract class Interpreter` with a `NullInterpreter` default.
+
+### Step F3: SSRF-hardened fetcher
+
+Step F5 fetches arbitrary user-supplied URLs server-side, which is a hole if
+built naively. https only; block private, loopback, link-local and metadata
+ranges; re-check the address AFTER DNS resolution to stop rebinding; cap
+redirects and body size; hard timeout; return extracted fields only, never the
+fetched body. One test per blocked range.
+
+### Step F4: exact and keyed extractors
+
+Twitch clip to `game_id` to `igdb_id` — verified against the Helix reference:
+Get Clips returns `game_id`, and Get Games both accepts and returns `igdb_id`,
+so this needs no matching at all. Twitch VODs return no game field, so they fall
+through to text. Steam store URL to appid via IGDB `external_games`.
+
+YouTube Data API v3 behind a key Abin must create (free, 10k units/day,
+`videos.list` costs 1). Fixture-tested until it exists.
+
+### Step F5: oEmbed and Open Graph extractors
+
+TikTok, X, Instagram, Vimeo, Reddit via oEmbed. Then a generic Open Graph and
+JSON-LD reader, which is what actually makes this universal: blogs, news, forums,
+store pages, anything serving meta tags.
+
+Two findings to re-verify at deploy time. Meta reportedly dropped the token and
+App Review requirement for its oEmbed endpoints on 2026-06-15, but Meta's own
+docs still show the old text, so confirm with one live call. X oEmbed at
+`publish.x.com` answers unauthenticated and returns markup containing the post
+text; the v2 read API is paid and the old syndication JSON is gone.
+
+Instagram keeps a permanent manual fallback regardless: Meta's doc says the
+endpoint is for embedding, and reading a caption to identify a game stretches
+that.
+
+### Step F6: confirm sheet
+
+Multi-select, high-confidence matches pre-ticked and low-confidence ones listed
+but unticked. One tap still adds everything, so the feature stays fast, but
+NOTHING enters the library unseen. Offers the optional `recommendedBy` field,
+which is what that column was always for.
+
+Saving the source is separate from identifying the game: a platform that cannot
+be read costs one extra tap, never the feature.
+
+### Step F7: Android share target
+
+`ACTION_SEND` with `text/plain`, which covers a bare link, a link wrapped in
+prose, and pure prose in one filter. Cold start and warm start both route to the
+resolver. No clipboard watching: Android restricts it and it is not a trade
+worth making on a user's behalf.
+
+### Step F8: verification
+
+`flutter analyze`, full suite, `check.ps1`, emulator run, runtime errors read,
+screenshots of the resolve-and-add flow.
+
 ## What is not in this list
 
 The store record, the in-app products, the RevenueCat dashboard, `layers setup`, the

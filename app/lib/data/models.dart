@@ -53,6 +53,50 @@ class Copy {
   final int? pricePaidMinor;
 }
 
+/// Where a game came from. A SET of these per game, never one field.
+///
+/// A second video about a game already in the library is information, not a
+/// duplicate: it records that the game keeps coming up, which is the thing the
+/// user is trying to keep track of.
+class Source {
+  const Source({
+    required this.igdbId,
+    required this.kind,
+    required this.matchMethod,
+    required this.addedAt,
+    this.id,
+    this.url,
+    this.title,
+    this.channel,
+    this.thumbUrl,
+  });
+
+  /// Null before the row is written. SQLite assigns it.
+  final int? id;
+
+  final int igdbId;
+
+  /// Null when the share carried no link, which is a normal share.
+  final String? url;
+
+  final SourceKind kind;
+
+  /// How the game was identified. Recorded so a row can be trusted in
+  /// proportion to how it was matched, rather than all sources looking equal.
+  final MatchMethod matchMethod;
+
+  /// The video or page title, as that platform reported it.
+  final String? title;
+
+  /// PRIVACY: a real third party's name, exactly like `Entry.recommendedBy`.
+  /// docs/DECISIONS.md invariant 10 keeps this off the share layer.
+  final String? channel;
+
+  final String? thumbUrl;
+
+  final DateTime addedAt;
+}
+
 /// The user's relationship to a game. One per game.
 class Entry {
   const Entry({

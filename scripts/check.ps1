@@ -208,6 +208,32 @@ if ($bareIgnores) {
     Violation 'check:ignore with no reason given' ($bareIgnores -join '; ')
 } else { Pass 'every exemption states a reason' }
 
+# --- 10. The share layer never carries a third party's name -----------------
+# docs\DECISIONS.md invariant 10: the share payload is title, cover, status and
+# rating ONLY. Two columns hold a real person's name and neither may leave the
+# device: entries.recommended_by (who suggested the game) and sources.channel
+# (whose video it came from).
+#
+# This is a static rule and not a test on purpose. The share layer does not
+# exist yet, so there is nothing to assert against; the rule has to fire the
+# moment that code is written rather than whenever someone remembers to add a
+# test. Comment-aware, so the paragraph you are reading does not trip it.
+$privacyHits = @()
+$shareFiles = Get-ChildItem -Path (Join-Path $app 'lib') -Recurse -Filter *.dart |
+    Where-Object { $_.Name -match 'share|export' }
+foreach ($f in $shareFiles) {
+    foreach ($l in (Get-DartCode $f.FullName)) {
+        if ($l.Text -match 'recommended_by|recommendedBy|\.channel\b|sourcesFor\s*\(') {
+            $privacyHits += "$($f.Name):$($l.Line)  $($l.Text.Trim())"
+        }
+    }
+}
+if ($privacyHits) {
+    Violation 'share layer reaches a third party name' (($privacyHits -join ' | ') +
+        ' - the share payload is title, cover, status and rating only. See' +
+        ' docs\DECISIONS.md invariant 10.')
+} else { Pass 'share layer carries no third party name' }
+
 # --- 8. The analyzer and the tests actually pass ----------------------------
 # A rule check that passes while the build is red is worthless.
 Push-Location $app

@@ -437,5 +437,85 @@ class Repository {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Sources. Where a game came from.
+  // ---------------------------------------------------------------------------
+
+  /// Records where a game came from. Returns the new row id, or 0 when this
+  /// exact link was already recorded for this game.
+  ///
+  /// Re-sharing one link is a NO-OP rather than a duplicate or an overwrite.
+  /// `sources` is a leaf table so `replace` would not cascade, but ignore is
+  /// the correct semantic: the first capture is the true one, and a later share
+  /// of the same link should not quietly rewrite the title it was saved under.
+  Future<int> addSource(Source s) => _db.insert(
+        'sources',
+        {
+          'igdb_id': s.igdbId,
+          'url': s.url,
+          'kind': s.kind.name,
+          'match_method': s.matchMethod.name,
+          'title': s.title,
+          'channel': s.channel,
+          'thumb_url': s.thumbUrl,
+          'added_at': s.addedAt.millisecondsSinceEpoch,
+        },
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
+
+  /// Every recorded source for one game, newest first.
+  Future<List<Source>> sourcesFor(int igdbId) async {
+    final rows = await _db.query(
+      'sources',
+      where: 'igdb_id = ?',
+      whereArgs: [igdbId],
+      orderBy: 'added_at DESC, id DESC',
+    );
+    return rows.map(_source).toList();
+  }
+
+  /// Forgets one source. Unlike a collection row this IS a real delete: the
+  /// user asking to forget where something came from is asking for exactly
+  /// that, and no progress or ownership data hangs off it.
+  Future<void> removeSource(int id) =>
+      _db.delete('sources', where: 'id = ?', whereArgs: [id]);
+
+  Source _source(Map<String, Object?> r) => Source(
+        id: r['id'] as int?,
+        igdbId: r['igdb_id'] as int,
+        url: r['url'] as String?,
+        kind: _sourceKind(r['kind'] as String),
+        matchMethod: _matchMethod(r['match_method'] as String),
+        title: r['title'] as String?,
+        channel: r['channel'] as String?,
+        thumbUrl: r['thumb_url'] as String?,
+        addedAt:
+            DateTime.fromMillisecondsSinceEpoch(r['added_at'] as int),
+      );
+
+  // These two parse tolerantly, unlike the collection enums above, and the
+  // asymmetry is deliberate.
+  //
+  // An unrecognised value in `entries` means the row's MEANING is unknown, so
+  // `loadDetailed` skips it and says so. A source's url is still perfectly good
+  // data when its badge is unreadable, and losing the link would be the greater
+  // harm.
+  //
+  // Both fall back to the LEAST trusted value in their enum, so a corrupt row
+  // can never claim to be an exact match it cannot prove.
+  static SourceKind _sourceKind(String s) {
+    for (final k in SourceKind.values) {
+      if (k.name == s) return k;
+    }
+    return SourceKind.web;
+  }
+
+  static MatchMethod _matchMethod(String s) {
+    for (final m in MatchMethod.values) {
+      if (m.name == s) return m;
+    }
+    return MatchMethod.text;
+  }
+
   Future<void> close() => _db.close();
 }

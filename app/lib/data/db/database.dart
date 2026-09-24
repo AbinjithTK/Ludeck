@@ -18,7 +18,44 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 /// The file name. docs/DECISIONS.md froze `ludeck.db` and this honours it.
 const String kDatabaseFile = 'ludeck.db';
 
-const int kSchemaVersion = 1;
+const int kSchemaVersion = 2;
+
+/// Where a game came from. Added in schema v2.
+///
+/// Held as a named constant because BOTH `_ddl` (fresh install) and
+/// `_migrations[2]` (existing install) must produce a byte-identical table. Two
+/// copies of this SQL would drift, and the drift would only show up on one of
+/// the two paths, which is the worst way to find it.
+///
+/// One game may have MANY sources. A second video about a game you already have
+/// is information, not a duplicate, so this is a set of rows rather than a
+/// column on `games`.
+///
+/// `url` is nullable because shared prose carries no link. SQLite treats NULLs
+/// as distinct in a UNIQUE constraint, so two friends recommending the same
+/// game in two messages correctly produce two rows, while re-sharing one link
+/// stays idempotent.
+///
+/// PRIVACY: `channel` names a real third party, exactly like
+/// `entries.recommended_by`. docs/DECISIONS.md invariant 10 keeps both off the
+/// share layer, which takes title, cover, status and rating only.
+const String _sourcesTable = '''
+  CREATE TABLE IF NOT EXISTS sources (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    igdb_id       INTEGER NOT NULL REFERENCES games(igdb_id) ON DELETE CASCADE,
+    url           TEXT,
+    kind          TEXT    NOT NULL,
+    match_method  TEXT    NOT NULL,
+    title         TEXT,
+    channel       TEXT,
+    thumb_url     TEXT,
+    added_at      INTEGER NOT NULL,
+    UNIQUE (igdb_id, url)
+  )
+  ''';
+
+const String _sourcesIndex =
+    'CREATE INDEX IF NOT EXISTS idx_sources_game ON sources(igdb_id)';
 
 /// Every table, in dependency order.
 ///
@@ -111,8 +148,11 @@ const List<String> _ddl = [
   )
   ''',
 
+  _sourcesTable,
+
   'CREATE INDEX IF NOT EXISTS idx_copies_game ON copies(igdb_id)',
   'CREATE INDEX IF NOT EXISTS idx_placements_game ON placements(igdb_id)',
+  _sourcesIndex,
 ];
 
 /// Call once before opening a database on Windows, Linux or macOS.
@@ -127,10 +167,20 @@ void initDatabasePlatform() {
 
 /// Opens the real on-disk database.
 Future<Database> openLudeckDatabase() async {
-  initDatabasePlatform();
   final dir = await getApplicationDocumentsDirectory();
+  return openLudeckDatabaseAt(p.join(dir.path, kDatabaseFile));
+}
+
+/// Opens the database at an explicit path.
+///
+/// Exists so migration tests run THIS code rather than a copy of it: a
+/// migration verified against a duplicated opener proves nothing about the one
+/// that ships. `getApplicationDocumentsDirectory` needs platform channels that
+/// a plain unit test does not have, which is the only reason the split exists.
+Future<Database> openLudeckDatabaseAt(String path) async {
+  initDatabasePlatform();
   return openDatabase(
-    p.join(dir.path, kDatabaseFile),
+    path,
     version: kSchemaVersion,
     onConfigure: _onConfigure,
     onCreate: _onCreate,
@@ -163,11 +213,40 @@ Future<void> _onCreate(Database db, int version) async {
   await batch.commit(noResult: true);
 }
 
-/// There is no version 2 yet. When there is, add a case; never drop and
-/// recreate, because that destroys a real collection.
+/// Migrations, keyed by the version each one PRODUCES.
+///
+/// `_migrations[2]` takes a v1 database to v2. They run in sequence, so a user
+/// who skipped a release upgrades 1 -> 2 -> 3 rather than being a special case
+/// nobody tested.
+///
+/// Every step must be additive or explicitly rewrite data it owns. Dropping and
+/// recreating a table destroys a real collection and is never the answer.
+const Map<int, List<String>> _migrations = {
+  2: [_sourcesTable, _sourcesIndex],
+};
+
+/// Versions `_migrations` can produce.
+///
+/// Exposed so a test can assert every version from 2 to [kSchemaVersion] has a
+/// step. The mistake that needs catching is bumping the constant and forgetting
+/// the map entry, which a fresh install never notices and every existing
+/// install hits on first open.
+Iterable<int> get kMigrationVersions => _migrations.keys;
+
 Future<void> _onUpgrade(Database db, int from, int to) async {
-  throw UnsupportedError(
-    'No migration from schema $from to $to exists yet. '
-    'Add one in database.dart rather than recreating the tables.',
-  );
+  for (var version = from + 1; version <= to; version++) {
+    final steps = _migrations[version];
+    if (steps == null) {
+      throw UnsupportedError(
+        'No migration to schema $version exists. Add one to _migrations in '
+        'database.dart rather than recreating the tables, which would destroy '
+        'a real collection.',
+      );
+    }
+    final batch = db.batch();
+    for (final statement in steps) {
+      batch.execute(statement);
+    }
+    await batch.commit(noResult: true);
+  }
 }
