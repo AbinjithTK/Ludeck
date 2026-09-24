@@ -45,3 +45,6 @@ service-account*.json
 intel/projects*.json
 intel/state*.json
 intel/*.cache
+
+# Kiro Crew CLI lock file, per-machine runtime state
+.kiro/settings/.kirocrew-cli-settings.lock
