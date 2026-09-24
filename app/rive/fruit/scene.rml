@@ -1,0 +1,64 @@
+<Rive version="1" kind="fragment">
+    <!--
+      One fruit.
+
+      No Fill on the Artboard: the fruit composites over Ludeck's own canvas, so
+      a background here would punch a dark square into the tree.
+
+      Draw order in RML runs FRONT to BACK, which is the reverse of HTML: the
+      first shape declared paints on top. So highlight, then leaf, then body,
+      then stem.
+
+      Colours are Ludeck's six, from lib/ui/tokens.dart. Nothing new is invented
+      here: FFE8B84B is accent, FF181A1D is surface.
+    -->
+    <Artboard defaultStateMachineId="0:7" styleId="0:5" width="240" height="240" name="Fruit" id="0:2">
+        <LayoutComponentStyle name="Artboard Style" id="0:5"/>
+
+        <!-- Specular highlight. Small, high, and offset: it is what makes a flat
+             circle read as a sphere. -->
+        <Shape x="104" y="96" name="Highlight" id="0:20">
+            <Ellipse width="30" height="22" name="Path"/>
+            <Fill name="Fill">
+                <SolidColor colorValue="55FFFFFF" name="Color"/>
+            </Fill>
+        </Shape>
+
+        <!-- No leaf. The palette has six colours and none is green, and a grey
+             leaf reads as a pebble stuck to the fruit. Adding a seventh colour
+             to rescue one detail is how a token system dies. The sphere carries
+             itself on the highlight alone. -->
+
+        <!-- The body. This is the shape whose colour and scale the state machine
+             drives: gold when ripe, near-white when harvested, grey otherwise. -->
+        <Shape x="120" y="140" name="Body" id="0:24">
+            <Ellipse width="112" height="112" name="Path"/>
+            <Fill name="Fill">
+                <SolidColor colorValue="FFE8B84B" name="Color"/>
+            </Fill>
+        </Shape>
+
+        <!-- Stem. Declared last so it paints BEHIND the body, and placed high
+             enough to protrude above it: that overlap is the whole reason the
+             fruit looks hung rather than balanced. -->
+        <Shape x="120" y="62" name="Stem" id="0:26">
+            <Rectangle width="8" height="44" cornerRadiusTL="4" name="Path"/>
+            <Fill name="Fill">
+                <SolidColor colorValue="FF8B9099" name="Color"/>
+            </Fill>
+        </Shape>
+
+        <LinearAnimation duration="60" name="Animation 1" id="0:6"/>
+
+        <StateMachine name="State Machine 1" id="0:7">
+            <StateMachineLayer name="Layer 1" id="0:8">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState>
+                    <StateTransition stateToId="0:12"/>
+                </EntryState>
+                <AnimationState x="200" animationId="0:6" id="0:12"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+</Rive>

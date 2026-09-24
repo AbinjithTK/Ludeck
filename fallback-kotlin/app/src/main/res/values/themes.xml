@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Platform parent deliberately: Compose draws everything, so pulling in
+         AppCompat or the Material views library just to get a theme parent adds
+         weight for nothing. -->
+    <style name="Theme.Ludeck" parent="android:Theme.Material.NoActionBar" />
+</resources>

@@ -1,0 +1,441 @@
+import 'package:sqflite/sqflite.dart';
+
+import 'db/database.dart';
+import 'enums.dart';
+import 'models.dart';
+
+/// The outcome of a read, including what could not be read.
+///
+/// `skipped` exists because of a dead state that had no exit. Enum parsing uses
+/// `byName`, which throws on a value this build does not recognise. That throw
+/// used to escape `load()`, so ONE unreadable row out of a thousand produced a
+/// completely empty screen with no explanation and no way back. A corrupt row is
+/// a row-sized problem and it must stay that size.
+class LoadResult {
+  const LoadResult({required this.items, required this.skipped});
+
+  final List<TreeItem> items;
+
+  /// How many rows could not be read. Anything above zero should be surfaced to
+  /// the user, quietly but honestly. Never silently swallow it: a row that
+  /// vanishes without a word is how someone concludes the app lost their data.
+  final int skipped;
+}
+
+/// The only thing that talks to the database.
+///
+/// Nothing above this file writes SQL, and nothing below it knows what a
+/// TreeItem is. That boundary is what lets the storage engine change without
+/// touching the tree, which already happened once when code generation turned
+/// out to be unavailable on this toolchain.
+class Repository {
+  Repository(this._db);
+
+  final Database _db;
+
+  /// Longest accepted branch name or game title.
+  ///
+  /// Unbounded text straight into SQLite is a real problem on a phone, not a
+  /// theoretical one: nothing in the UI can lay out a 10,000 character branch
+  /// name, and nothing stops a paste from producing one.
+  static const int maxNameLength = 120;
+
+  static void _validateTitle(String title) {
+    if (title.trim().isEmpty) {
+      throw ArgumentError.value(title, 'title', 'must not be blank');
+    }
+    if (title.length > maxNameLength) {
+      throw ArgumentError.value(
+          title.length, 'title', 'must be at most $maxNameLength characters');
+    }
+  }
+
+  /// Ratings are 1 to 5, or null for "not rated".
+  ///
+  /// Throws rather than clamping. A clamp hides the bug at the call site and
+  /// writes a number the user never chose, which is worse than a crash in
+  /// development and worse than a refusal in production.
+  static void _validateRating(int? rating) {
+    if (rating == null) return;
+    if (rating < 1 || rating > 5) {
+      throw ArgumentError.value(rating, 'rating', 'must be null or 1 to 5');
+    }
+  }
+
+  /// Opens the real database and seeds it the first time.
+  static Future<Repository> open() async {
+    final repo = Repository(await openLudeckDatabase());
+    await repo.seedIfEmpty();
+    return repo;
+  }
+
+  /// For tests. Does not seed, so a test starts from a known empty state.
+  static Future<Repository> openInMemory() async =>
+      Repository(await openInMemoryDatabase());
+
+  // Enum parsing. `byName` throws on an unrecognised value, which is correct:
+  // a status this app does not know about is corruption, and defaulting it
+  // silently would hide the bug and mislabel the user's game. The throw is
+  // contained per row by loadDetailed.
+
+  static Ownership _ownership(String s) => Ownership.values.byName(s);
+  static Progress _progress(String s) => Progress.values.byName(s);
+  static Form _form(String s) => Form.values.byName(s);
+  static Acquired _acquired(String s) => Acquired.values.byName(s);
+  static Platform _platform(String s) => Platform.values.byName(s);
+
+  static DateTime? _dateOrNull(Object? v) =>
+      v == null ? null : DateTime.fromMillisecondsSinceEpoch(v as int);
+
+  /// Everything the tree and the list render from. Shelved rows are excluded.
+  Future<List<TreeItem>> load() async => (await loadDetailed()).items;
+
+  /// The same read, but it also reports how many rows it could not parse.
+  Future<LoadResult> loadDetailed() async {
+    final rows = await _db.rawQuery('''
+      SELECT g.igdb_id, g.title, g.cover_url, g.release_year,
+             g.time_to_beat_seconds,
+             e.ownership, e.progress, e.rating, e.note,
+             e.last_played_at, e.recommended_by
+      FROM games g
+      JOIN entries e ON e.igdb_id = g.igdb_id
+      WHERE e.shelved = 0
+      ORDER BY g.title COLLATE NOCASE
+    ''');
+    if (rows.isEmpty) return const LoadResult(items: [], skipped: 0);
+
+    var skipped = 0;
+
+    // Only copies belonging to a live entry. The old query read every copy in
+    // the table including those of shelved games, then threw them away.
+    final copyRows = await _db.rawQuery('''
+      SELECT c.igdb_id, c.platform, c.form, c.acquired, c.price_paid_minor
+      FROM copies c
+      JOIN entries e ON e.igdb_id = c.igdb_id
+      WHERE e.shelved = 0
+    ''');
+    final byGame = <int, List<Copy>>{};
+    for (final c in copyRows) {
+      // A copy with an unreadable platform is dropped on its own. Losing one
+      // copy is a smaller lie than dropping the game it belongs to.
+      try {
+        final id = c['igdb_id'] as int;
+        byGame.putIfAbsent(id, () => []).add(Copy(
+              igdbId: id,
+              platform: _platform(c['platform'] as String),
+              form: _form(c['form'] as String),
+              acquired: _acquired(c['acquired'] as String),
+              pricePaidMinor: c['price_paid_minor'] as int?,
+            ));
+      } catch (_) {
+        skipped++;
+      }
+    }
+
+    final items = <TreeItem>[];
+    for (final r in rows) {
+      try {
+        final id = r['igdb_id'] as int;
+        items.add(TreeItem(
+          game: Game(
+            igdbId: id,
+            title: r['title'] as String,
+            coverUrl: r['cover_url'] as String?,
+            releaseYear: r['release_year'] as int?,
+            timeToBeatSeconds: r['time_to_beat_seconds'] as int?,
+          ),
+          entry: Entry(
+            igdbId: id,
+            ownership: _ownership(r['ownership'] as String),
+            progress: _progress(r['progress'] as String),
+            // A rating outside 1 to 5 is treated as absent rather than shown.
+            // It cannot get in through this app, so it means the file was
+            // edited, and a 7 star game is a worse outcome than no stars.
+            rating: _sanitisedRating(r['rating']),
+            note: r['note'] as String?,
+            lastPlayedAt: _dateOrNull(r['last_played_at']),
+            recommendedBy: r['recommended_by'] as String?,
+          ),
+          copies: byGame[id] ?? const [],
+        ));
+      } catch (_) {
+        skipped++;
+      }
+    }
+
+    return LoadResult(items: items, skipped: skipped);
+  }
+
+  static int? _sanitisedRating(Object? v) {
+    if (v is! int) return null;
+    if (v < 1 || v > 5) return null;
+    return v;
+  }
+
+  /// Writes one game, its entry and its copies.
+  ///
+  /// ### Why this is raw SQL and not `ConflictAlgorithm.replace`
+  ///
+  /// It used to be `replace` on `games`, and that was the single worst defect in
+  /// this file. `INSERT OR REPLACE` in SQLite does not update a row: it DELETES
+  /// the conflicting row and inserts a new one. `entries`, `copies` and
+  /// `placements` all declare `REFERENCES games(igdb_id) ON DELETE CASCADE`, and
+  /// `PRAGMA foreign_keys = ON` is set per connection, so that delete cascaded.
+  ///
+  /// The effect: re-importing a game you already had silently destroyed its
+  /// progress, its rating, its note, every platform you owned it on, and every
+  /// branch it hung from. The one promise this model exists to make, that a
+  /// completion record survives everything, was being broken by an ordinary
+  /// second import. No feature test touched it because nothing imported twice.
+  ///
+  /// `ON CONFLICT DO UPDATE` updates in place. No delete, so no cascade.
+  ///
+  /// The three tables then have three deliberate rules:
+  /// - `games` updates, because it is catalogue data owned by IGDB and a
+  ///   corrected title or length should win.
+  /// - `entries` does nothing on conflict. Only the user changes an entry.
+  /// - `copies` does nothing on conflict, so a re-import cannot duplicate a copy.
+  Future<void> upsert(TreeItem item) async {
+    final g = item.game;
+    final e = item.entry;
+    _validateTitle(g.title);
+    _validateRating(e.rating);
+    await _db.transaction((txn) async {
+      await txn.rawInsert(
+        '''
+        INSERT INTO games
+          (igdb_id, title, cover_url, release_year, time_to_beat_seconds)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(igdb_id) DO UPDATE SET
+          title                = excluded.title,
+          cover_url            = excluded.cover_url,
+          release_year         = excluded.release_year,
+          time_to_beat_seconds = excluded.time_to_beat_seconds
+        ''',
+        [
+          g.igdbId,
+          g.title,
+          g.coverUrl,
+          g.releaseYear,
+          g.timeToBeatSeconds,
+        ],
+      );
+      await txn.rawInsert(
+        '''
+        INSERT INTO entries
+          (igdb_id, ownership, progress, rating, note, last_played_at,
+           recommended_by, shelved)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(igdb_id) DO NOTHING
+        ''',
+        [
+          e.igdbId,
+          e.ownership.name,
+          e.progress.name,
+          e.rating,
+          e.note,
+          e.lastPlayedAt?.millisecondsSinceEpoch,
+          e.recommendedBy,
+          e.shelved ? 1 : 0,
+        ],
+      );
+      for (final c in item.copies) {
+        await txn.insert(
+          'copies',
+          {
+            'igdb_id': c.igdbId,
+            'platform': c.platform.name,
+            'form': c.form.name,
+            'acquired': c.acquired.name,
+            'price_paid_minor': c.pricePaidMinor,
+          },
+          conflictAlgorithm: ConflictAlgorithm.ignore,
+        );
+      }
+    });
+  }
+
+  /// Sets ownership and touches nothing else.
+  ///
+  /// Two separate methods rather than one with two optional arguments. One
+  /// method is exactly how the two axes get accidentally coupled by a caller
+  /// that passes both, and keeping a completion record through a sale is the
+  /// reason this model exists.
+  Future<void> setOwnership(int igdbId, Ownership value) => _db.update(
+        'entries',
+        {'ownership': value.name},
+        where: 'igdb_id = ?',
+        whereArgs: [igdbId],
+      );
+
+  /// Sets progress and touches nothing else.
+  Future<void> setProgress(int igdbId, Progress value) => _db.update(
+        'entries',
+        {'progress': value.name},
+        where: 'igdb_id = ?',
+        whereArgs: [igdbId],
+      );
+
+  /// Sets the rating and touches nothing else. Null clears it.
+  ///
+  /// A rating belongs to the harvest, not to the game, so this deliberately does
+  /// not also set progress. Rating something you have not finished is a caller
+  /// bug and the UI is what prevents it, not this method: the repository's job
+  /// is to refuse impossible VALUES, not to enforce a screen's flow.
+  Future<void> setRating(int igdbId, int? rating) {
+    _validateRating(rating);
+    return _db.update(
+      'entries',
+      {'rating': rating},
+      where: 'igdb_id = ?',
+      whereArgs: [igdbId],
+    );
+  }
+
+  /// Replaces delete.
+  Future<void> shelve(int igdbId) => _db.update(
+        'entries',
+        {'shelved': 1},
+        where: 'igdb_id = ?',
+        whereArgs: [igdbId],
+      );
+
+  /// Brings a shelved game back.
+  ///
+  /// Shelving replaces deletion, so it has to be reversible or it is just a
+  /// delete with a gentler name. Without this the user has no way back and the
+  /// promise the word makes is false.
+  Future<void> unshelve(int igdbId) => _db.update(
+        'entries',
+        {'shelved': 0},
+        where: 'igdb_id = ?',
+        whereArgs: [igdbId],
+      );
+
+  /// Removes one copy without touching the entry. This is a sale, and the
+  /// completion record must survive it.
+  Future<void> removeCopy(int igdbId, Platform platform, Form form) =>
+      _db.delete(
+        'copies',
+        where: 'igdb_id = ? AND platform = ? AND form = ?',
+        whereArgs: [igdbId, platform.name, form.name],
+      );
+
+  // Branches, named by the user.
+
+  /// Normalises a user supplied branch name, or throws.
+  ///
+  /// Trimmed, because a name that is only spaces is unreadable in a list and
+  /// unselectable by search, and the user cannot see the difference. Length
+  /// capped, because nothing downstream can lay out an unbounded paste.
+  static String _branchName(String raw) {
+    final name = raw.trim();
+    if (name.isEmpty) {
+      throw ArgumentError.value(raw, 'name', 'a branch needs a name');
+    }
+    if (name.length > maxNameLength) {
+      throw ArgumentError.value(
+          name.length, 'name', 'must be at most $maxNameLength characters');
+    }
+    return name;
+  }
+
+  Future<int> createBranch(String name, {int sortOrder = 0}) => _db.insert(
+        'branches',
+        {
+          'name': _branchName(name),
+          'sort_order': sortOrder,
+          'created_at': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+
+  Future<List<({int id, String name, int sortOrder})>> branches() async {
+    final rows = await _db.query('branches', orderBy: 'sort_order, id');
+    return rows
+        .map((r) => (
+              id: r['id'] as int,
+              name: r['name'] as String,
+              sortOrder: r['sort_order'] as int,
+            ))
+        .toList();
+  }
+
+  Future<void> renameBranch(int id, String name) => _db.update(
+        'branches',
+        {'name': _branchName(name)},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+
+  /// Removes a branch and the placements that pointed at it.
+  ///
+  /// It does NOT remove a single game, entry or copy. A branch is a container,
+  /// and emptying a container does not destroy what was inside: the games simply
+  /// become unplaced, which is an ordinary state with its own UI. The schema's
+  /// cascade would handle placements on its own, but only because
+  /// `PRAGMA foreign_keys = ON` is set per connection, so the delete is written
+  /// out explicitly rather than trusting that to stay true.
+  Future<void> deleteBranch(int id) => _db.transaction((txn) async {
+        await txn.delete('placements', where: 'branch_id = ?', whereArgs: [id]);
+        await txn.delete('branches', where: 'id = ?', whereArgs: [id]);
+      });
+
+  /// Rewrites the order of every branch in one transaction.
+  ///
+  /// One transaction because a reorder that fails halfway leaves two branches
+  /// claiming the same position, and the list then renders in an order that
+  /// depends on the id tiebreak rather than on anything the user did.
+  Future<void> reorderBranches(List<int> idsInOrder) => _db.transaction((txn) async {
+        for (var i = 0; i < idsInOrder.length; i++) {
+          await txn.update(
+            'branches',
+            {'sort_order': i},
+            where: 'id = ?',
+            whereArgs: [idsInOrder[i]],
+          );
+        }
+      });
+
+  Future<void> place(int igdbId, int branchId, {int position = 0}) => _db.insert(
+        'placements',
+        {'branch_id': branchId, 'igdb_id': igdbId, 'position': position},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+  Future<void> unplace(int igdbId, int branchId) => _db.delete(
+        'placements',
+        where: 'branch_id = ? AND igdb_id = ?',
+        whereArgs: [branchId, igdbId],
+      );
+
+  /// Games captured but not yet placed on any branch.
+  ///
+  /// This is a real state with its own UI, not an error. It is what the "NEW"
+  /// ribbon and the unplaced section in docs/USERFLOWS.md refer to.
+  Future<List<int>> unplacedGameIds() async {
+    final rows = await _db.rawQuery('''
+      SELECT g.igdb_id FROM games g
+      JOIN entries e ON e.igdb_id = g.igdb_id
+      WHERE e.shelved = 0
+        AND g.igdb_id NOT IN (SELECT igdb_id FROM placements)
+      ORDER BY g.title COLLATE NOCASE
+    ''');
+    return rows.map((r) => r['igdb_id'] as int).toList();
+  }
+
+  Future<int> gameCount() async {
+    final r = await _db.rawQuery('SELECT COUNT(*) AS n FROM games');
+    return (r.first['n'] as int?) ?? 0;
+  }
+
+  /// Fills an empty database from the fixture so a first run has something to
+  /// look at. Does nothing once there is any real data.
+  Future<void> seedIfEmpty() async {
+    if (await gameCount() > 0) return;
+    for (final item in fixtureTree()) {
+      await upsert(item);
+    }
+  }
+
+  Future<void> close() => _db.close();
+}

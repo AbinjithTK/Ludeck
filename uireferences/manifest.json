@@ -1,0 +1,364 @@
+{
+  "generated": "2026-09-24",
+  "source": "Mobbin (https://mobbin.com)",
+  "note": "Reference screenshots for Ludeck - a game logging / wishlist / tracking / sharing app with a 3D navigable tree home screen. Tolan = 3D world + character + spatial navigation patterns. Hypelist = list building, game metadata, social sharing patterns.",
+  "screens": [
+    {
+      "file": "tolan/home/01-world-character-collapsed-ui.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/pC2jXI8V",
+      "mobbin": "https://mobbin.com/screens/c24d04f4-3d85-4b46-98e9-caef82f7bf5e",
+      "why": "Baseline 3D home. Character sits small on a rolling hill, camera pulled back, gradient sky. All chrome pushed to screen edges so the 3D scene owns the middle. Chevron at top center collapses/expands the card stack. THE core layout for the Ludeck tree screen."
+    },
+    {
+      "file": "tolan/home/02-world-with-floating-card.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/SLorXVPA",
+      "mobbin": "https://mobbin.com/screens/b4abf431-b633-4c23-ada7-a04213535e66",
+      "why": "Expanded card floating over the 3D scene with paged dot indicators. Direct model for surfacing 'latest saved game' cards above the tree without leaving the world."
+    },
+    {
+      "file": "tolan/home/03-character-closeup-camera.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/rdiDqcQx",
+      "mobbin": "https://mobbin.com/screens/fc0e3d3e-6cbc-4444-a7f8-9dc02ec370c5",
+      "why": "Same scene, camera dollied in. Shows the zoom range the navigation gesture should cover - tree overview to single-fruit closeup."
+    },
+    {
+      "file": "tolan/home/04-daily-card-with-token-badge.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/n6IbRBXg",
+      "mobbin": "https://mobbin.com/screens/a0126f22-0ab0-45eb-8ba7-f1694a0e3b2f",
+      "why": "Gradient daily card plus a collectible token badge in the top bar and a count bubble on the chevron. Pattern for 'you have N new games to place on the tree'."
+    },
+    {
+      "file": "tolan/home/05-wonder-card-constellation.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/317q4M6X",
+      "mobbin": "https://mobbin.com/screens/e902a161-a2a8-491c-8be5-2f92b59263b1",
+      "why": "Dark card with a constellation motif - node-and-edge graphic. Useful visual language for branch structure / progression."
+    },
+    {
+      "file": "tolan/home/06-orbit-planet-navigation.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/ATTPM5Rq",
+      "mobbin": "https://mobbin.com/screens/f142eb7a-56ef-4fbe-94c5-097c648bcbe8",
+      "why": "KEY. Zoomed all the way out - the world becomes a small planet with orbit rings and a + affordance in orbit. Best reference for a zoom-out overview of the whole Ludeck tree, or for switching between multiple trees/branches."
+    },
+    {
+      "file": "tolan/home/07-voice-mode-streak-pill.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/vteEmwit",
+      "mobbin": "https://mobbin.com/screens/ae58054b-ae66-4b25-8908-72951f176967",
+      "why": "Streak pill ('2 days of friendship') with a flame token, tilted card, live audio waveform along the bottom edge. Streak/consistency framing for a backlog habit."
+    },
+    {
+      "file": "tolan/home/08-plus-action-menu.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/pQ2yajAK",
+      "mobbin": "https://mobbin.com/screens/890fa63e-e2a5-4db4-92f6-44e640b1b39c",
+      "why": "KEY. Tapping + expands a small stack of pill buttons (Take a photo / Send a photo / Paste a link) anchored bottom-left, + morphs to x. Exactly the add-a-game entry point pattern: paste a store link, scan a box, search."
+    },
+    {
+      "file": "tolan/home/09-chat-overlay-on-3d-scene.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/hczoGfvm",
+      "mobbin": "https://mobbin.com/screens/eaeaf55c-3199-43ac-85bb-997d441d6bf7",
+      "why": "KEY. Chat bubbles layered directly on the live 3D scene, character stays visible on the left, no modal. Shows how to keep the tree present while a detail/conversation flow runs on top."
+    },
+    {
+      "file": "tolan/home/10-reward-confetti-moment.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/vlFZ0rEE",
+      "mobbin": "https://mobbin.com/screens/57553723-5ab5-4ad7-9389-f71dcc2f1605",
+      "why": "Completion moment - green check stamp plus confetti bursting over the card, scene dimmed and blurred behind. The celebration beat for finishing a game / harvesting a fruit."
+    },
+    {
+      "file": "tolan/home/11-lets-chat-card.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/xBhP3oqZ",
+      "mobbin": "https://mobbin.com/screens/700c163a-0a27-4de6-a2ba-47c8e8ed48b9",
+      "why": "Card with a photographic thumbnail and a named CTA ('Chat with Sam'). Shows social prompts entering the world layer."
+    },
+    {
+      "file": "tolan/world/01-object-placement-ring.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/8drgjMeW",
+      "mobbin": "https://mobbin.com/screens/1a228d41-48f1-4ef5-8c1c-827a8d068f79",
+      "why": "MOST IMPORTANT REFERENCE. World-edit mode: a white placement ring projected onto the terrain, a rotate handle on the ring edge, Done button top-right, and a horizontal inventory tray of owned objects along the bottom with owned-count badges. This is the mechanic for placing a saved game as a fruit on a chosen branch."
+    },
+    {
+      "file": "tolan/world/02-object-placed-handles.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/h5wbq0bs",
+      "mobbin": "https://mobbin.com/screens/cddf8b83-ed7e-41e1-bc88-2a9b598cc23f",
+      "why": "KEY. Same mode with a placed object selected: green confirm, red delete, rotate, and a 4-way move puck arranged around the object in world space. The full manipulation gesture kit for arranging fruit."
+    },
+    {
+      "file": "tolan/world/03-wide-world-pond.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/ISwxV6Sa",
+      "mobbin": "https://mobbin.com/screens/fc50f7e3-dc5c-4c56-8b81-0b963e891bfd",
+      "why": "Character exploring a broader scene with placed props and water ripples. Shows the world reading as inhabited once objects accumulate - the payoff as a tree fills with games."
+    },
+    {
+      "file": "tolan/world/04-profile-planet-progress.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/VvzxdY5v",
+      "mobbin": "https://mobbin.com/screens/cf127573-a166-4993-b8c4-9dc2491ddc91",
+      "why": "KEY. Profile as a rendered 3D planet with a serif name, a You/Tolan segmented toggle, an XP bar with a level chip, a next-reward thumbnail, a timed loot crate, and category cards (Wonder / Orbit / Drive) in a bottom rail. Strong model for a Ludeck profile: your tree rendered as the avatar, stats and categories beneath."
+    },
+    {
+      "file": "tolan/customize/01-color-palette-grid.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/GlpKQL2F",
+      "mobbin": "https://mobbin.com/screens/8d620c4e-5887-4e39-bf7b-fc2fb683187f",
+      "why": "Split layout: live 3D preview on a cream field up top, tab strip plus a swatch grid below with the active option ring-selected. Template for tree species / bark / foliage / season customization."
+    },
+    {
+      "file": "tolan/customize/02-silhouette-option-grid.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/L8NV4yvb",
+      "mobbin": "https://mobbin.com/screens/0cc46551-696c-4451-931a-24c42ee05402",
+      "why": "Same layout using grey silhouette thumbnails for shape options, with a reset icon top-right. How to show 3D form choices cheaply - e.g. tree canopy shapes."
+    },
+    {
+      "file": "tolan/customize/03-accessories-selected.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/8wWF9dnD",
+      "mobbin": "https://mobbin.com/screens/88fd579b-d696-4165-9cff-b362a544fac9",
+      "why": "Style/Clothes top-level segmented control over scrolling sub-category tabs, with a none/disabled slash option first. Two-level customization IA."
+    },
+    {
+      "file": "tolan/customize/04-scarf-category-grid.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/1k7tjP0r",
+      "mobbin": "https://mobbin.com/screens/5864cef8-1399-4eb1-bf52-f6d67d36e6c4",
+      "why": "Deeper sub-tab with a dense 3-up grid, preview partially scrolled away. Shows the grid scaling to many cosmetic items."
+    },
+    {
+      "file": "tolan/onboarding/01-character-intro-caption.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/HEcRFAzV",
+      "mobbin": "https://mobbin.com/screens/25e5429e-b3bf-4a36-bc14-20ced60ea33f",
+      "why": "Onboarding: bold hero 3D character on a saturated backdrop with one caption line and zero other chrome. Sets the 'meet your thing' emotional opener."
+    },
+    {
+      "file": "tolan/onboarding/02-meet-your-tolan-traits.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/ZGp50DO0",
+      "mobbin": "https://mobbin.com/screens/c832ed72-d56a-406f-89c7-31cff999ce19",
+      "why": "KEY. Reveal screen: serif name, trait chips, a descriptive line, a compatibility meter, and a floating 'Meet your Tolan' CTA over a starfield. Template for naming and revealing a freshly planted Ludeck tree."
+    },
+    {
+      "file": "tolan/onboarding/03-first-greeting.png",
+      "app": "Tolan",
+      "url": "https://mobbin.com/api/mcp/short/u5Oeaglq",
+      "mobbin": "https://mobbin.com/screens/87dcfb12-8ba2-4ad5-8173-11d42c0d7e13",
+      "why": "First-run scene with a low-contrast caption bar and dimmed controls, coaching the user into the world."
+    },
+    {
+      "file": "hypelist/discover/01-list-cards-discover.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/EeK10SfI",
+      "mobbin": "https://mobbin.com/screens/d4ea7401-f7b7-4080-81ed-5d3f2cc013b0",
+      "why": "KEY. The list card: big editorial cover image, author avatar chip top-left, overflow top-right, item count and title bottom-left, star-save with count bottom-right. The unit of sharing. Ludeck's shared-tree card should borrow this anatomy."
+    },
+    {
+      "file": "hypelist/discover/02-explore-trending-games.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/uF9jZkCF",
+      "mobbin": "https://mobbin.com/screens/e3516870-7d0f-47db-b1a8-39d8c50e4744",
+      "why": "KEY. Search field with an 'Ask AI' pill, trending-query chips with arrow glyphs, then a Trending rail where each card carries a coloured category badge (Games / TV Shows) over key art. Games are first-class here. Note the floating pill tab bar with a black + at center."
+    },
+    {
+      "file": "hypelist/discover/03-home-hero-carousel-pills.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/Kr8OXRAC",
+      "mobbin": "https://mobbin.com/screens/946e7531-d01a-4fd2-8830-3f96e70520a0",
+      "why": "KEY. Full-bleed hero carousel ('PC Videogames For You') with author attribution centred beneath and page dots, then category filter pills (For You / TV & Movies / Places), then an 'Up next for you' onboarding nudge. Games-forward home."
+    },
+    {
+      "file": "hypelist/discover/04-search-results-tabs.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/FxZsrSUI",
+      "mobbin": "https://mobbin.com/screens/894c4e00-522a-4c17-9fcf-bc5c8c52fe09",
+      "why": "Search results scoped by For You / Items / People / Hypelists tabs. Needed for Ludeck: search should resolve to games, people, and trees separately."
+    },
+    {
+      "file": "hypelist/discover/05-top10-numbered-rails.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/u5L6PdAY",
+      "mobbin": "https://mobbin.com/screens/62a3bd6d-05f8-4d8b-bfd9-c6d95290b2aa",
+      "why": "Ranked Top 10 rail with oversized numerals behind the artwork, plus personalized rails with bookmark icons on each tile. Good for game charts."
+    },
+    {
+      "file": "hypelist/discover/06-dark-category-rails.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/gwU3BBbB",
+      "mobbin": "https://mobbin.com/screens/e6b4a5c0-bb5b-48bd-bac2-e24002e2f913",
+      "why": "Dark theme rails (Upcoming / Now Playing / Top 10) with bookmark affordance per tile. 'Upcoming' and 'Now Playing' map cleanly to game release tracking."
+    },
+    {
+      "file": "hypelist/discover/07-feed-item-with-review.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/TPmZWoQG",
+      "mobbin": "https://mobbin.com/screens/5479ca71-0a6a-4e85-8a12-d4ab03b6305a",
+      "why": "Social feed entry: user avatar and handle, a compact item card with bookmark, a quoted comment, star rating, then like and reply. How a single save becomes a shareable post."
+    },
+    {
+      "file": "hypelist/discover/08-people-to-follow.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/xL1WF6an",
+      "mobbin": "https://mobbin.com/screens/dd8d0d32-5276-4881-a21a-ef77ba6aba0c",
+      "why": "Dismissible 'People to follow' cards injected mid-feed, with an Invite-your-friends card leading. Growth loop placement."
+    },
+    {
+      "file": "hypelist/discover/09-item-community-thoughts.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/wPZM8S94",
+      "mobbin": "https://mobbin.com/screens/2a53c84f-20ae-450b-9504-ef7bec9825d5",
+      "why": "KEY. Game detail page with Info / Community tabs, a review count badge, sort and filter chips (All Thoughts / Newest / Rating), threaded reactions, an edit-delete popover, and a floating 'Add a thought' FAB. Note the Save pill and star rating pinned in the header over the key art."
+    },
+    {
+      "file": "hypelist/discover/10-item-also-added-in.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/vFuoVsBG",
+      "mobbin": "https://mobbin.com/screens/09b0ed6e-8428-4f60-ad1b-e2a0d6ab56c0",
+      "why": "KEY. 'Item also added in:' - every other list containing this game, scoped by Everyone / Following / Your Lists. Turns a single game into a discovery hub. Strong differentiator worth copying."
+    },
+    {
+      "file": "hypelist/discover/11-more-like-this.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/5C2K2e3p",
+      "mobbin": "https://mobbin.com/screens/d0bb8e4b-7f11-43e5-abd7-d638e26272a9",
+      "why": "KEY. 'If you like X / You might also like' with real recommendation rows - cover, title, platform-aware one-line description, bookmark to save. Shows how game metadata and platforms are presented compactly."
+    },
+    {
+      "file": "hypelist/list/01-empty-state-game-bucket-list.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/V6is8vB8",
+      "mobbin": "https://mobbin.com/screens/1ed46bfb-ab67-4155-9f3d-cf9c41d9aab9",
+      "why": "KEY. Empty list named 'Game Bucket List': gradient cover header with title, a Private lock chip, last-updated date, sort and edit circle buttons, and a hand-drawn arrow pointing at the + in the floating action bar. Best-in-class empty state."
+    },
+    {
+      "file": "hypelist/list/02-first-item-playing-section.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/8NhumNho",
+      "mobbin": "https://mobbin.com/screens/77831c08-9262-43a9-aff8-3d4d6ce2d6a6",
+      "why": "KEY. Same list with one game under a 'Playing' section heading. Row = cover thumb, title, expand chevron, platform line ('Google Stadia - PC'), star rating, overflow. Bottom action bar: Assistant, likes, +, comments, saves."
+    },
+    {
+      "file": "hypelist/list/03-status-sections-playing-shelved.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/MGfrB9Po",
+      "mobbin": "https://mobbin.com/screens/b51717c9-cff7-41b4-bcde-13b7a9399050",
+      "why": "MOST IMPORTANT LIST REFERENCE. User-defined status sections - Playing / Shelved / Uncategorized - each collapsible. This is exactly Ludeck's tracking model (Wishlist / Playing / Finished / Dropped) and maps 1:1 onto named tree branches."
+    },
+    {
+      "file": "hypelist/list/04-selection-checkboxes.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/YhvkbugD",
+      "mobbin": "https://mobbin.com/screens/9234f50a-7888-45ad-99f2-f5539fdcc926",
+      "why": "Multi-select mode: checkbox on each row, sections intact, title now shows the owner ('Alex Game Bucket List') and a Public globe chip. Bulk-move games between branches."
+    },
+    {
+      "file": "hypelist/list/05-checked-off-strikethrough.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/3PrjWHp0",
+      "mobbin": "https://mobbin.com/screens/fc8358f7-a5d8-4ada-a526-35bc10c0aa67",
+      "why": "KEY. Completed items get a filled checkbox and strikethrough title while staying in place. The 'finished this game' state without losing history."
+    },
+    {
+      "file": "hypelist/list/06-flat-list-completed-marks.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/8F1OAgOL",
+      "mobbin": "https://mobbin.com/screens/92ec5979-1a1c-4f04-99f5-35f3bda59860",
+      "why": "Ungrouped view of the same list with black check badges on the right. Shows the sectioned-vs-flat toggle paying off."
+    },
+    {
+      "file": "hypelist/list/07-new-badges-uncategorized.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/35ulBTA9",
+      "mobbin": "https://mobbin.com/screens/67c81baa-cb53-4be5-980f-6e2552ed0e44",
+      "why": "KEY. 'NEW' corner ribbons on freshly added rows, developer/studio as the subtitle, and a collapsed sticky header. The 'just saved, not yet placed on the tree' state."
+    },
+    {
+      "file": "hypelist/list/08-edit-mode-sections.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/ngehJr3l",
+      "mobbin": "https://mobbin.com/screens/5e29b1f4-9ddd-4189-a50d-5a497453c3fd",
+      "why": "KEY. Edit mode: Change cover in the header, a chip row (Add description / Add images / Add Source), per-section rename pencil with reorder arrow and red delete, and a floating Background / Select Items toolbar. Full list-authoring surface."
+    },
+    {
+      "file": "hypelist/list/09-public-list-artwork-cover.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/Vca6Wtmu",
+      "mobbin": "https://mobbin.com/screens/f6afab12-1007-4196-b345-f86f32c1d6fd",
+      "why": "KEY. A public list with a painterly custom cover, decorated title, owner avatar, and rows that use bookmark-to-save instead of checkboxes - the read-only visitor view of someone else's list. Bottom bar switches to Add-a-comment plus save and like counts."
+    },
+    {
+      "file": "hypelist/list/10-comments-off-toast.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/ZOOcC0MB",
+      "mobbin": "https://mobbin.com/screens/f88f03a2-b3a0-4b21-b742-2bd8819ec8af",
+      "why": "Toast pill confirming 'Comments turned off' in the header slot, list untouched beneath. Lightweight per-list privacy control."
+    },
+    {
+      "file": "hypelist/share/01-make-public-to-share.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/BvY2l9WP",
+      "mobbin": "https://mobbin.com/screens/9b93839a-8492-44b6-ab12-d50c6cf46f90",
+      "why": "KEY. Bottom sheet with a Private/Public segmented control and plain-language consequences for each, then 'Save and share'. Consent-before-share done well."
+    },
+    {
+      "file": "hypelist/share/02-invite-collaborator.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/aEzP5vXR",
+      "mobbin": "https://mobbin.com/screens/dd1d35e8-825e-4b16-bb8f-169271a1a113",
+      "why": "KEY. Invite Collaborator sheet: user search, suggested people with Invite buttons that flip to an 'Invited' outline state, an 'Invite others' fallback, and a footnote that invitees can add or edit. Co-op branches on a shared tree."
+    },
+    {
+      "file": "hypelist/share/03-share-story-card.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/mM8kovdy",
+      "mobbin": "https://mobbin.com/screens/6a2f340e-52c8-408b-9de8-ac8fdfebcc5d",
+      "why": "KEY. Share sheet built around a swipeable generated story card carrying the list cover, a sample item, and branding, with an Instagram Stories button on the card, then a friend row and a destination row (Copy Link / QR Code / WhatsApp / Messenger / iMessage). Ludeck should render a share card of the tree here."
+    },
+    {
+      "file": "hypelist/share/04-share-qr-code.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/i0OKXopN",
+      "mobbin": "https://mobbin.com/screens/f12ab7da-24c8-429d-897a-23846098e733",
+      "why": "KEY. Same sheet switched to a branded QR code with a Download button. Good for sharing a tree in person."
+    },
+    {
+      "file": "hypelist/share/05-link-copied-toast.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/il7AdR2I",
+      "mobbin": "https://mobbin.com/screens/cfeedde5-28bb-43b0-af4d-f51c64fcc5d0",
+      "why": "'Link copied' toast with the list thumbnail and a thumbs-up, dropping in over the open share sheet. Confirmation without dismissing context."
+    },
+    {
+      "file": "hypelist/share/06-new-list-sharing-settings.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/UK0Dajjk",
+      "mobbin": "https://mobbin.com/screens/4fd86f4c-1176-45e9-afff-ff4c58d0023e",
+      "why": "KEY. Creation flow: 'New Hypelist' with a name field pre-filled 'Game Bucket List', a cover source strip (Color / Camera Roll / Stock Photos), and a Public chip in the nav that opens the same sharing sheet. The create-a-branch flow."
+    },
+    {
+      "file": "hypelist/share/07-share-profile-card.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/ejScVqGW",
+      "mobbin": "https://mobbin.com/screens/540fbe89-4161-491c-ae50-6b94f2878e19",
+      "why": "Profile-level share card with avatar and @handle, plus Report and Block in the destination row. Shows the same sheet generalizing across object types."
+    },
+    {
+      "file": "hypelist/profile/01-profile-lists-menu.png",
+      "app": "Hypelist",
+      "url": "https://mobbin.com/api/mcp/short/jr1JgkYV",
+      "mobbin": "https://mobbin.com/screens/e15b20f6-9628-49ef-a06c-d4fad0b53efa",
+      "why": "KEY. Profile: photo-collage banner, polaroid-framed avatar, name with badges, handle, bio, following and follower counts, Edit Profile plus a theme paint button, then a searchable Hypelists shelf with filter chips - and a long-press menu (Edit / Share / Pin to Profile / Folder Options / Delete). Ludeck's profile equivalent, with the tree in place of the polaroid."
+    }
+  ]
+}

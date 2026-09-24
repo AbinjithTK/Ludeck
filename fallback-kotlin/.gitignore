@@ -1,0 +1,28 @@
+# Machine-specific. Holds the absolute SDK path, so it must never be committed.
+local.properties
+
+# Build output
+build/
+app/build/
+.gradle/
+*.apk
+*.aab
+
+# Keystores. A signing key in version control is unrecoverable once pushed.
+*.jks
+*.keystore
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Layers stores its session in the OS credential store, so the files it writes
+# are safe to commit. Listed here only to record that the decision was made.
+# .layers/project.json   - public ids only
+# .mcp.json              - server entry, no credential
+
+# IDE
+.idea/
+*.iml
+.DS_Store

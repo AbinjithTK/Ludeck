@@ -1,0 +1,17 @@
+{
+  "_comment": "Only DECIDED facts go in here. Leave a field out rather than guessing at it -- the benchmark reports 'not set' honestly, and an invented number turns this tool into flattery. Fill description_chars and gallery_images once the Devpost writeup and screenshots actually exist.",
+
+  "name": "Ludeck",
+
+  "built_with_count": 15,
+  "team_size": 1,
+
+  "apple": false,
+  "google": true,
+  "samsung": false,
+
+  "video": false,
+  "revenuecat": true,
+
+  "sponsor_sdks": ["onesignal", "layers"]
+}
