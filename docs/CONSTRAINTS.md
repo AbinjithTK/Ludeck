@@ -81,18 +81,48 @@ Kotlin Multiplatform had no payoff.
 Later options, cheapest first: a macOS CI runner, a rented Mac, a Mac mini at roughly
 600 USD. All of them additionally need the Apple Developer Program at 99 USD a year.
 
-## No emulator can boot
+## The emulator CAN boot. This section was wrong.
 
-`emulator -accel-check` returns exit code 6, "hypervisor driver is not installed".
-A `Pixel_8` AVD was tried and timed out after 300 seconds.
+Corrected 2026-09-24. It previously read "No emulator can boot" and treated that as a
+settled constraint on the strength of one check. That was wrong, and it cost real
+iteration quality: the whole first design critique was run against a 1600x900 desktop
+window, so the phone layout went unjudged for no good reason.
 
-Fixing it needs administrator rights, a reboot, and carries a risk of conflicting
-with Hyper-V. It was diagnosed rather than retried.
+What is actually true on this machine:
 
-Consequence: **a real Android phone is a submission dependency.** The demo video and
-the store screenshots cannot be produced without one. Flutter's Windows target covers
-visual checking of the canvas, but it is not a phone and cannot produce phone-shaped
-screenshots.
+- Two AVDs are configured, `Pixel_8` and `Medium_Phone` (API 36.1).
+- Both x86_64 `google_apis_playstore` system images are downloaded.
+- The emulator detects the GPU fine (NVIDIA GeForce RTX 2060, Vulkan 1.4).
+- The emulator's own preflight reports `hasCompatibleHypervisor: Ok` and
+  `hasSufficientHwGpu: Ok`. The CPU was never the problem.
+- `HypervisorPresent` is False, meaning Hyper-V is off, so the **Android Emulator
+  hypervisor driver (AEHD)** is the correct accelerator here, not WHPX. If Hyper-V
+  were on, AEHD would refuse and WHPX would be the path instead.
+
+The only thing that was ever missing: the driver had not been installed. Its installer
+was already sitting in the SDK at
+`%LOCALAPPDATA%\Android\Sdk\extras\google\Android_Emulator_Hypervisor_Driver\silent_install.bat`.
+
+Installing it registers an `aehd` service with `StartType: System`. Both the install
+and starting the service need administrator rights, which an agent session does not
+have, so this step belongs to a person. Because it is a boot-start driver, a reboot
+loads it; `sc start aehd` from an elevated prompt does the same without one.
+
+Verify with `emulator -accel-check`. Exit code 6 means the driver is still not loaded.
+
+### Launching it from the dart tooling
+
+`launch_app`'s `root` argument must be a **plain path** (`F:\Abin\Ludeck\app`). Passing
+a `file:///` URI fails with `ProcessException: The directory name is invalid`, despite
+the parameter being described as a directory. This differs from `add_roots`, which does
+want a `file://` URI.
+
+### A real phone is still a submission dependency
+
+The emulator working does not remove this. The demo video and the store screenshots
+should come from a physical device: a screen recording of an emulator is a visibly
+weaker demo, and the required screenshot size is exact (1179x2556, no device frame).
+The emulator's value is iteration at phone aspect ratio, not asset production.
 
 ## Google Play
 
