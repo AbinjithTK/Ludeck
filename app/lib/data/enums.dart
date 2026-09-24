@@ -30,7 +30,11 @@ enum Ownership {
 /// a harsher word would and costs the user nothing to look at, which matters in
 /// an app whose whole subject is games you have not played yet.
 enum Progress {
-  untouched('Not started', 'Ripe'),
+  /// Tree word is 'Growing', not 'Ripe'. Ripeness was removed on 2026-09-24:
+  /// it asked the user to learn what a colour meant, and `choosePick` answers
+  /// the same question in a sentence instead. `Season.stillGrowing` counts this
+  /// state alongside installed and playing, so the word matches the rollup.
+  untouched('Not started', 'Growing'),
   installed('Installed', 'Within reach'),
   playing('Playing', 'In hand'),
   finished('Finished', 'Harvested'),

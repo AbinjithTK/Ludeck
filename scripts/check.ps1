@@ -132,10 +132,16 @@ if ($secrets) {
 # Removed on 2026-09-24 and replaced by completion. It came back once already as
 # a duplicated condition that a scripted rename produced, which the analyzer
 # could not see because it was valid Dart.
+#
+# The quoted-string alternative is here because the identifier patterns alone
+# missed a real survivor: enums.dart shipped untouched('Not started', 'Ripe')
+# for a full day after the removal, because 'Ripe' as a DISPLAY STRING matches
+# no identifier shape. A metaphor word the user can read is exactly the case
+# this rule exists to catch, so it must cover the string form too.
 $ripeHits = @()
 foreach ($f in ($dartFiles + $testFiles)) {
     foreach ($l in (Get-DartCode $f.FullName)) {
-        if ($l.Text -match '\bisRipe\b|\bripeness\b|\bripe\s*[:=]|\.\s*ripe\b') {
+        if ($l.Text -match "\bisRipe\b|\bripeness\b|\bripe\s*[:=]|\.\s*ripe\b|['`"]Ripe['`"]") {
             $ripeHits += "$($f.Name):$($l.Line)  $($l.Text.Trim())"
         }
     }

@@ -81,12 +81,20 @@ Kotlin Multiplatform had no payoff.
 Later options, cheapest first: a macOS CI runner, a rented Mac, a Mac mini at roughly
 600 USD. All of them additionally need the Apple Developer Program at 99 USD a year.
 
-## The emulator CAN boot. This section was wrong.
+## The emulator: hardware is capable, BIOS is not. Corrected twice.
 
-Corrected 2026-09-24. It previously read "No emulator can boot" and treated that as a
-settled constraint on the strength of one check. That was wrong, and it cost real
-iteration quality: the whole first design critique was run against a 1600x900 desktop
-window, so the phone layout went unjudged for no good reason.
+This section has been wrong in both directions and the history matters, because each
+wrong version cost something.
+
+**Version one said "no emulator can boot"** and treated that as settled on the strength
+of one failing check. That cost real iteration quality: the whole first design critique
+ran against a 1600x900 desktop window, so the phone layout went unjudged for no good
+reason.
+
+**Version two said the only missing piece was the driver.** Also wrong. The driver
+installed cleanly and still fails to load, because the firmware bit underneath it is
+off. The lesson in both cases is the same: a preflight check reporting "compatible" is a
+statement about capability, not about availability.
 
 What is actually true on this machine:
 
@@ -94,21 +102,54 @@ What is actually true on this machine:
 - Both x86_64 `google_apis_playstore` system images are downloaded.
 - The emulator detects the GPU fine (NVIDIA GeForce RTX 2060, Vulkan 1.4).
 - The emulator's own preflight reports `hasCompatibleHypervisor: Ok` and
-  `hasSufficientHwGpu: Ok`. The CPU was never the problem.
+  `hasSufficientHwGpu: Ok`. **Read that carefully: it reports CPU CAPABILITY, not
+  firmware enablement.** `VMMonitorModeExtensions: True` means the silicon supports
+  virtualization. It says nothing about whether the BIOS lets anyone use it, which
+  is a separate fact and the one that actually blocks here.
 - `HypervisorPresent` is False, meaning Hyper-V is off, so the **Android Emulator
   hypervisor driver (AEHD)** is the correct accelerator here, not WHPX. If Hyper-V
   were on, AEHD would refuse and WHPX would be the path instead.
 
-The only thing that was ever missing: the driver had not been installed. Its installer
-was already sitting in the SDK at
+### The driver is now installed, and that was not enough
+
+Installed 2026-09-24 from the installer already sitting in the SDK at
 `%LOCALAPPDATA%\Android\Sdk\extras\google\Android_Emulator_Hypervisor_Driver\silent_install.bat`.
+It registered an `aehd` service, `StartType: System`, binary present at
+`\SystemRoot\system32\DRIVERS\aehd.sys` (403 KB).
 
-Installing it registers an `aehd` service with `StartType: System`. Both the install
-and starting the service need administrator rights, which an agent session does not
-have, so this step belongs to a person. Because it is a boot-start driver, a reboot
-loads it; `sc start aehd` from an elevated prompt does the same without one.
+The machine was then rebooted, and the driver **attempted to load and failed**:
 
-Verify with `emulator -accel-check`. Exit code 6 means the driver is still not loaded.
+```
+sc.exe query aehd
+  STATE           : 1  STOPPED
+  WIN32_EXIT_CODE : 31  (0x1f)      "A device attached to the system is not functioning"
+```
+
+**The real blocker is AMD SVM Mode, disabled in the BIOS.** This is a Ryzen 7 3800X,
+and AMD's hardware virtualization is called SVM Mode:
+
+```
+Get-CimInstance Win32_Processor | Select VirtualizationFirmwareEnabled
+  VirtualizationFirmwareEnabled : False
+Get-ComputerInfo HyperVRequirementVirtualizationFirmwareEnabled
+  False
+```
+
+With SVM off there is no virtualization extension for AEHD to claim, which is exactly
+what error 31 means. **No software path avoids this.** WHPX needs the same firmware bit,
+so switching accelerators does not help, and neither does reinstalling the driver.
+
+Fixing it means entering UEFI setup on boot and enabling **SVM Mode**, usually under
+Advanced, then CPU Configuration. That is a physical, human-only action: no agent tool
+can reach firmware settings, and no elevation would help.
+
+Verify after enabling with `emulator -accel-check`. Exit code 6 means still not loaded;
+it must report acceleration available before `Pixel_8` will boot.
+
+**Do not write `sc start aehd` in PowerShell.** `sc` is a built-in alias for
+`Set-Content` there, so that command silently writes a 6-byte file named `start`
+containing `aehd` and never touches the service. It does not error, which is what makes
+it dangerous as advice. Use `sc.exe start aehd` or `Start-Service aehd`, both elevated.
 
 ### Launching it from the dart tooling
 
