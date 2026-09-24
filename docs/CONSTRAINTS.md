@@ -81,75 +81,90 @@ Kotlin Multiplatform had no payoff.
 Later options, cheapest first: a macOS CI runner, a rented Mac, a Mac mini at roughly
 600 USD. All of them additionally need the Apple Developer Program at 99 USD a year.
 
-## The emulator: hardware is capable, BIOS is not. Corrected twice.
+## The emulator works. WHPX is the accelerator, not AEHD. Resolved 2026-09-24.
 
-This section has been wrong in both directions and the history matters, because each
-wrong version cost something.
+`Pixel_8` boots and runs the app. Three earlier versions of this section were wrong, and
+the history is kept because each wrong version cost something real.
 
-**Version one said "no emulator can boot"** and treated that as settled on the strength
-of one failing check. That cost real iteration quality: the whole first design critique
-ran against a 1600x900 desktop window, so the phone layout went unjudged for no good
-reason.
+**Version one: "no emulator can boot."** Settled on one failing check. That cost the most
+of any error here: the entire first design critique ran against a 1600x900 desktop
+window, so the phone layout went unjudged for days.
 
-**Version two said the only missing piece was the driver.** Also wrong. The driver
-installed cleanly and still fails to load, because the firmware bit underneath it is
-off. The lesson in both cases is the same: a preflight check reporting "compatible" is a
-statement about capability, not about availability.
+**Version two: "the only missing piece is the AEHD driver."** Wrong. AEHD installed
+cleanly and still failed to load, exit code 31.
 
-What is actually true on this machine:
+**Version three: "AMD SVM Mode is disabled in the BIOS."** Also wrong, and wrong in the
+most expensive direction, because it told a human to go reboot into firmware for nothing.
 
-- Two AVDs are configured, `Pixel_8` and `Medium_Phone` (API 36.1).
-- Both x86_64 `google_apis_playstore` system images are downloaded.
-- The emulator detects the GPU fine (NVIDIA GeForce RTX 2060, Vulkan 1.4).
-- The emulator's own preflight reports `hasCompatibleHypervisor: Ok` and
-  `hasSufficientHwGpu: Ok`. **Read that carefully: it reports CPU CAPABILITY, not
-  firmware enablement.** `VMMonitorModeExtensions: True` means the silicon supports
-  virtualization. It says nothing about whether the BIOS lets anyone use it, which
-  is a separate fact and the one that actually blocks here.
-- `HypervisorPresent` is False, meaning Hyper-V is off, so the **Android Emulator
-  hypervisor driver (AEHD)** is the correct accelerator here, not WHPX. If Hyper-V
-  were on, AEHD would refuse and WHPX would be the path instead.
+### What was actually happening
 
-### The driver is now installed, and that was not enough
+`Get-CimInstance Win32_Processor | Select VirtualizationFirmwareEnabled` reported
+`False`, which reads like "SVM is off in the BIOS". It is not what that means when a
+hypervisor is already running. **WSL runs on the Windows hypervisor, and a running
+hypervisor holds the virtualization extensions**, which is exactly the condition AEHD's
+error 31 reports: AEHD is a *bare-metal* driver and requires that no hypervisor owns the
+extensions. SVM was enabled the whole time. It has to be, or the Windows hypervisor could
+not have started either.
 
-Installed 2026-09-24 from the installer already sitting in the SDK at
-`%LOCALAPPDATA%\Android\Sdk\extras\google\Android_Emulator_Hypervisor_Driver\silent_install.bat`.
-It registered an `aehd` service, `StartType: System`, binary present at
-`\SystemRoot\system32\DRIVERS\aehd.sys` (403 KB).
-
-The machine was then rebooted, and the driver **attempted to load and failed**:
+The accelerator that *coexists* with the Windows hypervisor is **WHPX** (Windows
+Hypervisor Platform), and it was already installed and usable:
 
 ```
-sc.exe query aehd
-  STATE           : 1  STOPPED
-  WIN32_EXIT_CODE : 31  (0x1f)      "A device attached to the system is not functioning"
+emulator -accel-check
+  accel: 0  WHPX (10.0.26100) is installed and usable.
 ```
 
-**The real blocker is AMD SVM Mode, disabled in the BIOS.** This is a Ryzen 7 3800X,
-and AMD's hardware virtualization is called SVM Mode:
+Exit code 0. Nothing needed installing, enabling, or rebooting.
 
-```
-Get-CimInstance Win32_Processor | Select VirtualizationFirmwareEnabled
-  VirtualizationFirmwareEnabled : False
-Get-ComputerInfo HyperVRequirementVirtualizationFirmwareEnabled
-  False
-```
+**The diagnostic rule this cost three attempts to learn:** on a machine running WSL or
+Hyper-V, `VirtualizationFirmwareEnabled: False` is not evidence about the BIOS, and
+`HypervisorPresent: True` is the fact that decides which accelerator to use. Read
+`HypervisorPresent` FIRST. True means WHPX and AEHD can never load; False means AEHD.
 
-With SVM off there is no virtualization extension for AEHD to claim, which is exactly
-what error 31 means. **No software path avoids this.** WHPX needs the same firmware bit,
-so switching accelerators does not help, and neither does reinstalling the driver.
-
-Fixing it means entering UEFI setup on boot and enabling **SVM Mode**, usually under
-Advanced, then CPU Configuration. That is a physical, human-only action: no agent tool
-can reach firmware settings, and no elevation would help.
-
-Verify after enabling with `emulator -accel-check`. Exit code 6 means still not loaded;
-it must report acceleration available before `Pixel_8` will boot.
+AEHD remains installed as a stopped `aehd` service. Leave it alone: it cannot load while
+WSL's hypervisor is present, and it is not needed.
 
 **Do not write `sc start aehd` in PowerShell.** `sc` is a built-in alias for
 `Set-Content` there, so that command silently writes a 6-byte file named `start`
 containing `aehd` and never touches the service. It does not error, which is what makes
 it dangerous as advice. Use `sc.exe start aehd` or `Start-Service aehd`, both elevated.
+
+### The emulator's /data partition is nearly full, and it blocks a fat debug APK
+
+This is the live constraint to design around, not acceleration.
+
+```
+adb shell df -h /data
+  /dev/block/dm-55  5.8G  5.3G  359M  94%  /data/user/0
+```
+
+A default `flutter build apk --debug` produces a **fat APK carrying every ABI, 167.6 MB**,
+and a streamed install needs roughly twice the APK size in free space. It fails with:
+
+```
+android.os.ParcelableException: java.io.IOException: Requested internal only, but not enough space
+```
+
+Build **x86_64 only** for the emulator and it drops to **89.1 MB**, which installs fine:
+
+```
+flutter build apk --debug --target-platform android-x64
+```
+
+Two traps found while diagnosing this:
+
+- **`flutter run` will silently install a stale artifact.** If Gradle considers
+  `assembleDebug` up to date, it reuses whatever sits at
+  `build\app\outputs\flutter-apk\app-debug.apk` — so a previously built fat APK gets
+  installed even on a run that should have been architecture-specific. Build the
+  x64-only APK first; `launch_app` then picks it up.
+- `pm trim-caches 4096M` frees **nothing** here. The 5.3 GB is real installed data, and
+  a large third-party package unrelated to this project (`com.pluuto.app`, 137 MB, from
+  June) accounts for much of it. Do not uninstall it or wipe the AVD without asking:
+  it is the user's, not ours.
+
+`--target-platform android-x64` also makes the build markedly faster (17.5s versus
+91.7s warm), so it is the right default for emulator iteration regardless of space.
 
 ### Launching it from the dart tooling
 
