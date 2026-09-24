@@ -121,7 +121,15 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
             button: true,
             label: 'Add a game',
             child: Material(
-              color: Tokens.palette.accent,
+              // Deliberately NOT the accent colour.
+              //
+              // A design critique found gold doing two unrelated jobs at once:
+              // it marked a harvested game AND it marked this button, and
+              // nothing told them apart. Accent now means exactly one thing,
+              // harvested, and the primary action is carried by the brightest
+              // neutral instead. Measured contrast against the background is
+              // about 17 to 1, so it loses no prominence by moving.
+              color: Tokens.palette.text,
               shape: const CircleBorder(),
               child: InkWell(
                 customBorder: const CircleBorder(),

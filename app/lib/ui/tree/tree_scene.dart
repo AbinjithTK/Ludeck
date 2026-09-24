@@ -402,30 +402,59 @@ class _FruitState extends State<_Fruit> {
         curve: Tokens.motion.easeOut,
         child: Opacity(
           opacity: opacity,
-          child: item.isHarvested
-              ? rv.RiveWidgetBuilder(
-                  fileLoader: widget.fruitLoader,
-                  builder: (context, state) => switch (state) {
-                    // The artboard is 240x240 and the fruit BODY is 112 across,
-                    // so Fit.contain renders the body at only 47% of the box and
-                    // a harvested fruit came out visibly smaller than a painted one.
-                    // Scaling by 240/112 makes the body fill the box, so both
-                    // kinds of fruit are the same apparent size. The stem and
-                    // halo overflow the box, which is wanted: the stem is what
-                    // makes it read as hung.
-                    rv.RiveLoaded() => Transform.scale(
-                        scale: 240 / 112,
-                        child: rv.RiveWidget(
-                          controller: state.controller,
-                          fit: rv.Fit.contain,
+          child: _ringed(
+            item.isHarvested
+                ? rv.RiveWidgetBuilder(
+                    fileLoader: widget.fruitLoader,
+                    builder: (context, state) => switch (state) {
+                      // The artboard is 240x240 and the fruit BODY is 112 across,
+                      // so Fit.contain renders the body at only 47% of the box and
+                      // a harvested fruit came out visibly smaller than a painted one.
+                      // Scaling by 240/112 makes the body fill the box, so both
+                      // kinds of fruit are the same apparent size. The stem and
+                      // halo overflow the box, which is wanted: the stem is what
+                      // makes it read as hung.
+                      rv.RiveLoaded() => Transform.scale(
+                          scale: 240 / 112,
+                          child: rv.RiveWidget(
+                            controller: state.controller,
+                            fit: rv.Fit.contain,
+                          ),
                         ),
-                      ),
-                    _ => _PaintedFruit(item: item),
-                  },
-                )
-              : _PaintedFruit(item: item),
+                      _ => _PaintedFruit(item: item),
+                    },
+                  )
+                : _PaintedFruit(item: item),
+          ),
         ),
       ),
+    );
+  }
+
+  /// Wraps a harvested fruit in a ring.
+  ///
+  /// This exists for a specific accessibility failure found in a design
+  /// critique: completion was carried by COLOUR ALONE. Every fruit was the same
+  /// circle at the same size and only the fill differed, so under deuteranopia
+  /// the gold and the greys sit at similar lightness and the single most
+  /// important status in the app becomes unreadable.
+  ///
+  /// A ring is a second, non-colour cue for the same fact. It also happens to
+  /// suit the metaphor: a harvested fruit has been picked, and a ring reads as
+  /// the place it was taken from.
+  ///
+  /// Everything unharvested is returned untouched, so the ring means exactly one
+  /// thing and there is no second state to learn.
+  Widget _ringed(Widget child) {
+    if (!widget.item.isHarvested) return child;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Tokens.palette.text, width: 1.4),
+      ),
+      // Insets the fruit so the ring sits clear of the body rather than on its
+      // edge, where it would read as a rendering artefact instead of a mark.
+      child: Padding(padding: const EdgeInsets.all(2.5), child: child),
     );
   }
 }
@@ -437,11 +466,15 @@ class _PaintedFruit extends StatelessWidget {
 
   final TreeItem item;
 
-  Color get _colour {
-    if (item.isHarvested) return Tokens.palette.text;
-    if (item.isHarvested) return Tokens.palette.accent;
-    return Tokens.palette.textDim;
-  }
+  /// Harvested is accent so the painted fallback matches the gold Rive artboard,
+  /// which is what a harvested fruit normally renders as. Everything else is dim.
+  ///
+  /// This used to read `if (isHarvested) return text;` followed by an identical
+  /// `if (isHarvested) return accent;`. The second line was unreachable: it had
+  /// been `isRipe` and a scripted rename rewrote it into a duplicate of the line
+  /// above. Valid Dart, so the analyzer said nothing.
+  Color get _colour =>
+      item.isHarvested ? Tokens.palette.accent : Tokens.palette.textDim;
 
   @override
   Widget build(BuildContext context) {

@@ -148,7 +148,7 @@ void main() {
       // Corrupt exactly one row, the way a hand-edited file or a downgrade
       // would. Written through the raw handle because the repository correctly
       // refuses to produce this.
-      await raw.update('entries', {'progress': 'wantToPlay'},
+      await raw.update('entries', {'progress': 'wantToPlay'}, // check:ignore deliberately writes a banned value to prove a bad row is survivable
           where: 'igdb_id = ?', whereArgs: [5]);
 
       final result = await repo.loadDetailed();
