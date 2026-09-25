@@ -39,7 +39,13 @@ double _offsetFactor(int index) => _serpentine[index % _serpentine.length];
 /// Honours the same callback contract as `CollectionView` and `TreeScene`
 /// (`onSelect` on tap, `onHold` on long-press) so the screen swaps one for
 /// another with no other change.
-class RoadmapView extends StatelessWidget {
+///
+/// Stateful for ONE reason: to know which games are NEW. "Animate a game
+/// appearing" means animating the games that were not here last time, and that
+/// is only knowable by remembering the previous id set across builds. Nothing
+/// else here holds state -- the tree is still the single source of truth, and
+/// this set is derived from it, never authoritative over it.
+class RoadmapView extends StatefulWidget {
   const RoadmapView({
     super.key,
     required this.items,
@@ -51,6 +57,7 @@ class RoadmapView extends StatelessWidget {
     this.placements = const {},
     this.coverCache,
     this.onCoverFound,
+    this.animateArrivals = true,
   });
 
   final List<TreeItem> items;
@@ -74,11 +81,61 @@ class RoadmapView extends StatelessWidget {
   /// Called when [coverCache] resolves a cover for a game that had none.
   final void Function(int igdbId, String coverUrl)? onCoverFound;
 
+  /// Whether a newly-arrived game animates onto its node.
+  ///
+  /// True in the app. A test turns it OFF so a node is at its final size on the
+  /// first pump and geometry assertions do not race a 260ms spring -- the
+  /// animation itself is covered by its own test that leaves it on.
+  final bool animateArrivals;
+
   final double topInset;
   final double bottomInset;
 
   @override
+  State<RoadmapView> createState() => _RoadmapViewState();
+}
+
+class _RoadmapViewState extends State<RoadmapView> {
+  /// The game ids present at the last build.
+  ///
+  /// Nullable and null ONLY before the first build. That distinction is
+  /// load-bearing: on the very first build every game is technically "not seen
+  /// before", but animating the entire existing collection on app open would be
+  /// a fireworks show, not a game appearing. So the first build seeds this set
+  /// and animates nothing; only games that arrive AFTER it are new.
+  Set<int>? _seen;
+
+  /// Ids to play the arrival animation for on this build. Recomputed each build
+  /// and consumed by the nodes; an id is in here for exactly the one build after
+  /// it first appears.
+  Set<int> _arriving = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    _seen = {for (final i in widget.items) i.game.igdbId};
+  }
+
+  @override
+  void didUpdateWidget(RoadmapView old) {
+    super.didUpdateWidget(old);
+    final current = {for (final i in widget.items) i.game.igdbId};
+    final seen = _seen ?? const <int>{};
+    // New = present now, absent last build. Not "count went up": a game could be
+    // added while another is shelved in the same reload, and the arrival is
+    // still an arrival.
+    _arriving = widget.animateArrivals
+        ? current.difference(seen)
+        : const <int>{};
+    _seen = current;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final items = widget.items;
+    final topInset = widget.topInset;
+    final bottomInset = widget.bottomInset;
+
     if (items.isEmpty) return _Empty(topInset: topInset);
 
     final grouped = _group();
@@ -103,10 +160,11 @@ class RoadmapView extends StatelessWidget {
         for (final segment in grouped.segments) ...[
           _Segment(
             segment: segment,
-            onSelect: onSelect,
-            onHold: onHold,
-            coverCache: coverCache,
-            onCoverFound: onCoverFound,
+            arriving: _arriving,
+            onSelect: widget.onSelect,
+            onHold: widget.onHold,
+            coverCache: widget.coverCache,
+            onCoverFound: widget.onCoverFound,
           ),
         ],
         // Last in the list means FIRST on screen, because the list is reversed.
@@ -115,10 +173,11 @@ class RoadmapView extends StatelessWidget {
         if (grouped.unplaced.isNotEmpty)
           _StagingTray(
             items: grouped.unplaced,
-            onSelect: onSelect,
-            onHold: onHold,
-            coverCache: coverCache,
-            onCoverFound: onCoverFound,
+            arriving: _arriving,
+            onSelect: widget.onSelect,
+            onHold: widget.onHold,
+            coverCache: widget.coverCache,
+            onCoverFound: widget.onCoverFound,
           ),
       ],
     );
@@ -132,6 +191,10 @@ class RoadmapView extends StatelessWidget {
   /// has organised yet -- the same call `CollectionView` makes when it falls back
   /// to status grouping instead of showing one unnamed group.
   ({List<_SegmentData> segments, List<TreeItem> unplaced}) _group() {
+    final items = widget.items;
+    final branches = widget.branches;
+    final placements = widget.placements;
+
     if (branches.isEmpty) {
       return (
         segments: [_SegmentData(key: 'all', label: null, items: items)],
@@ -189,6 +252,7 @@ class _SegmentData {
 class _Segment extends StatelessWidget {
   const _Segment({
     required this.segment,
+    required this.arriving,
     required this.onSelect,
     required this.onHold,
     this.coverCache,
@@ -196,6 +260,10 @@ class _Segment extends StatelessWidget {
   });
 
   final _SegmentData segment;
+
+  /// Game ids that should play their arrival animation this build.
+  final Set<int> arriving;
+
   final ValueChanged<TreeItem> onSelect;
   final ValueChanged<TreeItem> onHold;
   final CoverArtCache? coverCache;
@@ -271,6 +339,8 @@ class _Segment extends StatelessWidget {
                             child: _GameNode(
                               item: segment.items[i],
                               cardHeight: cardHeight,
+                              animateIn:
+                                  arriving.contains(segment.items[i].game.igdbId),
                               onTap: () => onSelect(segment.items[i]),
                               onLongPress: () => onHold(segment.items[i]),
                               coverCache: coverCache,
@@ -364,12 +434,20 @@ class _TrailPainter extends CustomPainter {
 }
 
 /// A game on the road: its cover as a card, with a glow when harvested.
-class _GameNode extends StatelessWidget {
+///
+/// Stateful only to own the arrival animation. A game that just appeared grows
+/// and fades onto its node once, using `Tokens.motion.grow` -- the same duration
+/// `DECISIONS.md` reserves for "a fruit growing onto a branch when a game is
+/// captured", which is exactly this event in the tree metaphor. It plays once
+/// and never again: a node that animated on every rebuild would pulse on every
+/// scroll.
+class _GameNode extends StatefulWidget {
   const _GameNode({
     required this.item,
     required this.onTap,
     required this.onLongPress,
     required this.cardHeight,
+    this.animateIn = false,
     this.coverCache,
     this.onCoverFound,
   });
@@ -377,6 +455,10 @@ class _GameNode extends StatelessWidget {
   final TreeItem item;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+
+  /// Play the arrival animation on first build. Set by the view for a game that
+  /// was not present at the previous build.
+  final bool animateIn;
 
   /// How tall the cover card is. The caption takes whatever vertical space is
   /// left over, so this number and the node's own height together decide the
@@ -387,7 +469,51 @@ class _GameNode extends StatelessWidget {
   final void Function(int igdbId, String coverUrl)? onCoverFound;
 
   @override
+  State<_GameNode> createState() => _GameNodeState();
+}
+
+class _GameNodeState extends State<_GameNode>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: Tokens.motion.grow,
+      // Starts DONE, so a node that is not arriving is at full size on its first
+      // frame -- the animation is opt-in, and forgetting to start it must leave
+      // the node fully visible rather than invisible.
+      value: widget.animateIn ? 0.0 : 1.0,
+    );
+    // easeOut, never a bounce: DECISIONS.md reserves overshoot for motion the
+    // user's own gesture put momentum into, and a game appearing is not that.
+    final curve = CurvedAnimation(parent: _controller, curve: Tokens.motion.easeOut);
+    // From 0.6, not 0: a card that grows from nothing reads as a pop-in, while
+    // one that grows from a smaller card reads as it settling into place.
+    _scale = Tween(begin: 0.6, end: 1.0).animate(curve);
+    _fade = Tween(begin: 0.0, end: 1.0).animate(curve);
+
+    if (widget.animateIn) {
+      // After the first frame, so the node is laid out before it starts moving.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _controller.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     final game = item.game;
     final radius = BorderRadius.circular(Tokens.radius.card);
 
@@ -400,10 +526,10 @@ class _GameNode extends StatelessWidget {
     // Fired from build, which CoverArtCache is built to tolerate: it remembers an
     // in-flight or finished lookup per game id, so a node rebuilding on every
     // scroll frame still reaches the network at most once.
-    final cache = coverCache;
+    final cache = widget.coverCache;
     if (cache != null && (cover == null || cover.isEmpty)) {
       cache.request(game.igdbId, game.title, (url) {
-        onCoverFound?.call(game.igdbId, url);
+        widget.onCoverFound?.call(game.igdbId, url);
       });
     }
 
@@ -466,7 +592,7 @@ class _GameNode extends StatelessWidget {
       ),
     );
 
-    return Semantics(
+    final node = Semantics(
       button: true,
       label: announced,
       // The caption repeats the title, so without this a screen reader reads the
@@ -479,12 +605,12 @@ class _GameNode extends StatelessWidget {
       child: Material(
         color: Tokens.palette.bg.withValues(alpha: 0),
         child: InkWell(
-          onTap: onTap,
-          onLongPress: onLongPress,
+          onTap: widget.onTap,
+          onLongPress: widget.onLongPress,
           borderRadius: radius,
           child: Column(
             children: [
-              SizedBox(height: cardHeight, child: card),
+              SizedBox(height: widget.cardHeight, child: card),
               // Expanded, so the caption gets EXACTLY the leftover space and an
               // overflow is not expressible. A fixed caption height plus a gap was
               // the first attempt and it overflowed by 15px under the test font --
@@ -512,6 +638,18 @@ class _GameNode extends StatelessWidget {
           ),
         ),
       ),
+    );
+
+    // A node not arriving has controller value 1, so the transition is inert and
+    // costs nothing. AnimatedBuilder rebuilds only this subtree as the spring
+    // runs, not the whole road.
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) => Opacity(
+        opacity: _fade.value,
+        child: Transform.scale(scale: _scale.value, child: child),
+      ),
+      child: node,
     );
   }
 }
@@ -614,6 +752,7 @@ class _EmptyBranch extends StatelessWidget {
 class _StagingTray extends StatelessWidget {
   const _StagingTray({
     required this.items,
+    required this.arriving,
     required this.onSelect,
     required this.onHold,
     this.coverCache,
@@ -621,6 +760,7 @@ class _StagingTray extends StatelessWidget {
   });
 
   final List<TreeItem> items;
+  final Set<int> arriving;
   final ValueChanged<TreeItem> onSelect;
   final ValueChanged<TreeItem> onHold;
   final CoverArtCache? coverCache;
@@ -670,6 +810,7 @@ class _StagingTray extends StatelessWidget {
                 child: _GameNode(
                   item: items[i],
                   cardHeight: cardHeight,
+                  animateIn: arriving.contains(items[i].game.igdbId),
                   onTap: () => onSelect(items[i]),
                   onLongPress: () => onHold(items[i]),
                   coverCache: coverCache,
