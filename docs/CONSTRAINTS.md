@@ -366,3 +366,70 @@ Also: `Set-Content -Encoding UTF8` in PowerShell 5 writes a BOM. A negative-test
 probe that rewrote `main.dart` with it left a BOM behind; check the first three
 bytes (`EF BB BF`) after any scripted rewrite and strip with
 `UTF8Encoding($false)`.
+
+## Auditing accessibility: `uiautomator dump` lies about Flutter
+
+A device dump is **not** a valid way to check whether a Flutter screen is
+labelled, and reading one cost a design critique a wrong headline finding.
+
+`adb shell uiautomator dump` attaches as an accessibility service, and that
+attachment is itself what makes Flutter start building its semantics tree. So a
+dump taken on a freshly-pushed route can read a tree that has not been populated
+yet and come back nearly empty. It reported **one** labelled node on the tree
+screen. The header alone exposes seven:
+
+```
+[6 on the tree.] [Level 2 · 2 more harvests to 3] [Level 2. Open your profile]
+[Branches] [Level 2, 0 percent to level 3] [1 harvested] [2 seeds] [0 branches]
+```
+
+The same dump showed the share card and the visitor view as having no actionable
+controls, while `ensureSemantics` proved `Copy link`, `See what a visitor sees`,
+`Admire`, `Wishlist`, `Played too`, `Follow` and `Plant` were all present.
+
+**The authority is Flutter's own semantics tree**, because that is what TalkBack
+consumes:
+
+- In a test: `final h = tester.ensureSemantics();` then
+  `find.bySemanticsLabel('...')`, and `h.dispose()` at the end.
+- To discover what actually exists rather than assert a guess, walk the tree and
+  print every label:
+
+```dart
+void walk(SemanticsNode n) {
+  final d = n.getSemanticsData();
+  if (d.label.isNotEmpty) print('[${d.label}]');
+  n.visitChildren((c) { walk(c); return true; });
+}
+walk(tester.binding.pipelineOwner.semanticsOwner!.rootSemanticsNode!);
+```
+
+One genuine gap did exist and the dump was not what found it:
+**`IconButton(tooltip: 'Branches')` does NOT put its tooltip in the semantics
+tree.** An icon-only button needs `Icon(..., semanticLabel: 'Branches')`; the
+tooltip is for sighted hover only. See `test/accessibility_semantics_test.dart`,
+which now pins every header, share-card and visitor control.
+
+Note that file imports `repository.dart`, so checker rule 8 requires **every**
+`pumpWidget` in it to sit inside `tester.runAsync` -- including the ones that
+never touch the database. The rule matches per file, not per test.
+
+## A fixed-ms wait measures the host, not the code
+
+`visit_screen_test` waited a flat 50 ms for a real sqflite write after tapping
+Plant. It passed in isolation and failed inside the full suite, twice, because
+under concurrency the round trip outlives the guess -- and it failed only when
+run the way `check.ps1` runs it (`flutter analyze` immediately before
+`flutter test`, which leaves analysis processes competing for the machine).
+
+Replace such a wait with a bounded poll on the condition itself:
+
+```dart
+final deadline = DateTime.now().add(const Duration(seconds: 10));
+while ((store.items?.isEmpty ?? true) && DateTime.now().isBefore(deadline)) {
+  await Future<void>.delayed(const Duration(milliseconds: 10));
+}
+```
+
+Faster in the common case and deterministic under load. When a test passes alone
+and fails in the suite, suspect a fixed delay before suspecting the code.
