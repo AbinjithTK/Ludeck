@@ -9,6 +9,7 @@ import 'services/share_intake.dart';
 import 'services/share_resolver.dart';
 import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
+import 'ui/branches/branch_screen.dart';
 import 'ui/chrome_metrics.dart';
 import 'ui/harvest/rating_sheet.dart';
 import 'ui/tokens.dart';
@@ -304,6 +305,18 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     await store.setRating(item.game.igdbId, choice.rating);
   }
 
+  /// Opens the branches screen.
+  ///
+  /// A pushed route rather than a sheet: create, rename, reorder and delete is
+  /// more than one decision, and a sheet that tall is just a screen with a worse
+  /// back gesture. The store is provided above `MaterialApp`, so the pushed route
+  /// reads the same state this screen does with no argument passing.
+  void _openBranches() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const BranchScreen()),
+    );
+  }
+
   /// Explains a nonzero skipped count when the user taps the notice.
   ///
   /// States what happened, that nothing else was touched, and gives one
@@ -533,6 +546,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             subline: _subline(items),
             skipped: store.skipped,
             onSkippedTap: _showSkippedNotice,
+            onBranchesTap: _openBranches,
           ),
 
           // The content layer, with the add control floating over it. Only this
@@ -667,12 +681,14 @@ class _Header extends StatelessWidget {
     required this.subline,
     required this.skipped,
     required this.onSkippedTap,
+    required this.onBranchesTap,
   });
 
   final String headline;
   final String subline;
   final int skipped;
   final VoidCallback onSkippedTap;
+  final VoidCallback onBranchesTap;
 
   @override
   Widget build(BuildContext context) {
@@ -688,37 +704,55 @@ class _Header extends StatelessWidget {
           Tokens.space.md,
           Tokens.space.lg,
         ),
-        child: Column(
-          key: const Key('screen-header'),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(headline, style: text.displaySmall),
-            SizedBox(height: Tokens.space.xxs),
-            Text(subline, style: text.labelSmall),
+            Expanded(
+              child: Column(
+                key: const Key('screen-header'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(headline, style: text.displaySmall),
+                  SizedBox(height: Tokens.space.xxs),
+                  Text(subline, style: text.labelSmall),
 
-            // Present only when something actually failed to read. Silence is
-            // correct in the ordinary case: printing "0 rows could not be read"
-            // every time the screen opens would train the user to stop reading
-            // this corner, which is exactly wrong the one time it says something
-            // real.
-            //
-            // It flows after the subline rather than being positioned at a fixed
-            // offset, so it can no longer land on top of a wrapped headline.
-            if (skipped > 0) ...[
-              SizedBox(height: Tokens.space.xs),
-              GestureDetector(
-                onTap: onSkippedTap,
-                child: Text(
-                  skipped == 1
-                      ? '1 game could not be read. Tap to find out more.'
-                      : '$skipped games could not be read. Tap to find out '
-                          'more.',
-                  style:
-                      text.labelSmall?.copyWith(color: Tokens.palette.danger),
-                ),
+                  // Present only when something actually failed to read. Silence
+                  // is correct in the ordinary case: printing "0 rows could not
+                  // be read" every time the screen opens would train the user to
+                  // stop reading this corner, which is exactly wrong the one time
+                  // it says something real.
+                  //
+                  // It flows after the subline rather than being positioned at a
+                  // fixed offset, so it can no longer land on top of a wrapped
+                  // headline.
+                  if (skipped > 0) ...[
+                    SizedBox(height: Tokens.space.xs),
+                    GestureDetector(
+                      onTap: onSkippedTap,
+                      child: Text(
+                        skipped == 1
+                            ? '1 game could not be read. Tap to find out more.'
+                            : '$skipped games could not be read. Tap to find '
+                                'out more.',
+                        style: text.labelSmall
+                            ?.copyWith(color: Tokens.palette.danger),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
+
+            // Branches lives here rather than in the add menu. That menu is
+            // explicitly "the ways a game can get onto the tree", and organising
+            // the tree is not one of them. This corner was empty.
+            IconButton(
+              tooltip: 'Branches',
+              icon: Icon(Icons.account_tree_outlined,
+                  color: Tokens.palette.textDim),
+              onPressed: onBranchesTap,
+            ),
           ],
         ),
       ),

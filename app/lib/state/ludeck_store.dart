@@ -83,9 +83,21 @@ class LudeckStore extends ChangeNotifier {
     _placements = placements;
   }
 
-  /// Creates a branch, then re-reads.
-  Future<void> createBranch(String name) =>
-      _write(() => _repo.createBranch(name));
+  /// Creates a branch at the END of the list, then re-reads.
+  ///
+  /// The sort order is computed rather than left to the repository's default of
+  /// 0. With every branch at 0 the order falls back to insertion id, which looks
+  /// correct until the user reorders: `reorderBranches` then writes real 0..n-1
+  /// values, and the next new branch would arrive at position 0 and jump to the
+  /// front of a list the user had just arranged.
+  Future<void> createBranch(String name) => _write(() async {
+        final existing = await _repo.branches();
+        final next = existing.isEmpty
+            ? 0
+            : existing.map((b) => b.sortOrder).reduce((a, b) => a > b ? a : b) +
+                1;
+        await _repo.createBranch(name, sortOrder: next);
+      });
 
   Future<void> renameBranch(int id, String name) =>
       _write(() => _repo.renameBranch(id, name));

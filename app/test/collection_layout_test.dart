@@ -161,21 +161,31 @@ void main() {
     expect(scrim.bottom, moreOrLessEquals(viewport.bottom, epsilon: 0.5));
   });
 
-  testWidgets('the header is left aligned, not centred', (tester) async {
+  testWidgets('the header text is left aligned, not centred', (tester) async {
     await pump(tester);
 
-    final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final screen = tester.getRect(find.byType(Scaffold));
+    // Measure the SUBLINE, and measure text rather than the container. Two
+    // reasons, both learned by probing:
+    //
+    // The header column sits in an Expanded, so its own rect spans the full
+    // width whatever its crossAxisAlignment is -- only its children move inside
+    // it. A version of this test that measured the column was silently inert.
+    //
+    // And the HEADLINE is no good either: at flutter_test's default font every
+    // glyph is a full em square, so "8 on the tree." already fills the available
+    // width and centring cannot move it. The subline is short enough to move,
+    // which is what makes this assertion able to fail.
+    final texts = find.descendant(
+      of: find.byKey(const Key('screen-header')),
+      matching: find.byType(Text),
+    );
+    final subline = tester.getRect(texts.at(1));
 
-    // Regression guard. Making the header a Column child centred it, because a
-    // Column centres on the cross axis and so shrink-wrapped the block to its
-    // text width. The header is specified top-LEFT, and a centred headline over
-    // a left-aligned list reads as a mistake.
-    expect(header.left, moreOrLessEquals(Tokens.space.md, epsilon: 0.5));
     expect(
-      header.width,
-      moreOrLessEquals(screen.width - Tokens.space.md * 2, epsilon: 0.5),
-      reason: 'the header shrink-wrapped instead of filling the width',
+      subline.left,
+      moreOrLessEquals(Tokens.space.md, epsilon: 0.5),
+      reason: 'the header text is not flush with the left margin, so the block '
+          'is centred',
     );
   });
 
