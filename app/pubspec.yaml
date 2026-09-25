@@ -34,7 +34,6 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
-  rive: ^0.14.11
   sqflite: ^2.4.2+1
   sqflite_common_ffi: ^2.4.0+3
   path: ^1.9.1
@@ -66,8 +65,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/fruit.riv
-    - assets/tree.riv
     - assets/catalog/games.json
 
   # To add assets to your application, add an assets section, like this:

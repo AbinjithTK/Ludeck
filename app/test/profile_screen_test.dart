@@ -1,10 +1,11 @@
 // The profile screen's contracts.
 //
 // `ProfileBody` is pumped rather than `ProfileScreen` on purpose: the screen
-// injects the real `TreeScene`, which mounts Rive artboards, and this machine's
-// headless test environment has no Rive native library -- an artboard there
-// throws `RiveArtboardException`. The seam exists so the profile's own behaviour
-// is testable without draining someone else's exceptions.
+// reads its data with `context.watch<LudeckStore>()`, so mounting it would
+// require a Provider over a real `Repository` -- real sqflite I/O, which in a
+// `testWidgets` FakeAsync zone deadlocks rather than fails. `ProfileBody` takes
+// the same data as plain arguments, so the profile's own behaviour is testable
+// without standing up a database.
 //
 // What is worth protecting here is NOT the layout. It is:
 //   * every number traces to `domain/level.dart` or `domain/season.dart`
