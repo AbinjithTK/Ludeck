@@ -39,7 +39,7 @@ import '../gamified/primitives.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../publish/publish_screen.dart';
 import '../tokens.dart';
-import '../tree/tree_scene.dart';
+import '../tree/procedural_tree_view.dart';
 
 /// The profile route. Reads the store, so it needs no arguments -- the same
 /// pattern `BranchScreen` uses.
@@ -54,11 +54,28 @@ class ProfileScreen extends StatelessWidget {
     return ProfileBody(
       items: items,
       branches: store.branches.length,
-      // The real tree, the same widget the tree screen was built around. Passed
-      // in rather than constructed inside the body so the body can be tested
-      // without Rive: this machine's headless test environment has no Rive
-      // native library, and mounting an artboard there throws.
-      hero: TreeScene(items: items),
+      // The SAME tree the home screen draws, from the same engine and the same
+      // renderer -- not a second portrait keyed on different data.
+      //
+      // It used to be `TreeScene`: five Rive artboards whose limbs were keyed on
+      // the PLATFORMS a game was owned on, so the profile drew platform limbs
+      // while home drew the user's own branches. Two trees from one collection,
+      // and neither could be fixed without the other drifting. It also rendered
+      // games as anonymous grey spheres while the tray below showed real cover
+      // art, and it carried a drag-to-rotate gesture the user judged worse than
+      // a still tree.
+      //
+      // Passed in rather than constructed inside the body so the body stays
+      // testable without a canvas.
+      hero: ProceduralTreeView(
+        items: items,
+        branches: store.branches,
+        placements: store.placements,
+        // No handlers at all: the portrait is a PICTURE of the collection, not a
+        // second place to edit it. Null is what removes every gesture, so it
+        // cannot end up half-interactive.
+        showGround: false,
+      ),
     );
   }
 }

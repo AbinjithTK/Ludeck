@@ -44,6 +44,37 @@ class Tokens {
   /// reachable by accident.
   static const cosmos = _Cosmos();
 
+  /// The tree's own material: bark and foliage.
+  ///
+  /// ### This is the palette decision, made deliberately
+  ///
+  /// `docs/DECISIONS.md` says a colour outside the six "is a design decision,
+  /// not a convenience, and it is why the Rive fruit has no green leaf", and
+  /// §"Fruit" records the leaf being dropped because "in grey it read as a
+  /// pebble, and the palette has no green". That reasoning was right for a
+  /// 24px fruit glyph and wrong for the tree itself, which is the single
+  /// largest object in the app and the whole metaphor. Rendered in the six
+  /// flat colours it read as a grey diagram of a tree -- the user's words were
+  /// "the tree is very bad" -- and the reason is structural: `textDim` grey is
+  /// the app's DIM TEXT colour, so a tree painted in it looks like disabled UI
+  /// rather than like wood.
+  ///
+  /// So this group is the seventh-colour decision taken on purpose, and the
+  /// same discipline as `_Cosmos` applies to it: nothing here ever colours
+  /// text, a status, a control or a count. It colours BARK AND LEAF, and
+  /// nothing else in the app may reach for it. Every foreground value painted
+  /// on top still resolves through `_Palette`, and harvest is still
+  /// `palette.accent` -- gold keeps its one meaning.
+  ///
+  /// Two rules it inherits rather than renegotiates:
+  ///
+  ///  - Foliage NEVER browns, thins or sheds. `DECISIONS.md`: "the metaphor may
+  ///    never wither, rot, nag, empty or shrink". There is deliberately no
+  ///    autumn or dead value here, so that state is not reachable by accident.
+  ///  - Nothing here animates at rest. `DESIGN.md` §7 rejects idle leaf sway
+  ///    outright as a vestibular trigger seen every launch.
+  static const canopy = _Canopy();
+
   /// Four type sizes. A fifth means the hierarchy is unclear, not that a size
   /// is missing.
   static const type = _Type();
@@ -147,6 +178,53 @@ class _Cosmos {
   final Color maskClear = const Color(0x00000000);
 }
 
+/// Bark and leaf. The tree's material, never content.
+///
+/// ### Why these hues and not "brown" and "green"
+///
+/// The tree stands in `_Cosmos.deep` -- a near-black indigo sky. A naturalistic
+/// daylight brown goes muddy-orange against indigo, and a saturated leaf green
+/// fights it outright, because indigo and pure green are close to opposite in
+/// hue and neither yields. Both families are therefore pulled TOWARD the sky:
+/// the bark is a violet-leaning brown and the foliage a deep blue-green. That is
+/// also physically right for the scene -- this tree is lit by a cool night sky,
+/// not by afternoon sun, so every hue carries some of that light.
+///
+/// Three bark values rather than one, because a stem is a CYLINDER. A single
+/// fill makes it a flat ribbon no matter how well the outline is shaped; the
+/// unlit-to-lit ramp across its width is what makes it round, and it is the
+/// cheapest depth cue in the file.
+class _Canopy {
+  const _Canopy();
+
+  /// The shaded side of a stem, away from the light.
+  final Color barkShade = const Color(0xFF241B2A);
+
+  /// The body of the bark.
+  final Color barkMid = const Color(0xFF3E2F3A);
+
+  /// The lit side, catching the sky. Cool rather than warm, for the same
+  /// reason: the light source here is the night sky itself.
+  final Color barkLit = const Color(0xFF6B5668);
+
+  /// Leaf mass at the front of the canopy.
+  final Color foliageNear = const Color(0xFF2E5A4E);
+
+  /// Leaf mass set back, and the mass behind the trunk. Darker and bluer, which
+  /// is aerial perspective doing the work rather than plain opacity.
+  final Color foliageFar = const Color(0xFF1B3A3C);
+
+  /// The highlight on the crown where the sky hits it hardest.
+  final Color foliageLit = const Color(0xFF4A7F63);
+
+  /// The mound the tree stands on.
+  final Color ground = const Color(0xFF191426);
+
+  /// The lit lip of that mound, which is what stops the ground reading as a
+  /// hole rather than as a surface.
+  final Color groundLit = const Color(0xFF2A2140);
+}
+
 class _Type {
   const _Type();
   final double display = 28;
@@ -203,7 +281,13 @@ class _Size {
   final double control = 52;
 
   /// A fruit's diameter on the canvas at zoom 1.
-  final double fruit = 44;
+  ///
+  /// 56, raised from 44 after looking at a device capture. A fruit is a real
+  /// cover card, and at 44 on a 412pt phone the art was too small to tell one
+  /// game from another -- which defeats the entire reason the tree hangs covers
+  /// instead of painted circles. The height follows from `coverRatio`, so this
+  /// number can never crop the art.
+  final double fruit = 56;
 
   /// Trunk width at the base, at zoom 1.
   final double trunk = 22;

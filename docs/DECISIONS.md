@@ -126,6 +126,23 @@ just is not where you read it back from.
 `app/lib/ui/tokens.dart`. The palette is exactly six colours. Adding a seventh is a
 design decision, not a convenience, and it is why the Rive fruit has no green leaf.
 
+**`Tokens.canopy` is that decision, taken on 2026-09-25 for the tree itself.**
+Bark and foliage colours were added deliberately, and the earlier reasoning was
+right for a 24px fruit glyph and wrong for the tree. Rendered in the six flat
+colours the tree read as a grey diagram: `textDim` grey is the app's DIM TEXT
+colour, so a tree painted in it looks like disabled UI rather than like wood. The
+user's verdict was "the tree is very bad", and that was the cause.
+
+The group is fenced the same way `Tokens.cosmos` is. Nothing in it may colour
+text, a status, a control or a count -- it colours bark and leaf and nothing else,
+every foreground value painted on top still resolves through `_Palette`, and gold
+keeps its single meaning of harvested. It inherits two rules rather than
+renegotiating them: foliage never browns, thins or sheds (the metaphor may not
+wither), and nothing in it animates at rest (§Motion rejects idle leaf sway). The
+hues are pulled toward the indigo sky rather than being naturalistic daylight
+brown and green, because the tree is lit by a night sky and a saturated leaf green
+fights indigo outright.
+
 **`shelved` replaces delete.** Nothing the user has recorded is ever destroyed by a
 normal action.
 

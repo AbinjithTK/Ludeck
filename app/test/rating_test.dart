@@ -67,15 +67,20 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// Opens the status sheet on a game by TAPPING it.
+    /// Opens the status sheet on a game by TAPPING it on the tree.
     ///
-    /// It used to long-press. The tree now uses press-and-hold to DRAG a game
-    /// between branches, and an InkWell long-press inside a LongPressDraggable
-    /// wins the gesture arena and stops the drag starting at all -- so the two
-    /// cannot share the gesture. Moving between branches kept long-press and the
-    /// status sheet moved to tap.
+    /// Found by SEMANTICS LABEL, not by painted text. The tree deliberately
+    /// paints no title under a fruit -- eight captions on a tree is a contact
+    /// sheet -- so `find.text(title)` matches nothing there. The title is always
+    /// in the spoken label, which makes this both renderer-independent and the
+    /// same route a screen-reader user takes.
+    ///
+    /// It also used to long-press. The old renderer used press-and-hold to DRAG a
+    /// game between branches, and an InkWell long-press inside a
+    /// LongPressDraggable won the gesture arena and stopped the drag starting at
+    /// all. Filing now lives in this very sheet, so tap and hold both open it.
     Future<void> openStatusSheet(WidgetTester tester, String title) async {
-      await tester.tap(find.text(title));
+      await tester.tap(find.bySemanticsLabel(RegExp('^$title,')));
       await tester.pumpAndSettle();
     }
 

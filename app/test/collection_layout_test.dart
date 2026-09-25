@@ -1,14 +1,28 @@
-// The home screen's content layer must not collide with its floating chrome.
+// The home screen's tree must not collide with its floating chrome.
 //
 // This exists because it already shipped broken. On a real device the first row
-// sat under the headline and the status-bar clock: the list computed its own top
-// inset and budgeted for ONE line of display type while the header renders two
-// (headline over subline). It was invisible on a 1600x900 desktop window, where
-// width was the binding constraint, and obvious on a phone.
+// sat under the headline and the status-bar clock: the content computed its own
+// top inset and budgeted for ONE line of display type while the header renders
+// two (headline over subline). It was invisible on a 1600x900 desktop window,
+// where width was the binding constraint, and obvious on a phone.
 //
-// The test measures GEOMETRY rather than re-deriving the arithmetic, which is
-// the whole point. A test that recomputed the same sum would have agreed with
-// the bug.
+// RETARGETED IN STAGE 2. The assertions used to measure a scrolling list of
+// branch rows (`Key('tree-scroll')`, its padding, its scroll position). The home
+// screen now renders `ProceduralTreeView`, which is a single fixed canvas with no
+// viewport, no rows and no scroll -- so those handles no longer exist. Every
+// invariant they protected still does, and is restated here against covers on the
+// tree. Two changed shape honestly:
+//
+//   * "the last row clears the add control" is now measured on the lowest COVER
+//     rather than on a padding value, which is a stronger check: it measures what
+//     is painted instead of what was budgeted.
+//   * "the scrim never swallows a scroll gesture" became "the scrim never
+//     swallows a TAP", because there is no scroll to swallow. The underlying risk
+//     is unchanged -- a hit-testable scrim makes the bottom band of the screen
+//     dead to touch.
+//
+// The test measures GEOMETRY rather than re-deriving the arithmetic, which is the
+// whole point. A test that recomputed the same sum would have agreed with the bug.
 //
 // Every database call goes through `tester.runAsync`. testWidgets runs its body
 // in a FakeAsync zone and sqflite does real file I/O that never completes under
@@ -23,16 +37,18 @@ import 'package:ludeck/main.dart';
 import 'package:ludeck/services/catalog_service.dart';
 import 'package:ludeck/services/share_intake.dart';
 import 'package:ludeck/state/ludeck_store.dart';
+import 'package:ludeck/ui/map/game_node.dart';
 import 'package:ludeck/ui/shell/add_menu.dart';
 import 'package:ludeck/ui/tokens.dart';
+import 'package:ludeck/ui/tree/procedural_tree_view.dart';
 
 void main() {
   late Repository repo;
 
   setUp(() async {
     repo = await Repository.openInMemory();
-    // openInMemory deliberately does not seed, and an empty collection renders
-    // no rows, so there would be nothing to collide with the header.
+    // openInMemory deliberately does not seed, and an empty collection hangs no
+    // covers, so there would be nothing to collide with the header.
     await repo.seedIfEmpty();
   });
 
@@ -60,42 +76,49 @@ void main() {
         ),
       ));
     });
+
     // Wait for the FIRST READ to land, rather than guessing a delay.
     //
     // A fixed 20ms was enough when this file ran alone and too short under the
     // full suite's concurrency: the store's items were still null, the screen
-    // rendered its deliberate blank branch, and every `getRect` below failed on
-    // a finder that matched nothing. The symptom looked like a layout bug and was
-    // a timing one. Polling for the thing the test actually needs is both faster
-    // in the common case and immune to load.
+    // rendered its deliberate blank branch, and every `getRect` below failed on a
+    // finder that matched nothing. The symptom looked like a layout bug and was a
+    // timing one. Polling for the thing the test actually needs is both faster in
+    // the common case and immune to load.
     for (var attempt = 0; attempt < 50; attempt++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
       );
       await tester.pumpAndSettle();
-      if (find.byKey(const Key('tree-scroll')).evaluate().isNotEmpty) break;
+      if (find.byType(GameNode).evaluate().isNotEmpty) break;
     }
     expect(
-      find.byKey(const Key('tree-scroll')),
-      findsOneWidget,
+      find.byType(GameNode),
+      findsWidgets,
       reason: 'the collection never loaded, so nothing below can be measured',
     );
   }
 
-  testWidgets('the list viewport starts below the header', (tester) async {
+  /// Every cover currently on the tree.
+  List<Rect> covers(WidgetTester tester) => [
+        for (final e in find.byType(GameNode).evaluate())
+          tester.getRect(find.byElementPredicate((x) => x == e)),
+      ];
+
+  testWidgets('the tree canvas starts below the header', (tester) async {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final list = tester.getRect(find.byKey(const Key('tree-scroll')));
+    final tree = tester.getRect(find.byType(ProceduralTreeView));
 
-    // The list's own viewport must begin at or below the header's painted
-    // bottom. This is structural now -- they are siblings in a Column -- and the
-    // assertion exists so a future change back to an overlay has to face it.
+    // The canvas must begin at or below the header's painted bottom. This is
+    // structural now -- they are siblings in a Column -- and the assertion exists
+    // so a future change back to an overlay has to face it.
     expect(
-      list.top,
+      tree.top,
       greaterThanOrEqualTo(header.bottom),
-      reason: 'the list viewport (${list.top}) starts above the header bottom '
-          '(${header.bottom}), so rows will render under the headline',
+      reason: 'the tree canvas (${tree.top}) starts above the header bottom '
+          '(${header.bottom}), so covers will render under the headline',
     );
   });
 
@@ -107,83 +130,59 @@ void main() {
     await pump(tester, textScale: 2.0);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final list = tester.getRect(find.byKey(const Key('tree-scroll')));
+    final tree = tester.getRect(find.byType(ProceduralTreeView));
 
-    expect(list.top, greaterThanOrEqualTo(header.bottom));
+    expect(tree.top, greaterThanOrEqualTo(header.bottom));
   });
 
-  testWidgets('no row overlaps the header at rest', (tester) async {
+  testWidgets('no cover overlaps the header', (tester) async {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final viewport = tester.getRect(find.byKey(const Key('tree-scroll')));
+    final all = covers(tester);
+    expect(all, isNotEmpty);
 
-    // Every visible node title must be painted below the header. Measured per
-    // node rather than trusting the padding, because one could still intrude
-    // through a negative margin or an unexpected transform.
-    final titles = find.descendant(
-      of: find.byKey(const Key('tree-scroll')),
-      matching: find.byType(Text),
-    );
-    expect(titles, findsWidgets);
-
-    var judged = 0;
-    for (var i = 0; i < titles.evaluate().length; i++) {
-      final rect = tester.getRect(titles.at(i));
-      // Only judge what is actually INSIDE the list's own viewport.
-      //
-      // The list is reversed now, and a reversed viewport keeps off-screen items
-      // built in its cache extent ABOVE the visible area -- so a node the user
-      // cannot see legitimately reports a rect overlapping the header, and the
-      // old `rect.bottom < 0` guard was not enough to exclude it. Clipping to the
-      // viewport keeps the assertion about what is on screen, which is what it
-      // was always meant to check.
-      if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) continue;
-      judged++;
+    for (final rect in all) {
       expect(
         rect.top,
         greaterThanOrEqualTo(header.bottom),
-        reason: 'a node is painted over the header',
+        reason: 'a cover at $rect is painted over the header '
+            '(bottom ${header.bottom})',
       );
     }
-    expect(judged, greaterThan(0),
-        reason: 'nothing was inside the viewport, so this proved nothing');
   });
 
-  testWidgets('the last row clears the add control', (tester) async {
+  testWidgets('the lowest cover clears the add control', (tester) async {
     await pump(tester);
 
-    final list = tester.widget<SingleChildScrollView>(find.byKey(const Key('tree-scroll')));
-    final padding = list.padding! as EdgeInsets;
     final addMenu = tester.getRect(find.byType(AddMenu));
-    final viewport = tester.getRect(find.byKey(const Key('tree-scroll')));
+    final lowest = covers(tester)
+        .map((r) => r.bottom)
+        .reduce((a, b) => a > b ? a : b);
 
-    // The reserved bottom band must reach at least as high as the add control's
-    // top, or the final row sits behind the button that covers it.
+    // Measured on what is PAINTED, not on the inset that was budgeted for it.
+    // The old version read the list's padding value, which is the arithmetic
+    // rather than the result -- exactly the mistake the header bug was.
     expect(
-      viewport.bottom - padding.bottom,
+      lowest,
       lessThanOrEqualTo(addMenu.top),
-      reason: 'the bottom inset (${padding.bottom}) does not clear the add '
-          'control at y=${addMenu.top}',
+      reason: 'the lowest cover reaches y=$lowest, behind the add control at '
+          'y=${addMenu.top}',
     );
   });
 
-  testWidgets('the scrim covers exactly the band the list pads for',
-      (tester) async {
+  testWidgets('the scrim covers the band the tree reserves', (tester) async {
     await pump(tester);
 
-    final list = tester.widget<SingleChildScrollView>(find.byKey(const Key('tree-scroll')));
-    final padding = list.padding! as EdgeInsets;
-
-    // Padding alone only fixes where the list comes to REST. The scrim is what
-    // hides rows while the list is being dragged, so it must cover the same
-    // band -- a scrim shorter than the inset leaves a strip where a row is
-    // visible half-behind the control.
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    final viewport = tester.getRect(find.byKey(const Key('tree-scroll')));
+    final tree = tester.getRect(find.byType(ProceduralTreeView));
+    final addMenu = tester.getRect(find.byType(AddMenu));
 
-    expect(scrim.height, moreOrLessEquals(padding.bottom, epsilon: 0.5));
-    expect(scrim.bottom, moreOrLessEquals(viewport.bottom, epsilon: 0.5));
+    // The scrim must reach at least as high as the add control it softens, and
+    // must sit flush with the bottom of the content area -- a scrim that stops
+    // short leaves a strip where a cover is visible half-behind the button.
+    expect(scrim.top, lessThanOrEqualTo(addMenu.top));
+    expect(scrim.bottom, moreOrLessEquals(tree.bottom, epsilon: 0.5));
   });
 
   testWidgets('the header text is left aligned, not centred', (tester) async {
@@ -192,9 +191,9 @@ void main() {
     // Measure the SUBLINE, and measure text rather than the container. Two
     // reasons, both learned by probing:
     //
-    // The header column sits in an Expanded, so its own rect spans the full
-    // width whatever its crossAxisAlignment is -- only its children move inside
-    // it. A version of this test that measured the column was silently inert.
+    // The header column sits in an Expanded, so its own rect spans the full width
+    // whatever its crossAxisAlignment is -- only its children move inside it. A
+    // version of this test that measured the column was silently inert.
     //
     // And the HEADLINE is no good either: at flutter_test's default font every
     // glyph is a full em square, so "8 on the tree." already fills the available
@@ -214,56 +213,33 @@ void main() {
     );
   });
 
-  testWidgets('the scrim never swallows a scroll gesture', (tester) async {
-    // Branches FIRST, so the tree actually overflows.
-    //
-    // The seeded fixture has no branches, so every game sits in the single soil
-    // tray -- roughly 200pt tall, which fits a short surface. The viewport then
-    // does not scroll at all and this test's own precondition fails, correctly
-    // reporting that it cannot prove anything about hit testing. Real branch rows
-    // are what make the content taller than the screen.
-    await tester.runAsync(() async {
-      for (var i = 0; i < 4; i++) {
-        final id = await repo.createBranch('Branch $i', sortOrder: i);
-        final games = await repo.load();
-        if (i < games.length) await repo.place(games[i].game.igdbId, id);
-      }
+  testWidgets('the scrim never swallows a tap', (tester) async {
+    // The tree does not scroll, so the old "the scrim ate the drag" check has no
+    // gesture to make. The risk it guarded is unchanged though: the scrim spans
+    // the bottom band of the screen, and if it were hit-testable that band would
+    // be dead to touch. Proven by tapping THROUGH it.
+    await pump(tester, size: const Size(412, 915));
+
+    final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
+    expect(scrim.height, greaterThan(0));
+
+    // A seed sits low on the canvas, in or near the scrim band. Tapping it must
+    // open the status sheet.
+    final lowest = find.byType(GameNode).evaluate().reduce((a, b) {
+      final ra = tester.getRect(find.byElementPredicate((x) => x == a));
+      final rb = tester.getRect(find.byElementPredicate((x) => x == b));
+      return ra.center.dy > rb.center.dy ? a : b;
     });
 
-    // A deliberately short surface, so the tree definitely overflows. On a tall
-    // screen the rows can fit, the viewport is then not scrollable at all, and a
-    // drag that moves nothing would prove nothing about the scrim.
-    await pump(tester, size: const Size(412, 420));
-
-    // The tree's OWN vertical scroller. Scoped by axis, because every branch limb
-    // and the soil tray is a horizontal scroller too -- an unscoped Scrollable
-    // finder now matches several and `state` throws "Too many elements".
-    final scrollable = find.byWidgetPredicate(
-      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
-    );
-    final position = tester.state<ScrollableState>(scrollable).position;
-    expect(position.maxScrollExtent, greaterThan(0),
-        reason: 'the list does not overflow, so this test cannot prove '
-            'anything about hit testing');
-
-    final before = position.pixels;
-
-    // Drag UPWARD starting INSIDE the bottom band, which is where the scrim is
-    // painted. If the scrim were hit-testable this would move nothing and the
-    // bottom of the screen would be dead to touch.
-    //
-    // Upward again: the branching tree scrolls normally, unlike the reversed
-    // roadmap it replaced, so the direction that advances the viewport is the
-    // ordinary one. The reversal is exactly the kind of detail that made this
-    // assertion look like a scrim bug twice.
-    final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    await tester.dragFrom(scrim.center, const Offset(0, -120));
+    await tester.tap(find.byElementPredicate((x) => x == lowest),
+        warnIfMissed: false);
     await tester.pumpAndSettle();
 
     expect(
-      tester.state<ScrollableState>(scrollable).position.pixels,
-      isNot(equals(before)),
-      reason: 'the list did not scroll, so the scrim ate the drag',
+      find.byType(BottomSheet),
+      findsOneWidget,
+      reason: 'tapping the lowest cover opened nothing, so something in the '
+          'bottom band is eating pointer events',
     );
   });
 }

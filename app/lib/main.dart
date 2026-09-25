@@ -24,7 +24,7 @@ import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
 import 'ui/shell/tree_header.dart';
 import 'ui/gamified/primitives.dart';
-import 'ui/map/branching_tree_view.dart';
+import 'ui/tree/procedural_tree_view.dart';
 
 Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
@@ -322,38 +322,53 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Moves a dragged game from one branch to another, or off every branch.
+  /// Which branch [item] currently hangs on, or null for the trunk.
   ///
-  /// A MOVE, not a copy: the old placement is removed as well as the new one
-  /// added. Without the removal a single drag would leave the game hanging on
-  /// two branches, which is legal in this model (a game genuinely can sit on
-  /// several) and therefore would not look like a bug -- it would look like the
-  /// app had silently duplicated the game.
+  /// The model genuinely allows a game on several branches at once, so this
+  /// returns the FIRST in the user's own order. The status sheet is a
+  /// single-choice control, and showing two branches as simultaneously selected
+  /// there would misrepresent what tapping one does.
+  int? _branchIdFor(LudeckStore store, TreeItem item) {
+    final id = item.game.igdbId;
+    for (final b in store.branches) {
+      if ((store.placements[b.id] ?? const <int>[]).contains(id)) return b.id;
+    }
+    return null;
+  }
+
+  /// Files a game onto [toBranchId], or takes it off every branch when null.
   ///
-  /// `toBranchId` null means it was dropped in the soil: taken off its branch,
-  /// not deleted. Nothing the user recorded is destroyed by filing.
-  Future<void> _moveGame(
+  /// A MOVE, not a copy: every existing placement is removed as well as the new
+  /// one added. Without the removal, filing twice would leave the game hanging on
+  /// two branches -- which is legal in this model and therefore would not look
+  /// like a bug, it would look like the app had silently duplicated the game.
+  ///
+  /// Null means back on the trunk: taken off its branch, not deleted. Nothing the
+  /// user recorded is destroyed by filing.
+  Future<void> _fileGame(
     LudeckStore store,
-    GameDrag drag,
+    TreeItem item,
     int? toBranchId,
   ) async {
-    final id = drag.item.game.igdbId;
-    final from = drag.fromBranchId;
-    if (from == toBranchId) return;
+    final id = item.game.igdbId;
+    final from = <int>[
+      for (final b in store.branches)
+        if ((store.placements[b.id] ?? const <int>[]).contains(id)) b.id,
+    ];
+    if (from.length == 1 && from.first == toBranchId) return;
+    if (from.isEmpty && toBranchId == null) return;
 
     if (toBranchId != null) {
       await store.place(id, toBranchId);
     }
-    if (from != null) {
-      await store.unplace(id, from);
+    for (final b in from) {
+      if (b != toBranchId) await store.unplace(id, b);
     }
 
     if (!mounted) return;
 
-    // Named feedback, because the tree hides branch names: after a drop the user
-    // has no on-screen way to confirm WHICH branch received the game, and a
-    // silent success would make the one destructive-looking gesture in the app
-    // unverifiable.
+    // Named feedback, because the tree does not paint branch names: without it
+    // the user has no on-screen way to confirm WHICH branch received the game.
     final branchName = toBranchId == null
         ? null
         : store.branches
@@ -367,8 +382,8 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         duration: const Duration(seconds: 2),
         content: Text(
           branchName == null
-              ? '${drag.item.game.title} is back in the soil.'
-              : '${drag.item.game.title} moved to $branchName.',
+              ? '${item.game.title} is back on the trunk.'
+              : '${item.game.title} moved to $branchName.',
           style: TextStyle(color: Tokens.palette.text),
         ),
       ),
@@ -572,6 +587,43 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   },
                 ),
 
+              // Filing, as a plain list of choices.
+              //
+              // This is the NON-DRAG path to placing a game on a branch, and it
+              // is the primary one rather than a fallback. The previous tree
+              // offered press-and-hold drag as the only way to file anything,
+              // and `branch_screen.dart` already says it plainly: "drag and drop
+              // is the least accessible interaction". A screen-reader user could
+              // not file a game at all, and neither could anyone with a motor
+              // impairment or a cracked digitiser.
+              //
+              // Only shown when branches exist. Offering "put this on a branch"
+              // with no branches to name would be a dead control, and creating
+              // one belongs to the branches screen, not to a status sheet.
+              if (store.branches.isNotEmpty) ...[
+                Divider(color: Tokens.palette.bg, height: Tokens.space.md),
+                _sheetHeading('Where does it hang'),
+                _sheetOption(
+                  tree: 'On the trunk',
+                  label: 'Not on any branch',
+                  selected: _branchIdFor(store, item) == null,
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _fileGame(store, item, null);
+                  },
+                ),
+                for (final b in store.branches)
+                  _sheetOption(
+                    tree: b.name,
+                    label: 'Hang it here',
+                    selected: _branchIdFor(store, item) == b.id,
+                    onTap: () {
+                      Navigator.of(sheetContext).pop();
+                      _fileGame(store, item, b.id);
+                    },
+                  ),
+              ],
+
               // Only for a game that has actually been harvested, and only as
               // something the user reaches for.
               //
@@ -711,22 +763,21 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                BranchingTreeView(
+                ProceduralTreeView(
                   items: items,
                   branches: store.branches,
                   placements: store.placements,
                   coverCache: widget.coverCache,
                   onCoverFound: store.applyCoverUrl,
-                  onMove: (drag, toBranchId) =>
-                      _moveGame(store, drag, toBranchId),
-                  // The header already supplies the gap above; the list only
+                  // The header already supplies the gap above; the tree only
                   // needs to clear the control at the bottom.
                   topInset: 0,
                   bottomInset: chrome.bottom,
-                  // Tap opens the status sheet, because long-press is the DRAG
-                  // now (press and hold moves a game between branches). The tap
-                  // used to show an information snackbar, which was strictly less
-                  // useful than the thing the user actually wants from a game.
+                  // Tap and hold both open the status sheet, which is now also
+                  // where a game is filed onto a branch. Drag-to-file is gone
+                  // with the old renderer; the sheet is the accessible path and
+                  // Stage 4 adds direct manipulation on top of it rather than
+                  // instead of it.
                   onSelect: _openStatusSheet,
                   onHold: _openStatusSheet,
                 ),

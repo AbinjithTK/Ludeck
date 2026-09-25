@@ -194,7 +194,12 @@ void main() {
         ],
       );
 
-      final trunkArea = math.pow(tree.trunk.baseHalfWidth, 2).toDouble();
+      // Measured against the trunk ABOVE the root flare, not at the soil line.
+      // The flare is a buttress spreading load into the ground and carries no
+      // branches, so counting it here would demand limbs thick enough to match a
+      // cross-section that never branches.
+      final trunkArea =
+          math.pow(tree.trunkStructuralHalfWidth, 2).toDouble();
       final limbArea = tree.limbs.fold<double>(
           0, (sum, l) => sum + math.pow(l.stem.baseHalfWidth, 2).toDouble());
 
@@ -202,6 +207,24 @@ void main() {
       // slack for the minimum-width clamp that keeps an empty branch visible.
       expect(limbArea, lessThanOrEqualTo(trunkArea * 1.02));
       expect(limbArea, greaterThan(trunkArea * 0.9));
+    });
+
+    test('the trunk flares where it meets the ground', () {
+      final tree = _build(
+        items: [for (var id = 10; id <= 16; id++) _item(id, 'Game $id')],
+      );
+      // A trunk that meets the soil at the same width it carries branches at
+      // reads as a post pushed into the ground rather than something grown out
+      // of it.
+      expect(
+        tree.trunk.baseHalfWidth,
+        greaterThan(tree.trunkStructuralHalfWidth * 1.15),
+      );
+      // ...and the flare is local to the base, not a general fattening.
+      expect(
+        tree.trunk.baseHalfWidth,
+        lessThan(tree.trunkStructuralHalfWidth * 2.0),
+      );
     });
 
     test('a loaded branch grows a thicker limb than an empty one', () {

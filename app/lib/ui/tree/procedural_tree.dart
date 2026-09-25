@@ -106,6 +106,7 @@ class TreeFruit {
   const TreeFruit({
     required this.item,
     required this.centre,
+    required this.anchor,
     required this.radius,
     required this.depth,
     required this.harvested,
@@ -114,6 +115,16 @@ class TreeFruit {
 
   final TreeItem item;
   final Offset centre;
+
+  /// Where on the wood this fruit is attached.
+  ///
+  /// Stored rather than recomputed because two things need it and neither can
+  /// derive it: the renderer draws the stalk between wood and fruit, and an
+  /// arrival animation has to GROW from the branch rather than fade in at its
+  /// final position. Without it both would guess a point straight above the
+  /// fruit, which is wrong on every limb that is not horizontal.
+  final Offset anchor;
+
   final double radius;
 
   /// 0 nearest the viewer, 1 furthest. Drives scale and shading, never rotation.
@@ -168,6 +179,7 @@ class ProceduralTree {
   const ProceduralTree({
     required this.canvas,
     required this.trunk,
+    required this.trunkStructuralHalfWidth,
     required this.limbs,
     required this.crown,
     required this.trunkFruit,
@@ -213,6 +225,20 @@ class ProceduralTree {
       [for (final l in limbs) ...l.fruit, ...trunkFruit];
 
   int get fruitCount => allFruit.length;
+
+  /// The trunk's half-width EXCLUDING the root flare.
+  ///
+  /// This, not `trunk.baseHalfWidth`, is the number every limb's thickness is
+  /// derived from, and the distinction is structural rather than pedantic. The
+  /// flare at ground level is a root buttress: it spreads load into the soil and
+  /// carries no branches. Including it in the branching cross-section would make
+  /// da Vinci's rule demand limbs thick enough to match a cross-section that
+  /// never forks.
+  ///
+  /// Stored rather than sampled back off the spine, because the taper means no
+  /// single sample equals it and a reader comparing limb widths to the painted
+  /// base would otherwise conclude the rule was violated.
+  final double trunkStructuralHalfWidth;
 
   /// Which fruit or seed is under [point], nearest first so overlapping fruit
   /// resolve to the one drawn on top. Null for a tap on empty canvas.
@@ -271,7 +297,17 @@ class ProceduralTree {
     // therefore grows TALLER as the user organises, which is the progression
     // made visible.
     final structure = math.min(1.0, ordered.length / 6.0);
-    final apexY = canvas.height * _lerp(0.44, 0.14, structure);
+    // 0.30 -> 0.10, NOT 0.44 -> 0.14.
+    //
+    // Measured off a render, not guessed. At 0.44 the unorganised tree -- the
+    // state every new user is in -- was a small stick in the middle of a screen
+    // whose top 44% was empty sky, which reads as a rendering failure rather than
+    // as a young tree. A sapling being physically short is botanically right and
+    // compositionally wrong: the tree is the subject of the frame and has to fill
+    // it. Youth is expressed instead by PROPORTION -- a bigger crown relative to
+    // a shorter, thicker trunk -- which is also how a real young tree differs
+    // from an old one.
+    final apexY = canvas.height * _lerp(0.30, 0.10, structure);
 
     final seed = _seedFor(ordered, owned);
     final rng = _Lcg(seed);
@@ -298,9 +334,13 @@ class ProceduralTree {
     // The trunk thickens with the whole load, so a big collection reads as a
     // big tree before a single title is legible.
     final totalFruit = owned.length;
+    // Wider than it was. At the previous figure the trunk rendered about 30px
+    // across on a 412pt canvas, which next to a 44px cover card reads as a pole
+    // supporting objects heavier than itself. A trunk has to look load-bearing
+    // before any of the botany matters.
     final trunkHalfWidth = math.min(
-      canvas.width * 0.075,
-      trunkWidth * 0.5 + math.sqrt(totalFruit.toDouble()) * 1.5,
+      canvas.width * 0.090,
+      trunkWidth * 0.62 + math.sqrt(totalFruit.toDouble()) * 2.2,
     );
 
     final trunk = _trunkStem(
@@ -347,16 +387,21 @@ class ProceduralTree {
       final angle0 = _lerp(1.26, 0.60, t) + rng.jitter(0.06);
 
       // Longer low, shorter high, and a loaded limb reaches a little further.
+      // Reaching further than it used to: at 0.30 the silhouette was narrower
+      // than the crown sitting above it, so the tree read as a column with
+      // whiskers rather than as something with a spread.
       final loadFactor =
           0.85 + 0.15 * math.min(1.0, fruitItems.length / 6.0);
-      final length = canvas.width * (0.30 - 0.11 * t) * loadFactor;
+      final length = canvas.width * (0.40 - 0.13 * t) * loadFactor;
 
       // Three depth planes, cycling. Two read as a mistake and four are not
       // distinguishable at phone size.
       final depth = (i % 3) * 0.35;
 
+      // A visible minimum, because a limb thinner than the stalk hanging off it
+      // stops reading as wood and starts reading as wire.
       final limbHalfWidth = math.max(
-        2.4,
+        4.0,
         trunkHalfWidth * math.sqrt(loads[b.id]! / totalLoad),
       );
 
@@ -391,11 +436,19 @@ class ProceduralTree {
     // no named limbs it is the whole canopy -- wide, low and full; as limbs
     // arrive it recedes to a spray at the top and lets them carry the form.
     final crownCount = ordered.isEmpty
-        ? math.max(5, math.min(8, 3 + (unplaced.length / 3).ceil()))
-        : math.max(3, math.min(6, (unplaced.length / 3).ceil() + 2));
-    final crownFrom = _lerp(0.52, 0.80, structure);
-    final crownAngle = _lerp(0.88, 0.52, structure);
-    final crownLength = canvas.width * _lerp(0.27, 0.13, structure);
+        ? math.max(7, math.min(11, 5 + (unplaced.length / 2).ceil()))
+        : math.max(4, math.min(7, (unplaced.length / 3).ceil() + 3));
+    // The crown starts LOW when there is no structure.
+    //
+    // At 0.40 the twigs all attached in the top third, so an unorganised
+    // collection's covers bunched into two clumps with a long bare trunk below
+    // them -- measured off a device capture, where several covers overlapped each
+    // other. Starting at 0.22 spreads the same twigs over most of the trunk, so
+    // the canopy fills the frame and the fruit have room not to collide. As
+    // branches arrive the crown recedes upward and lets the limbs carry the form.
+    final crownFrom = _lerp(0.22, 0.72, structure);
+    final crownAngle = _lerp(1.02, 0.56, structure);
+    final crownLength = canvas.width * _lerp(0.34, 0.16, structure);
 
     final crown = <TreeStem>[];
     for (var k = 0; k < crownCount; k++) {
@@ -403,16 +456,33 @@ class ProceduralTree {
       final t = crownFrom +
           span * (crownCount == 1 ? 0.5 : k / (crownCount - 1));
       final attach = trunk.sample(t);
-      // Twigs fan alternately. A crown reads as a spray rather than as another
-      // set of limbs competing with the named ones.
-      final side = k.isEven ? -1.0 : 1.0;
-      final angle = crownAngle + rng.jitter(0.16);
+
+      // The LEADER: the last twig grows nearly straight up.
+      //
+      // Without it no twig pointed upward, so no foliage was ever generated above
+      // the trunk's apex and the canopy rendered as two side lobes with the trunk
+      // spiking through the gap between them. A real tree closes over its own
+      // top; this one twig is what shuts that hole.
+      final isLeader = k == crownCount - 1;
+
+      // Irregular sides rather than strict left/right alternation. Alternating
+      // every twig at even spacing produced a fishbone -- unmistakably generated,
+      // because nothing in nature alternates perfectly. A fixed repeating pattern
+      // breaks the rhythm while staying deterministic.
+      const pattern = [-1.0, 1.0, -1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, -1.0];
+      final side =
+          isLeader ? (k.isEven ? -1.0 : 1.0) : pattern[k % pattern.length];
+
+      final angle =
+          isLeader ? 0.14 + rng.jitter(0.05) : crownAngle + rng.jitter(0.22);
       crown.add(_limbStem(
         start: attach.point,
         angleFromVertical: angle,
         side: side,
-        length: crownLength * (1.0 - 0.28 * (k / crownCount)),
-        halfWidthBase: math.max(1.6, trunkHalfWidth * 0.20),
+        length: crownLength *
+            (isLeader ? 0.88 : (1.0 - 0.28 * (k / crownCount))) *
+            (0.78 + rng.next() * 0.44),
+        halfWidthBase: math.max(2.6, trunkHalfWidth * (isLeader ? 0.34 : 0.26)),
         rng: rng,
       ));
     }
@@ -438,12 +508,23 @@ class ProceduralTree {
       }
     }
 
+    // Covers are portrait cards, so crowding is resolved before anything is
+    // returned. Ratio is the card's height over its width -- the same
+    // `Tokens.size.coverRatio` the renderer sizes the card with, passed in as a
+    // plain number so this file stays free of the UI layer.
+    final separated = _separateFruit(
+      limbs: limbs,
+      trunkFruit: trunkFruit,
+      ratio: 4 / 3,
+    );
+
     return ProceduralTree(
       canvas: canvas,
       trunk: trunk,
-      limbs: limbs,
+      trunkStructuralHalfWidth: trunkHalfWidth,
+      limbs: separated.limbs,
       crown: crown,
-      trunkFruit: trunkFruit,
+      trunkFruit: separated.trunkFruit,
       soil: _soil(
         items: seedItems,
         canvas: canvas,
@@ -454,6 +535,141 @@ class ProceduralTree {
       seed: seed,
     );
   }
+}
+
+/// Push overlapping fruit apart.
+///
+/// WHY THIS EXISTS. Hanging fruit along each stem independently gives no stem any
+/// knowledge of its neighbours, so two twigs whose tips are close hang their
+/// covers on top of each other. On a device capture that produced a stack of three
+/// overlapping covers with only the topmost readable -- and a cover you cannot
+/// read is the same as no cover, which defeats the whole reason the tree hangs art
+/// instead of painted circles. Raising the cover size made it worse, because the
+/// cards grew and the spacing did not.
+///
+/// A few rounds of pairwise relaxation, not a full physics pass. Two properties
+/// make it safe to run inside a pure build:
+///
+///  - It is DETERMINISTIC: fixed iteration count, fixed order, no randomness. The
+///    same collection still produces the same tree.
+///  - Every fruit is CLAMPED to a short leash from where the botany put it, so a
+///    crowded canopy loosens rather than rearranging itself into something the
+///    stalks no longer explain. Fruit may still touch; they may not stack.
+///
+/// Comparison happens in a y-COMPRESSED space, because a cover is a portrait card
+/// rather than a circle: a vertical gap has to be `ratio` times larger than a
+/// horizontal one to look equally clear, and treating the card as a circle would
+/// separate them correctly sideways and leave them overlapping vertically.
+({List<TreeLimb> limbs, List<TreeFruit> trunkFruit}) _separateFruit({
+  required List<TreeLimb> limbs,
+  required List<TreeFruit> trunkFruit,
+  required double ratio,
+}) {
+  // Flatten, remembering where each fruit came from so it can be put back.
+  final flat = <TreeFruit>[];
+  final owner = <int>[]; // limb index, or -1 for the crown
+  for (var i = 0; i < limbs.length; i++) {
+    for (final f in limbs[i].fruit) {
+      flat.add(f);
+      owner.add(i);
+    }
+  }
+  for (final f in trunkFruit) {
+    flat.add(f);
+    owner.add(-1);
+  }
+  if (flat.length < 2) {
+    return (limbs: limbs, trunkFruit: trunkFruit);
+  }
+
+  final centres = [for (final f in flat) f.centre];
+  final origin = [...centres];
+
+  const rounds = 14;
+  for (var round = 0; round < rounds; round++) {
+    var moved = false;
+    for (var a = 0; a < flat.length; a++) {
+      for (var b = a + 1; b < flat.length; b++) {
+        // 0.94 rather than 1.0: cards are allowed to touch and slightly kiss,
+        // which is what fruit on a branch actually does. Demanding a full gap
+        // spread a loaded canopy into a grid.
+        final want = (flat[a].radius + flat[b].radius) * 0.94;
+        final dx = centres[b].dx - centres[a].dx;
+        final dyReal = centres[b].dy - centres[a].dy;
+        final dy = dyReal / ratio;
+        var dist = math.sqrt(dx * dx + dy * dy);
+        if (dist >= want) continue;
+
+        // Exactly coincident: nudge along x so the normal below is defined.
+        var nx = dx;
+        var ny = dy;
+        if (dist < 0.0001) {
+          nx = (a.isEven ? 1.0 : -1.0);
+          ny = 0.0;
+          dist = 1.0;
+        }
+        final push = (want - dist) / 2;
+        final ux = nx / dist;
+        final uy = ny / dist;
+        centres[a] = Offset(
+          centres[a].dx - ux * push,
+          centres[a].dy - uy * push * ratio,
+        );
+        centres[b] = Offset(
+          centres[b].dx + ux * push,
+          centres[b].dy + uy * push * ratio,
+        );
+        moved = true;
+      }
+    }
+
+    // Leash: no fruit strays further than 1.5 radii from where the botany put
+    // it, so the stalk still explains the position.
+    for (var i = 0; i < flat.length; i++) {
+      final maxShift = flat[i].radius * 1.5;
+      final d = centres[i] - origin[i];
+      if (d.distance > maxShift) {
+        centres[i] = origin[i] + d * (maxShift / d.distance);
+      }
+    }
+    if (!moved) break;
+  }
+
+  TreeFruit moveTo(TreeFruit f, Offset centre) => TreeFruit(
+        item: f.item,
+        centre: centre,
+        anchor: f.anchor,
+        radius: f.radius,
+        depth: f.depth,
+        harvested: f.harvested,
+        branchId: f.branchId,
+      );
+
+  final perLimb = [for (var i = 0; i < limbs.length; i++) <TreeFruit>[]];
+  final crownOut = <TreeFruit>[];
+  for (var i = 0; i < flat.length; i++) {
+    final placed = moveTo(flat[i], centres[i]);
+    if (owner[i] < 0) {
+      crownOut.add(placed);
+    } else {
+      perLimb[owner[i]].add(placed);
+    }
+  }
+
+  return (
+    limbs: [
+      for (var i = 0; i < limbs.length; i++)
+        TreeLimb(
+          branchId: limbs[i].branchId,
+          name: limbs[i].name,
+          stem: limbs[i].stem,
+          depth: limbs[i].depth,
+          onLeft: limbs[i].onLeft,
+          fruit: perLimb[i],
+        ),
+    ],
+    trunkFruit: crownOut,
+  );
 }
 
 /// Harvested last, so a finished game lands nearest the tip where the light is
@@ -521,7 +737,20 @@ TreeStem _trunkStem({
     final y = soilY + (apexY - soilY) * t;
     final sway = math.sin(t * 2.1 + phase) * amplitude * t * lean;
     spine.add(Offset(centreX + sway, y));
-    widths.add(math.max(1.4, halfWidthBase * math.pow(1 - t, 0.62).toDouble()));
+
+    // Exponent 0.80, not 0.62: at 0.62 the trunk stayed so close to full width
+    // for most of its height that it rendered as a parallel pole rather than a
+    // tapering stem.
+    final taper = math.pow(1 - t, 0.80).toDouble();
+
+    // Root flare over the lowest eighth. A real trunk widens where it meets the
+    // ground, and without it the trunk looks inserted into the soil like a post
+    // rather than grown out of it. This is the single cheapest cue that the tree
+    // belongs to the ground it stands on.
+    final flareT = math.max(0.0, 1 - t / 0.125);
+    final flare = 1 + 0.42 * flareT * flareT;
+
+    widths.add(math.max(1.4, halfWidthBase * taper * flare));
   }
   return TreeStem(spine: spine, halfWidth: widths);
 }
@@ -557,7 +786,10 @@ TreeStem _limbStem({
       point.dy - math.cos(angle) * step,
     );
     spine.add(point);
-    widths.add(math.max(1.0, halfWidthBase * math.pow(1 - u, 0.70).toDouble()));
+    // 0.70 held the taper too tight and left the outer half of every limb
+    // thinner than the stalk hanging off it. 0.45 keeps real wood most of the
+    // way out and narrows at the very tip, which is what a branch does.
+    widths.add(math.max(1.6, halfWidthBase * math.pow(1 - u, 0.45).toDouble()));
   }
   return TreeStem(spine: spine, halfWidth: widths);
 }
@@ -586,9 +818,16 @@ List<TreeFruit> _hang({
     final u = count == 1 ? (from + to) / 2 : from + (to - from) * (k / (count - 1));
     final at = stem.sample(u);
     final stagger = (k.isEven ? 1.0 : -1.0) * radius * 0.78;
+    final anchor = at.point + at.normal * (stagger * 0.5);
+    // 1.55 rather than a smaller nudge because a fruit is rendered as a PORTRAIT
+    // cover card, not a circle: its height is 2.67 radii, so a smaller offset put
+    // the card's top edge above the wood it hangs from and the cover then covered
+    // its own branch. This number is what makes the stalk visible and the fruit
+    // read as hanging rather than as pinned on top.
     out.add(TreeFruit(
       item: items[k],
-      centre: at.point + at.normal * stagger + Offset(0, radius * 0.85),
+      centre: at.point + at.normal * stagger + Offset(0, radius * 1.55),
+      anchor: anchor,
       radius: radius,
       depth: depth,
       harvested: items[k].isHarvested,
@@ -610,7 +849,11 @@ List<TreeSeed> _soil({
   required double fruitRadius,
 }) {
   final out = <TreeSeed>[];
-  final r = fruitRadius * 0.42;
+  // 0.62 of a fruit rather than 0.42. A seed is rendered as a real cover chip,
+  // and at 0.42 the chip was 18px wide -- too small to tell one game from
+  // another, which defeats the point of showing the art at all. Seeds stay
+  // SMALLER than fruit, because a recommendation is not yet a game you own.
+  final r = fruitRadius * 0.62;
   final gap = r * 2.6;
   final perRow = math.max(1, (canvas.width * 0.8 / gap).floor());
 
