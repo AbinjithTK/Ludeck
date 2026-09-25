@@ -47,8 +47,11 @@
             android:value="2" />
         <!-- Flutter GPU is off by default and flutter_scene renders through it,
              so without this the scene never draws on Android. While developing,
-             `flutter run --enable-flutter-gpu` does the same for a run; this
-             meta-data is what makes a built APK work. -->
+             passing the enable-flutter-gpu flag to `flutter run` does the same
+             for a single run; this meta-data is what makes a built APK work.
+             (Written without a leading double hyphen on that flag on purpose:
+             "- -" is illegal inside an XML comment and breaks the manifest
+             merger with a bare "Error parsing AndroidManifest.xml".) -->
         <meta-data
             android:name="io.flutter.embedding.android.EnableFlutterGPU"
             android:value="true" />

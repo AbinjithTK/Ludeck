@@ -127,7 +127,7 @@ class _SceneSpikeScreenState extends State<SceneSpikeScreen> {
           CuboidGeometry(vm.Vector3(0.6, 0.6, 0.6)),
           PhysicallyBasedMaterial(),
         ),
-      )..position = vm.Vector3(-1.9, 1.2, 0),
+      )..position = vm.Vector3(0, 0.7, -2.2),
     );
 
     // Step 6a -- the engine's own spine as a TubeGeometry. Constant radius, so
@@ -164,7 +164,15 @@ class _SceneSpikeScreenState extends State<SceneSpikeScreen> {
       copies: const [],
     );
 
-    final widgetNode = Node()..position = vm.Vector3(0.9, 2.1, 0);
+    // Centred and pulled toward the camera. This screen is 1080x2400, so the
+    // horizontal span a perspective camera shows at this distance is narrow --
+    // a node at x=2.3 rendered entirely off-frame, which reads as "the widget
+    // did not render" rather than "the widget is off to the side".
+    //
+    // NOT rotated: with the camera at -z (see the truth table below) the quad's
+    // front face is already toward the camera. Rotating it here as well turns it
+    // away and it disappears without a word.
+    final widgetNode = Node()..position = vm.Vector3(0, 3.0, -2.2);
     widgetNode.addComponent(
       WidgetComponent(
         size: const Size(96, 128),
@@ -196,9 +204,36 @@ class _SceneSpikeScreenState extends State<SceneSpikeScreen> {
           if (ready)
             SceneView(
               scene,
+              // NEGATIVE z. Verified on a 1080x2400 device across four builds;
+              // the truth table is worth writing down because NOTHING logs when
+              // any of it is wrong -- geometry silently mirrors or vanishes.
+              //
+              //   camera   widget node   widget seen?   world x
+              //   -z       none          yes           correct (x=+0.9 renders right)
+              //   +z       none          NO            mirrored
+              //   +z       rotY 180      yes           mirrored
+              //   -z       rotY 180      NO            correct
+              //
+              // Two independent facts fall out of that:
+              //   1. the camera belongs at NEGATIVE z for world x to land on
+              //      screen the way the engine's canvas x does;
+              //   2. a WidgetComponent's quad is SINGLE-SIDED -- visibility
+              //      flips with (camera side XOR node rotation).
+              //
+              // STILL OPEN: in BOTH visible rows the widget's own texture reads
+              // mirrored, so the reversal is intrinsic to how the component maps
+              // its texture and is not fixed by facing. Next step is a -1 x scale
+              // on the widget node, or whichever flip the component exposes --
+              // NOT another camera-sign experiment, which is the wrong axis and
+              // cost two builds here.
+              //
+              // Also verified: the tap in row four registered even though the
+              // widget was INVISIBLE, so pointer raycasting is independent of
+              // back-face culling. Do not read a working tap as proof the widget
+              // is on screen.
               camera: PerspectiveCamera(
-                position: vm.Vector3(0, 3.2, -7.5),
-                target: vm.Vector3(0, 2.2, 0),
+                position: vm.Vector3(0, 3.4, -9.5),
+                target: vm.Vector3(0, 2.6, 0),
               ),
             ),
           Positioned(
