@@ -6,7 +6,9 @@
 
 import '../data/enums.dart';
 import '../domain/resolve.dart';
+import '../domain/video_title.dart';
 import 'catalog_service.dart';
+import 'link_metadata.dart';
 
 /// What the confirm sheet renders.
 class ShareResolution {
@@ -38,11 +40,18 @@ class ShareResolver {
   ShareResolver({
     required CatalogSource catalog,
     Interpreter interpreter = const NullInterpreter(),
+    LinkMetadataReader? metadata,
   })  : _catalog = catalog,
-        _interpreter = interpreter;
+        _interpreter = interpreter,
+        _metadata = metadata;
 
   final CatalogSource _catalog;
   final Interpreter _interpreter;
+
+  /// Reads a link's page title. Null disables tiers 2 and 3 entirely, which is
+  /// what every existing test wants: a resolver under test must not reach the
+  /// network, and a null here is louder than a fake that silently returns nothing.
+  final LinkMetadataReader? _metadata;
 
   Future<ShareResolution> resolve(String sharedText) async {
     final parsed = parseShare(sharedText);
@@ -86,9 +95,53 @@ class ShareResolver {
       ));
     }
 
-    // Tier 2 and 3 fetch page metadata, which needs the network and therefore
-    // the deployed proxy. Until then a link still yields its own source row via
-    // `hasKeepableLink`, and the prose beside it still resolves.
+    // Tiers 2 and 3: the page's own title.
+    //
+    // This used to be a comment saying it needed the deployed proxy. That was
+    // wrong, and the mistake cost the feature: reading a page's title needs no
+    // credentials at all, only looking a game UP does. A link that carries no game
+    // id now resolves through what the page calls itself.
+    final reader = _metadata;
+    if (reader != null) {
+      for (final link in parsed.links) {
+        if (link.carriesGameId && byId.isNotEmpty) continue;
+        final pageTitle = await reader.titleFor(link.uri);
+        if (pageTitle == null) continue;
+
+        // Gaming context is read from the PAGE TITLE, not from the shared prose,
+        // because a bare link has no prose. "Control walkthrough" carries its own
+        // corroboration; "the best controller settings" does not.
+        final pageContext = parseShare(pageTitle).hasGamingContext;
+
+        for (final phrase in videoTitlePhrases(pageTitle)) {
+          final hits = await _catalog.search(phrase);
+          if (hits.isEmpty) continue;
+
+          for (final game in hits.take(2)) {
+            // Only an exact or acronym hit is trusted from a page title. A
+            // substring hit off a noisy video title is how "Part 1 of my Control
+            // playthrough" would confidently offer the wrong game -- the phrase
+            // did not name it, it merely contained letters that appear in it.
+            final tier = TitleKeys(game.title).tierFor(phrase);
+            if (tier == null) continue;
+            if (tier != MatchTier.exact && tier != MatchTier.acronym) continue;
+
+            offer(Candidate(
+              title: game.title,
+              igdbId: game.igdbId,
+              method: MatchMethod.metadata,
+              confidence: metadataConfidence(
+                tier: tier,
+                phrase: phrase,
+                link: link,
+                hasGamingContext: pageContext,
+              ),
+              link: link,
+            ));
+          }
+        }
+      }
+    }
 
     // Tier 4: prose. Every phrase is checked against the catalogue, and the
     // corroboration rule decides whether a hit is trustworthy.

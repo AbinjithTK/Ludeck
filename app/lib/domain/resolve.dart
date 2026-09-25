@@ -11,6 +11,7 @@
 // is deployed.
 
 import '../data/enums.dart';
+import 'title_match.dart';
 
 /// Confidence at or above which the confirm sheet pre-ticks a candidate.
 ///
@@ -435,3 +436,44 @@ double linkConfidence(SharedLink link) {
 /// The method a link's candidate should be recorded under.
 MatchMethod linkMethod(SharedLink link) =>
     link.carriesGameId ? MatchMethod.exact : MatchMethod.metadata;
+
+/// How much to trust a game matched from a page's own title.
+///
+/// Sits deliberately BETWEEN the two neighbouring tiers. Above prose, because a
+/// page title is about the thing being shared while shared prose is about whatever
+/// the sender felt like typing. Below an id-carrying link, because that one is not
+/// a guess at all -- and so this never reaches 1.0, no matter how good the match.
+///
+/// The corroboration rule is the same one prose obeys, for the same reason. A
+/// one-word window like "Journey", "Control" or "Inside" will match a real game by
+/// pure coincidence, and generating every contiguous window of a title makes that
+/// certain rather than unlikely. So an ambiguous phrase needs gaming context
+/// somewhere in the page title before it is offered at all.
+///
+/// The phrase length bonus is the honest part: a candidate that used five words of
+/// the title accounted for more of it than one that used a single word, and is
+/// correspondingly less likely to be a coincidence.
+double metadataConfidence({
+  required MatchTier tier,
+  required String phrase,
+  required SharedLink link,
+  required bool hasGamingContext,
+}) {
+  if (isAmbiguous(phrase) && !hasGamingContext) return 0;
+
+  final base = switch (tier) {
+    MatchTier.exact => 0.80,
+    MatchTier.acronym => 0.74,
+    // Weaker tiers are refused by the caller and never reach here. Scored low
+    // rather than thrown on, so a future caller cannot get a confident answer by
+    // accident.
+    _ => 0.30,
+  };
+  final words = phrase.trim().split(RegExp(r'\s+')).length;
+  final lengthBonus = 0.02 * (words.clamp(1, 6) - 1);
+  // A link that at least identified itself (a known host with an id in the path)
+  // is marginally better evidence than a bare page.
+  final linkBonus = link.id != null ? 0.02 : 0.0;
+  final score = base + lengthBonus + linkBonus;
+  return score > 0.92 ? 0.92 : score;
+}

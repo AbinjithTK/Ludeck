@@ -6,6 +6,7 @@ import 'data/models.dart';
 import 'data/repository.dart';
 import 'services/catalog_service.dart';
 import 'services/share_intake.dart';
+import 'services/link_metadata.dart';
 import 'services/share_resolver.dart';
 import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
@@ -115,7 +116,14 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _catalog = widget.catalog ?? FixtureCatalog();
-    _resolver = ShareResolver(catalog: _catalog);
+    // The metadata reader is what turns a shared link into a game. It needs no
+    // credentials and no deployed proxy -- only looking a game up does -- so it is
+    // supplied here rather than waiting on anything. Tests construct the resolver
+    // without it, which keeps them off the network.
+    _resolver = ShareResolver(
+      catalog: _catalog,
+      metadata: LinkMetadataReader(),
+    );
     // The store is loaded where it is created, so there is nothing to load
     // here. A share that arrived with a cold start is drained after the first
     // frame, once the provider is reachable from this context.
