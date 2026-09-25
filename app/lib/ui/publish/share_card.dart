@@ -86,6 +86,29 @@ class _ShareCardScreenState extends State<ShareCardScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        // The link itself, shown rather than merely copyable.
+                        // "Copy link" alone asked the user to hand out a URL
+                        // they had never seen, on the one screen whose whole
+                        // subject is what leaves their device -- and a
+                        // screen-reader user cannot inspect a clipboard to
+                        // find out after the fact.
+                        Semantics(
+                          label: 'Your link, $_link',
+                          excludeSemantics: true,
+                          child: SoftCard(
+                            deep: true,
+                            child: Text(
+                              _link,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: Tokens.type.caption,
+                                color: Tokens.palette.textDim,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: Tokens.space.sm),
                         FilledButton.icon(
                           onPressed: _copyLink,
                           icon: const Icon(Icons.link),
@@ -196,8 +219,13 @@ class _ShareCard extends StatelessWidget {
                 ],
               )
             else
+              // Reached when the tree carries no games at all, not when
+              // nothing has been harvested -- a tree with unharvested games
+              // renders a sample above instead. The old wording said
+              // "Nothing harvested yet", which described the wrong fact and
+              // read as a bug on a tree that genuinely had games.
               Text(
-                'Nothing harvested yet.',
+                'Nothing on your tree yet.',
                 style: TextStyle(
                     fontSize: Tokens.type.body, color: Tokens.palette.textDim),
               ),

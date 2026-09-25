@@ -149,9 +149,17 @@ class TreeHeader extends StatelessWidget {
 
                 // Branches lives here rather than in the add menu: that menu is
                 // "ways a game gets onto the tree", and organising it is not one.
+                //
+                // `semanticLabel` on the Icon, not the `tooltip` alone: a
+                // tooltip did NOT reach the semantics tree here, so the only
+                // route to the branches screen announced nothing while every
+                // other header control announced itself. Verified by dumping
+                // the real tree, not by reading this code -- see
+                // test/accessibility_semantics_test.dart.
                 IconButton(
                   tooltip: 'Branches',
                   icon: Icon(Icons.account_tree_outlined,
+                      semanticLabel: 'Branches',
                       color: Tokens.palette.textDim),
                   onPressed: onBranchesTap,
                 ),

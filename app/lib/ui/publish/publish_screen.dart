@@ -40,6 +40,10 @@ class PublishScreen extends StatelessWidget {
     final games = <PublishedGame>[
       for (final b in store.branches)
         ...toPublishedForBranch(items, store, b),
+      // Games on no branch still belong to the collection, so they still
+      // publish. Without this line a user with zero branches -- which is EVERY
+      // new user -- published an empty tree while the app reported success.
+      ...toPublishedOffBranch(items, store),
     ];
     final level = levelFor(summarise(items).harvested).level;
 
@@ -64,6 +68,38 @@ List<PublishedGame> toPublishedForBranch(
   final onBranch =
       items.where((i) => idsOnBranch.contains(i.game.igdbId));
   return toPublished(onBranch, branch.name);
+}
+
+/// The group name for owned games that sit on no branch.
+///
+/// The app's own vocabulary already calls the centre of the tree the trunk, so
+/// a game that has not been placed on a limb is on the trunk. Deliberately not
+/// "Unsorted" or "Other": nothing about not having made branches yet is a
+/// deficiency to label.
+const String trunkGroupName = 'On the trunk';
+
+/// Reduce the owned games that are on NO branch to their public form.
+///
+/// Branches are an optional way to organise a collection, not a precondition
+/// for having one worth sharing -- and a new user has zero branches. Publishing
+/// only branch members meant their tree went out empty while "Your tree is
+/// live" claimed otherwise, so these games are published too, grouped under the
+/// trunk.
+///
+/// A game placed on two branches is intentionally published once per branch
+/// (that is how a game owned on two platforms hangs on both limbs), so the
+/// off-branch set is everything absent from EVERY branch's placements, which
+/// keeps those multi-branch games out of this group rather than duplicating
+/// them into it. Seeds are dropped by `toPublished` itself, not here.
+List<PublishedGame> toPublishedOffBranch(
+  List<TreeItem> items,
+  LudeckStore store,
+) {
+  final placed = <int>{
+    for (final ids in store.placements.values) ...ids,
+  };
+  final offBranch = items.where((i) => !placed.contains(i.game.igdbId));
+  return toPublished(offBranch, trunkGroupName);
 }
 
 enum _Visibility { private, public }

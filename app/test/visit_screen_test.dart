@@ -116,11 +116,18 @@ void main() {
 
       await tester.runAsync(() async {
         await tester.tap(find.text('Plant'));
-        // Let the store's own async write (_write -> addShared -> repo insert
-        // + reload) actually complete before the test reads store.items --
-        // the tap only starts the Future, on the same real-I/O class of gap
-        // Clipboard.setData hit in the publish screen tests.
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        // Bounded wait for the store's own async write (_write -> addShared ->
+        // repo insert + reload) to actually land, rather than a fixed delay.
+        // A fixed 50ms guess passed in isolation and failed inside the full
+        // suite, because under concurrency the machine is loaded and the real
+        // sqflite round trip outlives the guess -- the test was measuring the
+        // host's spare capacity, not the code. Polling to a generous deadline
+        // is both faster in the common case and deterministic.
+        final deadline = DateTime.now().add(const Duration(seconds: 10));
+        while ((store.items?.isEmpty ?? true) &&
+            DateTime.now().isBefore(deadline)) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
       });
       await tester.pumpAndSettle();
 
