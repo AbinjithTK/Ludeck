@@ -60,10 +60,26 @@ void main() {
         ),
       ));
     });
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    // Wait for the FIRST READ to land, rather than guessing a delay.
+    //
+    // A fixed 20ms was enough when this file ran alone and too short under the
+    // full suite's concurrency: the store's items were still null, the screen
+    // rendered its deliberate blank branch, and every `getRect` below failed on
+    // a finder that matched nothing. The symptom looked like a layout bug and was
+    // a timing one. Polling for the thing the test actually needs is both faster
+    // in the common case and immune to load.
+    for (var attempt = 0; attempt < 50; attempt++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pumpAndSettle();
+      if (find.byKey(const Key('collection-list')).evaluate().isNotEmpty) break;
+    }
+    expect(
+      find.byKey(const Key('collection-list')),
+      findsOneWidget,
+      reason: 'the collection never loaded, so nothing below can be measured',
     );
-    await tester.pumpAndSettle();
   }
 
   testWidgets('the list viewport starts below the header', (tester) async {

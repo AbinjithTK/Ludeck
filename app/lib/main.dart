@@ -9,6 +9,7 @@ import 'services/share_intake.dart';
 import 'services/share_resolver.dart';
 import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
+import 'ui/add/add_screen.dart';
 import 'ui/branches/branch_screen.dart';
 import 'ui/chrome_metrics.dart';
 import 'ui/harvest/rating_sheet.dart';
@@ -246,21 +247,35 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     return parts.join(' \u00B7 ');
   }
 
-  /// Nothing here is connected to a catalogue yet, and the honest thing is to
-  /// say so in plain words rather than open a search box that cannot return
-  /// anything. The affordance is real; the source behind it is not there.
+  /// Routes an add action.
+  ///
+  /// Search and manual both land on the same screen: the difference between them
+  /// was never a different flow, only a different expectation of what the
+  /// catalogue would return, and the screen says which source it is searching.
+  /// Pasting a link is still the share path and has no screen of its own, because
+  /// the share sheet already handles it better than a paste box would.
   void _onAdd(AddAction action) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Tokens.palette.surface,
-        duration: const Duration(seconds: 3),
-        content: Text(
-          'The game catalogue is not connected yet, so '
-          '"${action.label.toLowerCase()}" has nothing to look in.',
-          style: TextStyle(color: Tokens.palette.text),
-        ),
-      ),
-    );
+    switch (action) {
+      case AddAction.search:
+      case AddAction.manual:
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => AddScreen(catalog: _catalog),
+        ));
+      case AddAction.pasteLink:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Tokens.palette.surface,
+            duration: const Duration(seconds: 4),
+            content: Text(
+              // Points at the thing that already works rather than opening a box
+              // that would do the same job worse.
+              'Share a link to Ludeck from any app and it lands here, with the '
+              'link kept.',
+              style: TextStyle(color: Tokens.palette.text),
+            ),
+          ),
+        );
+    }
   }
 
   /// Writes the progress, then asks for a rating IF this was a harvest.
