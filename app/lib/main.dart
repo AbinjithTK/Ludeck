@@ -6,6 +6,7 @@ import 'data/models.dart';
 import 'data/repository.dart';
 import 'services/catalog_service.dart';
 import 'services/share_intake.dart';
+import 'services/http_catalog.dart';
 import 'services/link_metadata.dart';
 import 'services/share_resolver.dart';
 import 'state/ludeck_store.dart';
@@ -79,7 +80,7 @@ class LudeckApp extends StatelessWidget {
           ),
         ),
       ),
-      home: TreeScreen(),
+      home: TreeScreen(metadata: LinkMetadataReader()),
       ),
     );
   }
@@ -90,7 +91,17 @@ class TreeScreen extends StatefulWidget {
     super.key,
     this.intake = const PlatformShareIntake(),
     this.catalog,
+    this.metadata,
   });
+
+  /// Reads a shared link's page title, which is what turns a link into a game.
+  ///
+  /// Defaults to NULL, and the default is the safe one on purpose: a widget test
+  /// that pumps this screen must not reach the network, and a null here disables
+  /// the page-title tier outright rather than relying on a fake to stay silent.
+  /// LudeckApp supplies the real reader, so production wiring is explicit at the
+  /// top of the tree instead of hidden in a default argument.
+  final LinkMetadataReader? metadata;
 
   /// Where shared text arrives from. Injectable so a test can hand one in
   /// without an Android activity behind it.
@@ -115,15 +126,18 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _catalog = widget.catalog ?? FixtureCatalog();
+    // resolveCatalog(), NOT FixtureCatalog(). This line said FixtureCatalog for
+    // most of the project's life, which meant the shipped app searched ten
+    // hardcoded rows and could not find Grand Theft Auto V -- while a test
+    // asserting resolveCatalog() returned the right thing passed happily,
+    // because nothing in the app ever called it. A factory the app does not use
+    // is not a seam, it is dead code with a test attached.
+    _catalog = widget.catalog ?? resolveCatalog();
     // The metadata reader is what turns a shared link into a game. It needs no
     // credentials and no deployed proxy -- only looking a game up does -- so it is
     // supplied here rather than waiting on anything. Tests construct the resolver
     // without it, which keeps them off the network.
-    _resolver = ShareResolver(
-      catalog: _catalog,
-      metadata: LinkMetadataReader(),
-    );
+    _resolver = ShareResolver(catalog: _catalog, metadata: widget.metadata);
     // The store is loaded where it is created, so there is nothing to load
     // here. A share that arrived with a cold start is drained after the first
     // frame, once the provider is reachable from this context.

@@ -38,15 +38,32 @@ void main() {
 
   /// Lets real async work finish, then settles the widget tree.
   ///
-  /// 40ms rather than 20. A store write now re-reads the collection, the
-  /// branches and the placements, so a fixed delay tuned to a single query is
-  /// too short and the failure looks exactly like a feature that does not write.
-  /// Any fixed delay here is a compromise; this one has headroom.
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 40)),
-    );
-    await tester.pumpAndSettle();
+  /// Lets a real database write finish, then settles.
+  ///
+  /// POLLS rather than waiting a fixed 40 ms. The old comment here admitted the
+  /// constant was "a compromise" with "headroom", and the suite eventually grew
+  /// past four hundred tests and used the headroom up: this file began failing
+  /// under full-suite concurrency while passing in isolation. A constant cannot be
+  /// tuned for that, because the right value depends on what else is running.
+  ///
+  /// [until] is a predicate, not a finder, because the interesting condition is
+  /// sometimes a DISAPPEARANCE -- the confirm sheet closing once its write has
+  /// been awaited -- which no "wait for this to appear" helper can express.
+  Future<void> settle(WidgetTester tester, {bool Function()? until}) async {
+    for (var attempt = 0; attempt < 60; attempt++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pumpAndSettle();
+      if (until == null) {
+        // Nothing specific to wait for. Still a constant, but eight rounds of
+        // 20 ms instead of one 40 ms wait: four times the headroom, and the
+        // predicate form above is used wherever a real signal exists.
+        if (attempt >= 7) return;
+      } else if (until()) {
+        return;
+      }
+    }
   }
 
   /// Mounts the screen INSIDE `runAsync`, which is not optional.
@@ -78,11 +95,20 @@ void main() {
   }
 
   /// Taps something that triggers a database write, then waits for it.
-  Future<void> tapAndSettle(WidgetTester tester, String label) async {
+  ///
+  /// There is deliberately NO default predicate. An earlier attempt defaulted to
+  /// "wait until the tapped label disappears", which looked like a real signal and
+  /// was the opposite: the confirm sheet pops before its write and reload have
+  /// finished, so the predicate went true in 20 ms and the following database read
+  /// ran against a half-written collection. It turned an intermittent failure into
+  /// a reliable one. A wait is only better than a constant when it observes the
+  /// thing that actually finished.
+  Future<void> tapAndSettle(WidgetTester tester, String label,
+      {bool Function()? until}) async {
     await tester.runAsync(() async {
       await tester.tap(find.text(label));
     });
-    await settle(tester);
+    await settle(tester, until: until);
   }
 
   Future<T> read<T>(WidgetTester tester, Future<T> Function() body) async {

@@ -328,11 +328,42 @@ if (Test-Path $proxyDir) {
     } else { Pass 'proxy fetches only through the SSRF guard' }
 }
 
+# --- 12. The app resolves its catalogue through the factory --------------------
+# This rule exists because of a bug that every test missed, which is the only
+# kind worth a checker rule.
+#
+# main.dart constructed FixtureCatalog() directly for most of the project's life.
+# The shipped app therefore searched ten hardcoded rows and could not find Grand
+# Theft Auto V -- while a unit test asserting resolveCatalog() returned the right
+# source passed happily, because nothing in the app ever called resolveCatalog().
+# A factory the app bypasses is not a seam; it is dead code with a test attached,
+# and no amount of green proves otherwise.
+#
+# So: the app's own wiring may name resolveCatalog and nothing else. Tests still
+# construct FixtureCatalog freely -- that is what it is for -- and TreeScreen's
+# injectable `catalog` parameter is how they hand one in.
+$mainFile = Join-Path $app 'lib\main.dart'
+if (Test-Path $mainFile) {
+    $mainText = Get-Content $mainFile -Raw
+    $directBuild = [regex]::Matches($mainText, '(?<!//[^\r\n]{0,200})\b(FixtureCatalog|HttpCatalog|BundledCatalog)\s*\(')
+    if ($directBuild.Count -gt 0) {
+        $names = ($directBuild | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique) -join ', '
+        Violation 'app resolves its catalogue through the factory' ("main.dart builds a catalogue source directly ($names). Use resolveCatalog() so the shipped app and the tested factory cannot diverge.")
+    }
+    elseif ($mainText -notmatch 'resolveCatalog\s*\(') {
+        Violation 'app resolves its catalogue through the factory' 'main.dart never calls resolveCatalog(), so the catalogue the app actually runs on is whatever it built inline -- untested by definition.'
+    }
+    else {
+        Pass 'app resolves its catalogue through the factory'
+    }
+}
+
 # --- 9. The analyzer and the tests actually pass -----------------------------
 # A rule check that passes while the build is red is worthless.
 Push-Location $app
 try {
     $analyze = & flutter analyze 2>&1
+
     if ($analyze -match 'No issues found') { Pass 'flutter analyze clean' }
     else { Violation 'flutter analyze reported issues' (($analyze | Select-Object -Last 5) -join ' | ') }
 

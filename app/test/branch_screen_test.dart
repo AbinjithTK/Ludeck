@@ -50,16 +50,33 @@ void main() {
   ///
   /// Two separate runAsync calls: pumping the fake clock inside runAsync does not
   /// give a real sqflite future time to resolve.
-  Future<void> settle(WidgetTester tester) async {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 40)),
-    );
-    await tester.pumpAndSettle();
+  ///
+  /// POLLS rather than waiting a fixed 40 ms. The constant was enough when this
+  /// file was written and turned flaky as the suite grew past four hundred tests:
+  /// under full-suite concurrency a real database write can take longer than any
+  /// constant someone picked, while passing instantly in isolation. The signature
+  /// was a DIFFERENT test in this file failing on each run, which is what says
+  /// timing rather than behaviour -- a real bug fails the same test every time.
+  Future<void> settle(WidgetTester tester, {Finder? until}) async {
+    for (var attempt = 0; attempt < 60; attempt++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pumpAndSettle();
+      if (until == null) {
+        // No predicate to wait on. Still a constant, but eight rounds of 20 ms
+        // instead of one 40 ms wait: four times the headroom, and the predicate
+        // form is used wherever a real signal exists.
+        if (attempt >= 7) return;
+      } else if (until.evaluate().isNotEmpty) {
+        return;
+      }
+    }
   }
 
-  Future<void> tap(WidgetTester tester, Finder finder) async {
+  Future<void> tap(WidgetTester tester, Finder finder, {Finder? until}) async {
     await tester.runAsync(() async => tester.tap(finder));
-    await settle(tester);
+    await settle(tester, until: until);
   }
 
   /// Creates a branch through the real dialog rather than the store, so the
@@ -67,7 +84,9 @@ void main() {
   Future<void> createViaUi(WidgetTester tester, String name) async {
     await tap(tester, find.byTooltip('New branch'));
     await tester.enterText(find.byType(TextFormField), name);
-    await tap(tester, find.text('Save'));
+    // Waits for the new row to actually exist rather than for a fixed duration.
+    // This is the write whose latency was being guessed at.
+    await tap(tester, find.text('Save'), until: find.text(name.trim()));
   }
 
   Future<void> openMenu(WidgetTester tester, String branchName) async {

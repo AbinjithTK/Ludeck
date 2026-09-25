@@ -143,6 +143,96 @@ Observed on the device while verifying rate-on-harvest.
 
 ## Cycle log
 
+### 2026-09-25 12:45 -- a real catalogue, and links that resolve
+
+Abin sent a device screenshot: "Nothing recognised -- that link could not be
+matched to a game yet", and said search could not find GTA V either. One root
+cause sat under both complaints.
+
+**The app had no game data.** `resolveCatalog()` returned the ten-row fixture, so
+the shipped app's search box was decorative and a link had nothing to be matched
+against. Everything built in stages 6 to 8 was real code wired to an empty shelf.
+
+**The worst bug of the day, and only the device found it.** `main.dart` line 118
+read `_catalog = widget.catalog ?? FixtureCatalog()`. It never called
+`resolveCatalog()` at all. So the factory could be fixed, tested, and asserted
+against -- `expect(resolveCatalog(), isA<BundledCatalog>())` passed -- while the
+running app ignored it entirely. **A factory the app bypasses is not a seam; it is
+dead code with a test attached, and no amount of green proves otherwise.** 412
+tests were passing at the moment the device said "Nothing matched".
+
+That is now checker rule 12: main.dart may name `resolveCatalog` and may not
+construct a catalogue source directly. Negative-tested -- and the FIRST version of
+the rule was inert, because the anchor I inserted it at matched the
+`Pass 'flutter analyze clean'` line rather than that rule's start, wedging my rule
+inside the analyze block's `try`. A failing analyze raises a terminating error
+there, so the rule silently never ran. Moved out of the try and re-negative-tested.
+
+**What now ships.** `assets/catalog/games.json`, 609 hand-authored well-known
+games with years and approximate main-story hours, loaded by `BundledCatalog`.
+Ids are NEGATIVE and derived from a hash of the title: negative so they can never
+collide with a real positive catalogue id, and title-derived rather than
+position-derived because position would mean inserting one game shifts every id
+after it and silently repoints rows the user already saved. `LayeredCatalog` puts
+the live proxy in front when configured and keeps the bundle as the offline
+fallback, deduplicating on a numeral-folded title so one game cannot appear twice
+with two different ids.
+
+**Why "gta v" found nothing even with GTA V present.** A substring search cannot
+reach `Grand Theft Auto V` from that query -- it is an ACRONYM. `title_match.dart`
+now builds several keys per title: the full name, the subtitle after a colon
+(nobody asks whether you have played "The Legend of Zelda"), acronyms with and
+without the leading article, and roman-numeral/digit variants both ways. Tiers are
+exact > acronym > prefix > contains, and a shorter title wins an equal tier so
+"Hades" beats "Hades II" for the query "hades".
+
+**Links needed no credentials, which contradicts what this file said before.**
+Tiers 2 and 3 carried a comment claiming they needed the deployed proxy. False:
+reading a page's TITLE needs nothing, only looking a game UP needs IGDB. oEmbed
+answers unauthenticated on YouTube, TikTok, Vimeo, X and Reddit -- a YouTube Data
+API key is for statistics and captions, not for a title -- and every other page is
+read through Open Graph, JSON-LD or `<title>`. So the YouTube key is no longer on
+the critical path for this feature.
+
+`video_title.dart` turns a noisy title into candidates by taking every contiguous
+window of words. That is deliberately crude: the obvious alternative, deleting the
+words that look like noise, destroys real titles, because any honest noise list
+contains "of", "the", "final" and "last" -- strip those and *Call of Duty*, *Final
+Fantasy* and *The Last of Us* stop existing. Noise is used only to REJECT an
+all-noise candidate, never to edit one. A link-derived match is accepted only at
+exact or acronym tier, and an ambiguous one-word hit ("Journey", "Control",
+"Inside") additionally needs gaming context, read from the page title itself.
+
+**A duplicate guard that had to become a write skip.** The add screen matched
+`igdbId` only, which was fine when one catalogue existed. With two sources the same
+game arrives under two ids, so it now matches on title too AND skips the write --
+upserting a different id would create the second row rather than update the first,
+so "already there" has to mean "do nothing", not just a different snackbar.
+
+**Suite flakiness, and an attempted fix that made it worse.** Different tests
+failed on each full-suite run while all passed in isolation -- the signature of
+timing, since a real bug fails the same test every time. Cause: 40 ms fixed waits
+for real database writes, fine when written and used up as the suite passed four
+hundred tests. I first made `tapAndSettle` wait for the tapped label to DISAPPEAR,
+which looked like a real signal and was the opposite: the confirm sheet pops before
+its write and reload finish, so the predicate went true in 20 ms and the following
+read ran against a half-written collection. That turned an intermittent failure
+into a reliable one. Reverted; the harnesses now poll, use a real predicate where
+one exists (the created branch's row appearing), and otherwise wait eight rounds of
+20 ms. Three consecutive full runs green.
+
+**Verified on the device**, which is the only reason two of these were found:
+searching "gta v" returns Grand Theft Auto V first (Grand Theft Auto VI second,
+because a roman-numeral suffix reduces to its first letter so both yield "gtav" --
+the digit variants still separate them and the shorter title ranks first), and
+sharing `en.wikipedia.org/wiki/Elden_Ring` over live network resolved to Elden Ring
+labelled "From the page details".
+
+412 tests green three times, analyzer clean, `check.ps1` 14/14.
+
+Still open: the bundled catalogue is finite and hand-authored, so anything outside
+609 titles still needs the proxy. Add-by-hand remains the escape hatch.
+
 ### 2026-09-25 11:32 -- stage 9, the backend integrity audit
 
 Systematic pass over foreign keys, cascades and transactions:
