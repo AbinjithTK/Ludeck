@@ -10,6 +10,71 @@ section below to match.
 
 ---
 
+## 2026-09-25 -- Cover art for collection rows
+
+Rows were text-only even when a game HAD a cover: `Game.coverUrl` already
+flowed from IGDB through the DB into the model, but `_GameRow` never rendered
+it. Two gaps closed, not one:
+
+1. **Rendering.** Added `_Cover`, a 32x32 rounded thumbnail on the row's
+   leading edge (before `_StatusMark`). Real `Image.network` when
+   `coverUrl` is set, a placeholder tile (a game-controller glyph) otherwise,
+   `errorBuilder` falling back to the same placeholder rather than Flutter's
+   broken-image icon on a dead link.
+2. **Sourcing.** The bundled 609-title catalogue (`assets/catalog/games.json`)
+   ships with **no** cover art by design (its own note says so), and the
+   fixture rows have none either -- so most rows had nothing to render even
+   after (1). Added `CoverArtReader` (`lib/services/cover_art.dart`): looks a
+   title up against Wikipedia's `page/summary` REST endpoint, unauthenticated,
+   same "reading needs no credentials" fact `link_metadata.dart` already
+   leans on for page titles. Not IGDB-quality and said so in the code: an
+   ambiguous title (a disambiguation page) or an obscure one returns no image,
+   silently, by design -- never a guess.
+
+Wiring: `CoverArtCache` (`lib/services/cover_art_cache.dart`) is the
+in-memory, per-session, at-most-once-per-game dedup layer a rebuilding row
+calls into from `build()` -- fire-and-forget, so the list never blocks on the
+network for a paint it can complete without an image. A resolved cover is
+written back via the new `Repository.setCoverUrl` (a targeted update, same
+pattern as `setRating` -- touches nothing else on the row) and
+`LudeckStore.applyCoverUrl` patches the in-memory item directly rather than
+going through `_write`'s full re-read, which would turn "the list is
+scrolling" into a database read per frame. `applyCoverUrl` **awaits** the
+repository write before patching memory (an earlier draft fired it
+unawaited, which a fast reload racing behind it could have read stale and
+then overwritten the patch on the next render -- caught before it shipped,
+not after).
+
+**A real regression, caught by the existing test suite, not introduced
+silently.** Adding the 32px cover as a new fixed-width leading child of the
+row's `Row` overflowed by 27px at 2x text scale (`collection_layout_test.dart:
+the header survives a wrapped headline at large text scale`) -- not from the
+cover itself, but because `_RatingOrStatus`'s trailing status `Text` had
+never had a width bound and the row had zero slack even before this change.
+Fixed at the actual fault, not by shrinking the new element to hide it:
+`_RatingOrStatus`'s status text now sits in a `ConstrainedBox(maxWidth: 84)`
+with `maxLines: 1` and ellipsis, which bounds it regardless of what else the
+row gains later. 435 tests green after the fix (was 412; +23: 6 reader, 4
+cache, 5 store, 2 repository, 5 row/widget, with one pre-existing count
+shifted by the fix).
+
+**Verified on the device**, not only in tests, because the whole point is
+visual. Installed over the same emulator database from stage 4/5 (real
+continuity, not a fresh install): Hades, Astro Bot and Blue Prince already
+had IGDB covers from earlier sessions and rendered them; Tunic had none and
+resolved one live from Wikipedia within seconds of cold start. Celeste and
+Outer Wilds stayed on the placeholder -- checked directly rather than
+assumed: `en.wikipedia.org/api/rest_v1/page/summary/Celeste` is a genuine
+disambiguation page ("Celeste may refer to:"), so the silent no-guess
+behaviour is correct, not a bug. This is the one real limitation and it is
+open, not hidden: a common one-word title collides with something else on
+Wikipedia and gets no cover until the IGDB proxy is deployed.
+
+Not touched: `AddScreen`'s `_ResultRow` (the search-results list, a
+different screen) is also text-only. Out of scope for "add cover art to the
+catalogue so rows aren't text-only," which is the collection view; flagged
+here rather than silently expanded into.
+
 ## BLOCKED
 
 (empty -- nothing blocked as of this seed. A stuck loop writes here.)
