@@ -104,8 +104,11 @@ deciding them.)
    in `HttpCatalog.byExternalId` and fixture-tested, so F4's exact tier is mostly
    done; what remains is the oEmbed tier, the generic Open Graph and JSON-LD
    reader, and the YouTube tier behind a key only Abin can create.
-2. Backend polish: systematic transaction/cascade audit -- stage 9, not started.
-3. Final verification -- stage 10, not started.
+2. Final verification -- stage 10, not started. Stage 9's backend audit IS done.
+3. Not a code item, but the real critical path: the proxy deploy
+   (`docs/DEPLOY-PROXY.md` steps 3 to 6), a YouTube Data API key, and RevenueCat
+   all need account access only Abin has. Every client-side seam for them is
+   written, tested and inert.
 
 ## Design items deferred from stage 1 (open, not bugs)
 
