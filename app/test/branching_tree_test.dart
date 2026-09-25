@@ -357,4 +357,58 @@ void main() {
       expect(opacityOf(tester, 'Celeste'), 1.0);
     });
   });
+
+  group('a card fits on a real phone', () {
+    // Every other test in this file pumps a 900pt surface, which is a TABLET.
+    // At 900pt each half of the trunk is 434pt and anything fits, so the suite
+    // stayed green while the device showed cards sliced by the screen edge.
+    //
+    // The arithmetic that broke it: a 412pt phone minus the 32pt trunk column
+    // leaves 190pt a side. An inline branch-name box (104pt + 16pt padding)
+    // took 120pt of that, leaving 70pt of viewport for a 104pt card -- so a
+    // card could never be whole, on either side, no matter what it contained.
+    const phone = Size(412, 900);
+
+    Future<void> pumpPhone(WidgetTester tester) async {
+      tester.view.physicalSize = phone;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(_Harness(
+        items: [_item(1, 'Hollow Knight'), _item(2, 'Celeste')],
+        branches: const [_branchA, _branchB],
+        placements: const {
+          10: [1],
+          11: [2],
+        },
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    for (final title in ['Hollow Knight', 'Celeste']) {
+      testWidgets('$title is not clipped by the screen edge', (tester) async {
+        await pumpPhone(tester);
+
+        // The caption is the width of the card, so its rect is the card's
+        // horizontal extent. Asserting against the SCREEN rather than against a
+        // computed budget: a budget can be wrong in the same direction twice.
+        final rect = tester.getRect(find.text(title));
+        expect(rect.left, greaterThanOrEqualTo(0),
+            reason: '$title runs off the left edge');
+        expect(rect.right, lessThanOrEqualTo(phone.width),
+            reason: '$title runs off the right edge');
+      });
+    }
+
+    testWidgets('the name still reads in full at phone width', (tester) async {
+      // The fix must not trade a clipped card for a clipped name.
+      await pumpPhone(tester);
+      for (final name in ['Metroidvanias', 'Short evenings']) {
+        final text = tester.widget<Text>(find.text(name));
+        expect(text.overflow, TextOverflow.ellipsis);
+        final rect = tester.getRect(find.text(name));
+        expect(rect.width, greaterThan(0));
+        expect(rect.right, lessThanOrEqualTo(phone.width));
+      }
+    });
+  });
 }

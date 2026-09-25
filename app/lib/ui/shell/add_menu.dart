@@ -83,32 +83,52 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var i = 0; i < actions.length; i++)
-          AnimatedBuilder(
-            animation: _c,
-            builder: (context, _) {
-              final t = _stagger(i, actions.length).value;
-              // Skipped entirely when closed, so a collapsed menu cannot eat
-              // taps meant for the tree behind it.
-              if (t == 0) return const SizedBox.shrink();
-              return Opacity(
-                opacity: t.clamp(0.0, 1.0),
-                child: Transform.translate(
-                  offset: Offset(0, 12 * (1 - t)),
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: Tokens.space.xs),
-                    child: _Pill(
-                      label: actions[i].label,
-                      onTap: () {
-                        _c.reverse();
-                        widget.onAction(actions[i]);
-                      },
-                    ),
+        // The pills are FLEXIBLE and scrollable; the button below is not.
+        //
+        // The pills grow with the user's text-size setting, and at 2x scale the
+        // open menu is taller than the band it floats in -- a plain Column
+        // overflowed by 51px. A floating menu has to survive its own content
+        // getting bigger rather than assume it always fits. `reverse: true` keeps
+        // the stack anchored to the button when it does have to scroll, so the
+        // pill nearest your thumb is the one that stays put.
+        Flexible(
+          child: SingleChildScrollView(
+            reverse: true,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < actions.length; i++)
+                  AnimatedBuilder(
+                    animation: _c,
+                    builder: (context, _) {
+                      final t = _stagger(i, actions.length).value;
+                      // Skipped entirely when closed, so a collapsed menu cannot
+                      // eat taps meant for the tree behind it.
+                      if (t == 0) return const SizedBox.shrink();
+                      return Opacity(
+                        opacity: t.clamp(0.0, 1.0),
+                        child: Transform.translate(
+                          offset: Offset(0, 12 * (1 - t)),
+                          child: Padding(
+                            padding: EdgeInsets.only(bottom: Tokens.space.xs),
+                            child: _Pill(
+                              label: actions[i].label,
+                              onTap: () {
+                                _c.reverse();
+                                widget.onAction(actions[i]);
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                ),
-              );
-            },
+              ],
+            ),
           ),
+        ),
+
         AnimatedBuilder(
           animation: _c,
           builder: (context, child) => Transform.rotate(

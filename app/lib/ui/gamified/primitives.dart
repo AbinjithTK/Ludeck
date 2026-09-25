@@ -298,6 +298,60 @@ class PillProgress extends StatelessWidget {
   }
 }
 
+/// Fades the outer edge of a horizontal scroller, so a card cut by the edge reads
+/// as "there is more this way" instead of as a clipping bug.
+///
+/// A hard edge through the middle of a cover looks like a rendering fault -- that
+/// was a real complaint about the tree's limbs. A fade is the same cue a scroll
+/// shadow gives, without adding a line of chrome.
+///
+/// [side] says which end gets the fade: the OUTER end, away from the trunk. Both
+/// ends fade when the content can run off in both directions.
+class EdgeFade extends StatelessWidget {
+  const EdgeFade({
+    super.key,
+    required this.child,
+    this.fadeStart = false,
+    this.fadeEnd = true,
+    this.extent = 0.08,
+  });
+
+  final Widget child;
+
+  /// Fade the leading (left) edge.
+  final bool fadeStart;
+
+  /// Fade the trailing (right) edge.
+  final bool fadeEnd;
+
+  /// How much of the width the fade covers, as a fraction.
+  final double extent;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!fadeStart && !fadeEnd) return child;
+
+    return ShaderMask(
+      // dstIn multiplies the child's alpha by the mask, so the gradient removes
+      // opacity rather than painting a colour over the top -- which matters on a
+      // gradient sky, where a painted scrim would show as a band.
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (bounds) => LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          if (fadeStart) Tokens.cosmos.maskClear else Tokens.cosmos.maskOpaque,
+          Tokens.cosmos.maskOpaque,
+          Tokens.cosmos.maskOpaque,
+          if (fadeEnd) Tokens.cosmos.maskClear else Tokens.cosmos.maskOpaque,
+        ],
+        stops: [0, extent, 1 - extent, 1],
+      ).createShader(bounds),
+      child: child,
+    );
+  }
+}
+
 /// A small labelled count -- "3 harvested", "2 seeds".
 ///
 /// The icon is required and the label is short on purpose: this is the shape

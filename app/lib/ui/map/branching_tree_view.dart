@@ -29,6 +29,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/models.dart';
 import '../../services/cover_art_cache.dart';
+import '../gamified/primitives.dart';
 import '../tokens.dart';
 import 'game_node.dart';
 
@@ -488,12 +489,34 @@ class _LimbContent extends StatelessWidget {
 
     final label = _BranchName(name: branchName, side: side);
 
-    return Row(
-      // Name nearest the trunk on both sides, so it always reads as naming THIS
-      // bough rather than the one across the trunk from it.
-      children: side == BranchSide.right
-          ? [label, Expanded(child: scroller)]
-          : [Expanded(child: scroller), label],
+    // The fade goes on the OUTER edge -- away from the trunk -- because that is
+    // the direction the games run off in. A card bisected by the screen edge read
+    // as a rendering fault; a fade says "there is more this way".
+    final faded = EdgeFade(
+      fadeStart: side == BranchSide.left,
+      fadeEnd: side == BranchSide.right,
+      // 0.08 was measurably too weak: on the device it took a 3x magnified crop
+      // to see it at all, and a cue you cannot see at arm's length is not a cue.
+      // Over a 190pt limb this is ~30pt -- about a third of a card.
+      extent: 0.16,
+      child: scroller,
+    );
+
+    // The name sits ABOVE the cards, not beside them.
+    //
+    // Beside them was a real defect, and the arithmetic is why: a 412pt phone
+    // minus the 32pt trunk column leaves 190pt a side, and a 120pt inline name
+    // box left 70pt of viewport for a 104pt card -- so on a phone EVERY card was
+    // sliced by the screen edge, on both limbs, whatever it held. The 900pt test
+    // surface hid it because a tablet half is 434pt. Stacking costs one line of
+    // height and returns the whole half-width to the cards, which is the thing
+    // the user is actually here to look at.
+    return Column(
+      crossAxisAlignment: side == BranchSide.right
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [label, faded],
     );
   }
 }
@@ -509,15 +532,16 @@ class _BranchName extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: EdgeInsets.symmetric(horizontal: Tokens.space.xs),
         child: ConstrainedBox(
-          // A real width budget, unlike the 72pt box in the trunk that broke
-          // "Finished someday" into "Finis hed...". Long names ellipsize on ONE
-          // line rather than wrapping mid-word.
-          constraints: const BoxConstraints(maxWidth: 104),
+          // Now that the name has a whole half-width to sit in rather than
+          // competing with the cards for it, it gets a real budget and stays on
+          // ONE line. The old 104pt box wrapped "Finished someday" onto two, and
+          // the 72pt box before that broke it mid-word as "Finis hed...".
+          constraints: const BoxConstraints(maxWidth: 170),
           child: Text(
             name,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            softWrap: true,
+            softWrap: false,
             textAlign:
                 side == BranchSide.right ? TextAlign.left : TextAlign.right,
             style: TextStyle(
@@ -637,10 +661,14 @@ class _EmptyLimb extends StatelessWidget {
       ),
     );
 
-    return Row(
-      // Name nearest the trunk, matching a populated limb, so an empty branch is
-      // identifiable rather than an anonymous "Empty branch" floating in space.
-      children: side == BranchSide.right ? [label, hint] : [hint, label],
+    return Column(
+      // Name above the hint, matching a populated limb, so an empty branch is
+      // identifiable rather than an anonymous "Nothing on it yet" in space.
+      crossAxisAlignment: side == BranchSide.right
+          ? CrossAxisAlignment.start
+          : CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [label, hint],
     );
   }
 }
@@ -718,31 +746,33 @@ class _SoilTray extends StatelessWidget {
                   ),
                 ),
               ),
-              SingleChildScrollView(
-                key: const Key('soil-games'),
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.symmetric(horizontal: Tokens.space.sm),
-                child: Row(
-                  children: [
-                    for (final game in games)
-                      Padding(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: Tokens.space.xxs),
-                        child: _DraggableGame(
-                          item: game,
-                          fromBranchId: null,
-                          branchName: null,
-                          cardWidth: cardWidth,
-                          animateIn: arriving.contains(game.game.igdbId),
-                          onSelect: onSelect,
-                          onHold: onHold,
-                          onDragStart: onDragStart,
-                          onDragEnd: onDragEnd,
-                          coverCache: coverCache,
-                          onCoverFound: onCoverFound,
+              EdgeFade(
+                child: SingleChildScrollView(
+                  key: const Key('soil-games'),
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: Tokens.space.sm),
+                  child: Row(
+                    children: [
+                      for (final game in games)
+                        Padding(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: Tokens.space.xxs),
+                          child: _DraggableGame(
+                            item: game,
+                            fromBranchId: null,
+                            branchName: null,
+                            cardWidth: cardWidth,
+                            animateIn: arriving.contains(game.game.igdbId),
+                            onSelect: onSelect,
+                            onHold: onHold,
+                            onDragStart: onDragStart,
+                            onDragEnd: onDragEnd,
+                            coverCache: coverCache,
+                            onCoverFound: onCoverFound,
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

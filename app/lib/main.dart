@@ -18,6 +18,7 @@ import 'ui/chrome_metrics.dart';
 import 'ui/harvest/rating_sheet.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
+import 'ui/shell/tree_header.dart';
 import 'ui/gamified/primitives.dart';
 import 'ui/map/branching_tree_view.dart';
 
@@ -126,11 +127,9 @@ class TreeScreen extends StatefulWidget {
 }
 
 class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
-  /// Only view state lives here now. The collection, the skipped count, the
-  /// loading flag and the error all belong to `LudeckStore`, which is read from
-  /// the provider. A screen holding both a Repository and a store would be two
-  /// sources of truth for the same rows.
-  Platform? _filter;
+  /// The collection, the skipped count, the loading flag and the error all belong
+  /// to `LudeckStore`, which is read from the provider. A screen holding both a
+  /// Repository and a store would be two sources of truth for the same rows.
 
   @override
   void initState() {
@@ -304,32 +303,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
-  }
-
-  /// The headline. It counts what exists, never what is outstanding.
-  ///
-  /// Ripeness used to be the headline. It is gone on purpose: completion is the
-  /// only status signal now. A count of what is on the tree can only go up,
-  /// which is the whole difference between this and a backlog.
-  String _headline(List<TreeItem> items) {
-    if (items.isEmpty) return 'Nothing planted yet.';
-    final onTree = items.where((i) => !i.isSeed).length;
-    if (onTree == 0) return 'Seeds only, for now.';
-    if (onTree == 1) return 'One on the tree.';
-    return '$onTree on the tree.';
-  }
-
-  /// The second line. A part that is zero is left out rather than printed as a
-  /// zero, because "0 harvested" reads as a reproach and an omission does not.
-  String _subline(List<TreeItem> items) {
-    final seeds = items.where((i) => i.isSeed).length;
-    final harvested = items.where((i) => i.isHarvested).length;
-    final parts = <String>[
-      if (harvested > 0) '$harvested harvested',
-      if (seeds > 0) '$seeds ${seeds == 1 ? 'seed' : 'seeds'}',
-      if (_filter != null) _filter!.label,
-    ];
-    return parts.join(' \u00B7 ');
   }
 
   /// Routes an add action.
@@ -643,9 +616,11 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         // the block -- the header is specified top-LEFT.
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _Header(
-            headline: _headline(items),
-            subline: _subline(items),
+          TreeHeader(
+            total: items.length,
+            harvested: items.where((i) => i.isHarvested).length,
+            seeds: items.where((i) => i.isSeed).length,
+            branches: store.branches.length,
             skipped: store.skipped,
             onSkippedTap: _showSkippedNotice,
             onBranchesTap: _openBranches,
@@ -769,96 +744,6 @@ class _LoadFailure extends StatelessWidget {
 /// display type and was short by the subline on a real device. Text wraps at
 /// large text scales and on narrow screens, so no constant could have been
 /// right. Laid out in sequence, an overlap is not expressible.
-class _Header extends StatelessWidget {
-  const _Header({
-    required this.headline,
-    required this.subline,
-    required this.skipped,
-    required this.onSkippedTap,
-    required this.onBranchesTap,
-  });
-
-  final String headline;
-  final String subline;
-  final int skipped;
-  final VoidCallback onSkippedTap;
-  final VoidCallback onBranchesTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-
-    return SafeArea(
-      // Only the top edge: the content below owns the bottom inset.
-      bottom: false,
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          Tokens.space.md,
-          Tokens.space.md,
-          Tokens.space.md,
-          Tokens.space.lg,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Column(
-                key: const Key('screen-header'),
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(headline, style: text.displaySmall),
-                  SizedBox(height: Tokens.space.xxs),
-                  Text(subline, style: text.labelSmall),
-
-                  // Present only when something actually failed to read. Silence
-                  // is correct in the ordinary case: printing "0 rows could not
-                  // be read" every time the screen opens would train the user to
-                  // stop reading this corner, which is exactly wrong the one time
-                  // it says something real.
-                  //
-                  // It flows after the subline rather than being positioned at a
-                  // fixed offset, so it can no longer land on top of a wrapped
-                  // headline.
-                  if (skipped > 0) ...[
-                    SizedBox(height: Tokens.space.xs),
-                    GestureDetector(
-                      onTap: onSkippedTap,
-                      child: Text(
-                        skipped == 1
-                            ? '1 game could not be read. Tap to find out more.'
-                            : '$skipped games could not be read. Tap to find '
-                                'out more.',
-                        style: text.labelSmall
-                            ?.copyWith(color: Tokens.palette.danger),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // Branches lives here rather than in the add menu. That menu is
-            // explicitly "the ways a game can get onto the tree", and organising
-            // the tree is not one of them. This corner was empty.
-            IconButton(
-              tooltip: 'Branches',
-              icon: Icon(Icons.account_tree_outlined,
-                  color: Tokens.palette.textDim),
-              onPressed: onBranchesTap,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A fade at the bottom edge, so rows dissolve rather than sliding visibly
-/// behind the add control while the list is being dragged.
-///
-/// Opaque at the screen edge and transparent at its inner edge. Sized from the
-/// same `ChromeMetrics.bottom` the list pads itself by, so the covered band and
 /// the reserved band cannot fall out of step.
 class _Scrim extends StatelessWidget {
   const _Scrim({required this.extent});

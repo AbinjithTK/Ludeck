@@ -134,6 +134,17 @@ class _Cosmos {
   /// path continues, which `DECISIONS.md` permits, rather than marking a game as
   /// overdue, which it forbids.
   final Color trailDim = const Color(0x24FFFFFF);
+
+  /// Mask stops for an edge fade. NOT palette colours -- only their ALPHA is
+  /// used, by a `BlendMode.dstIn` ShaderMask, so the RGB is irrelevant and
+  /// nothing on screen is ever tinted by them.
+  ///
+  /// They live here because `check.ps1` rule 1 bans a colour literal outside this
+  /// file, and the rule is mechanical for a good reason: an exception for "it is
+  /// only a mask" is exactly how a seventh palette colour arrives. Keeping them
+  /// here costs nothing and keeps the guard honest.
+  final Color maskOpaque = const Color(0xFF000000);
+  final Color maskClear = const Color(0x00000000);
 }
 
 class _Type {
