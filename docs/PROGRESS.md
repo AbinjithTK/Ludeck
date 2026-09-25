@@ -44,17 +44,29 @@ deciding them.)
         shown), falls back to status grouping when none do, and every section is
         collapsible. Rows and headings carry full Semantics. 17 tests in
         `test/branch_sections_test.dart`.
-  - [ ] E3 branches screen -- not started (repository methods exist per
-        Phase B; no screen)
-  - [ ] E4 search and add -- not started; `CatalogService` does not exist
-        yet (`services/catalog_service.dart` was referenced in an earlier
-        plan but is not present in `lib/services/` as of this seed --
-        confirm before assuming it exists)
+  - [x] E3 branches screen -- **DONE 2026-09-25, commit `cc8639a`.** Create,
+        rename, reorder, delete. Reorder carries a non-drag path (Move up / Move
+        down in each row's menu) because drag is the least accessible
+        interaction there is; delete states the game count and that they are
+        kept. 16 tests.
+  - [x] E4 search and add -- **DONE 2026-09-25, commit `4dee3d3`.** Five states
+        with empty and failed kept distinct, 300ms debounce, in-flight guard
+        against out-of-order responses. `HttpCatalog` is written and tested
+        against recorded IGDB shapes; `resolveCatalog()` returns the fixture
+        while `catalogBaseUrl` is empty, so that constant is the whole swap.
+        36 tests.
   - [x] E5 superseded by Phase F, per GOAL.md -- do not build separately
 - [ ] Phase F -- share anything to the library
   - [x] F1 source storage (commit `c3fb771`)
   - [x] F2 resolver core (commit `3c4509e`)
-  - [ ] F3 SSRF-hardened fetcher -- not started
+  - [x] F3 SSRF-hardened fetcher -- **DONE 2026-09-25.**
+        `fallback-kotlin/supabase/functions/igdb/url_guard.ts` (pure policy, 17
+        tests run under node) and `safe_fetch.ts` (the impure shell). `check.ps1`
+        rule 11 refuses a fetch outside the guard and refuses the follow-redirect
+        mode anywhere in that directory. ONE RESIDUAL GAP is documented in
+        `safe_fetch.ts` rather than hidden: it still connects by hostname after
+        checking the resolved addresses, because Deno's fetch cannot pin an IP, so
+        the last DNS-rebinding millisecond needs an egress firewall in production.
   - [ ] F4 exact and keyed extractors -- not started
   - [ ] F5 oEmbed / Open Graph extractors -- not started
   - [x] F6 confirm sheet -- **DONE, commit `7ef3ec1`.** `share_intake.dart`,
@@ -81,17 +93,14 @@ deciding them.)
 
 ## Next (highest priority first)
 
-1. **Phase E3 (branches screen)** -- stage 5. Create, rename, reorder, delete.
-   Repository AND store methods now all exist (`createBranch`, `renameBranch`,
-   `deleteBranch`, `reorderBranches`, `place`, `unplace`), so this is a screen
-   over an API that is already tested. Delete must state plainly that the games
-   are kept.
-2. Phase E4 (search and add) -- stage 6. `services/catalog_service.dart` exists
-   (`CatalogSource` + `FixtureCatalog`), so this has a starting point.
-3. Phase F3 (SSRF-hardened fetcher) -- stage 7. Offline-testable, no blocker.
-4. Phase F4/F5 (extractors) -- stage 8. YouTube tier needs a human-created API
-   key; Twitch and Steam tiers do not.
-5. Backend polish: systematic transaction/cascade audit -- stage 9.
+1. **Phase F4/F5 (extractors)** -- stage 8, NOT started. Now unblocked: the SSRF
+   guard and `safeFetchPage` exist for the Open Graph tier. Twitch clip to
+   `game_id` to `igdb_id` and Steam appid via `external_games` are already written
+   in `HttpCatalog.byExternalId` and fixture-tested, so F4's exact tier is mostly
+   done; what remains is the oEmbed tier, the generic Open Graph and JSON-LD
+   reader, and the YouTube tier behind a key only Abin can create.
+2. Backend polish: systematic transaction/cascade audit -- stage 9, not started.
+3. Final verification -- stage 10, not started.
 
 ## Design items deferred from stage 1 (open, not bugs)
 
@@ -125,6 +134,102 @@ Observed on the device while verifying rate-on-harvest.
   of thing that makes a feature look missing.
 
 ## Cycle log
+
+### 2026-09-25 11:20 -- stages 5, 6 and 7, and a correction to the plan status
+
+**The orchestrator's plan status was wrong three times and had to be corrected
+rather than followed.** It reported stage 5 complete when the code was written but
+uncommitted and its device verification had been cancelled; then stage 6 complete
+when it had never been started; then stage 7 complete when it had never been
+started. Each turn began by checking `git status` against the claim, which is the
+only reason the holes were caught. Nothing was skipped to keep up with the status
+board.
+
+Commits, in order: `cc8639a` Phase E3 (branches screen), `4dee3d3` Phase E4
+(search and add), and this one for Phase F3.
+
+**Phase E3, branches screen.** Create, rename, reorder, delete, over the store
+methods added in stage 4. Two decisions worth the words:
+
+Reorder has a NON-DRAG path. Drag and drop needs a sustained press, a steady hand
+and sight of the destination; the handle stays for people who want it, and every
+row's menu also carries Move up and Move down, offered only where they mean
+something. Delete states what happens to the games before the button, with the
+count and the correct singular, because a user who suspects deleting a branch
+destroys their games will never delete one and will be stuck with a list they
+cannot tidy.
+
+Found a real bug before writing the screen: `createBranch` defaults `sortOrder` to
+0, so a branch created after any reorder would jump to the FRONT of a list the user
+had just arranged. Fixed in the store by computing the next order; there is a test
+that reorders, creates, and asserts the new branch is last.
+
+A genuine bug the tests caught: `showDialog(...).whenComplete(controller.dispose)`
+throws "A TextEditingController was used after being disposed", because the route's
+exit animation still rebuilds the field after the future resolves. The controller
+has to be owned by a StatefulWidget whose dispose runs once the route is gone.
+
+**Phase E4, search and add.** `lib/ui/add/add_screen.dart` plus
+`lib/services/http_catalog.dart`.
+
+The screen has FIVE states and the distinction that matters is empty versus
+failed: "nothing matched" says the game is not in the catalogue, "could not
+search" says nobody asked, and rendering both as an empty list makes the first a
+lie. A malformed reply offers no retry, because retrying a broken response breaks
+again and a button that cannot help is worse than no button. Debounced at 300ms
+with an in-flight query guard, so a slow earlier response cannot overwrite a newer
+one.
+
+The HTTP source is WRITTEN, not stubbed, and tested against recorded IGDB response
+shapes: the `time_to_beat` object form, the scheme-less cover URL, rows with no id
+skipped rather than fatal, and a quote in the query escaped so it cannot terminate
+the Apicalypse string. `resolveCatalog()` returns the fixture while
+`catalogBaseUrl` is empty, so filling that constant in is the entire swap.
+
+**Phase F3, the SSRF guard.** Deno is not installed on this machine, and shipping
+security-critical range arithmetic with no executed test was not an acceptable
+trade. So the policy is PURE TypeScript with no Deno APIs, tested under node with
+`--experimental-strip-types`, and the impure shell that does DNS and sockets is
+kept thin around it.
+
+What is tested: every blocked IPv4 range refused AND a public address just outside
+each one allowed (an off-by-one prefix fails one or the other); the IPv6 ranges;
+and the three IPv4-in-IPv6 embeddings that are real bypasses -- IPv4-mapped, NAT64
+and 6to4 -- none of which sits in `fc00::/7` or `fe80::/10`, so checking the IPv6
+prefix alone would miss all three. Also asserted as a load-bearing fact rather
+than assumed: WHATWG `URL` normalises `2130706433`, `0177.0.0.1`, `127.1` and
+`0x7f.0.0.1` all to `127.0.0.1`, which is the only reason a strict dotted-quad
+parser is safe here.
+
+Negative-tested by deleting the `169.254.0.0/16` entry: FIVE tests went red,
+including the 6to4 case and the post-DNS rebinding test. 17/17 green after revert.
+
+New `check.ps1` rule 11 refuses a `fetch(` outside `safe_fetch.ts` and refuses the
+follow-redirect mode anywhere in the proxy directory, and requires
+`safe_fetch.ts` to apply BOTH halves of the guard. Negative-tested with a rogue
+module. Like rule 3 before it, it fired on my own comment containing the literal
+it forbids, and the comment was reworded rather than the rule loosened.
+
+**The residual gap, stated rather than hidden:** after checking the resolved
+addresses, the fetcher still connects by HOSTNAME, because Deno's fetch cannot be
+told to connect to a pinned IP while presenting the right SNI. The last DNS
+rebinding millisecond is therefore not closed in code and wants an egress firewall
+in production. Everything else is: every literal address, every blocked name,
+every redirect hop re-vetted, body capped before it is read, timeout, port 443
+only so port scanning is not a capability.
+
+Verified: 326 tests green in the app (twice), analyzer clean, `check.ps1` 13/13,
+17/17 in the proxy guard suite.
+
+A test-flakiness root cause worth keeping: `collection_layout_test` passed alone
+and failed consistently in the FULL suite. Under concurrency its fixed 20ms wait
+was too short for the seeded load, so the store's items were still null, the screen
+rendered its deliberate blank branch, and every `getRect` failed on a finder that
+matched nothing -- which reads as a layout bug and is a timing one. Replaced with a
+bounded poll for the widget the test actually needs.
+
+**NOT done in this turn: stage 8 (extractors, F4 and F5).** The guard and fetcher
+it depends on now exist, so it is unblocked.
 
 ### 2026-09-25 10:28 -- stage 4 of the "remaining features" plan (Phase E2)
 

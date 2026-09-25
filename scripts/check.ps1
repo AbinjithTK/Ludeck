@@ -286,6 +286,48 @@ if ($badPumps.Count) {
         ' forever rather than failing. Wrap pumpWidget in tester.runAsync.')
 } else { Pass 'DB-backed widget tests mount inside runAsync' }
 
+# --- 11. The proxy fetches arbitrary URLs from exactly one guarded place ------
+# Step F5 has the proxy fetch user-supplied URLs so it can read Open Graph tags.
+# That is an SSRF hole unless every such fetch goes through safe_fetch.ts, which
+# vets the URL's shape, re-checks what its host resolved to, and re-vets every
+# redirect hop.
+#
+# Two regressions would silently reopen it, and neither shows up in a test:
+#   a bare fetch() somewhere else in the function, bypassing the guard entirely
+#   redirect: "follow", which hands the chase to the runtime with no checks
+#
+# safe_fetch.ts is the one file allowed to call fetch. The token endpoint in
+# index.ts talks to a FIXED Twitch URL, not a user-supplied one, so it is exempt
+# by name rather than by pattern.
+$proxyDir = Join-Path $repo 'fallback-kotlin\supabase\functions\igdb'
+if (Test-Path $proxyDir) {
+    $proxyHits = @()
+    foreach ($f in (Get-ChildItem -Path $proxyDir -Filter *.ts | Where-Object { $_.Name -notmatch '\.test\.ts$' })) {
+        $text = Get-Content $f.FullName -Raw
+        if ($text -match 'redirect:\s*["'']follow["'']') {
+            $proxyHits += "$($f.Name): redirect follow"
+        }
+        if ($f.Name -notin @('safe_fetch.ts', 'index.ts') -and $text -match '\bfetch\s*\(') {
+            $proxyHits += "$($f.Name): calls fetch outside safe_fetch.ts"
+        }
+    }
+    # safe_fetch.ts must actually USE the guard, or it is just a fetch with a nicer
+    # name.
+    $safeFetch = Join-Path $proxyDir 'safe_fetch.ts'
+    if (Test-Path $safeFetch) {
+        $sf = Get-Content $safeFetch -Raw
+        if ($sf -notmatch 'guardRequestUrl' -or $sf -notmatch 'guardResolvedAddresses') {
+            $proxyHits += 'safe_fetch.ts no longer applies both halves of the guard'
+        }
+    }
+    if ($proxyHits) {
+        Violation 'the proxy can fetch a URL without the SSRF guard' (
+            ($proxyHits -join ' | ') +
+            ' -- every user-supplied fetch goes through safe_fetch.ts, which vets the' +
+            ' URL, re-checks the resolved address, and re-vets each redirect hop.')
+    } else { Pass 'proxy fetches only through the SSRF guard' }
+}
+
 # --- 9. The analyzer and the tests actually pass -----------------------------
 # A rule check that passes while the build is red is worthless.
 Push-Location $app
