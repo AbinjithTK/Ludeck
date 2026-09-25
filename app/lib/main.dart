@@ -19,7 +19,7 @@ import 'ui/harvest/rating_sheet.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
 import 'ui/gamified/primitives.dart';
-import 'ui/map/roadmap_view.dart';
+import 'ui/map/branching_tree_view.dart';
 
 Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
@@ -247,6 +247,59 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
           n == 1
               ? 'Added ${choice.accepted.single.title}.'
               : 'Added $n games.',
+          style: TextStyle(color: Tokens.palette.text),
+        ),
+      ),
+    );
+  }
+
+  /// Moves a dragged game from one branch to another, or off every branch.
+  ///
+  /// A MOVE, not a copy: the old placement is removed as well as the new one
+  /// added. Without the removal a single drag would leave the game hanging on
+  /// two branches, which is legal in this model (a game genuinely can sit on
+  /// several) and therefore would not look like a bug -- it would look like the
+  /// app had silently duplicated the game.
+  ///
+  /// `toBranchId` null means it was dropped in the soil: taken off its branch,
+  /// not deleted. Nothing the user recorded is destroyed by filing.
+  Future<void> _moveGame(
+    LudeckStore store,
+    GameDrag drag,
+    int? toBranchId,
+  ) async {
+    final id = drag.item.game.igdbId;
+    final from = drag.fromBranchId;
+    if (from == toBranchId) return;
+
+    if (toBranchId != null) {
+      await store.place(id, toBranchId);
+    }
+    if (from != null) {
+      await store.unplace(id, from);
+    }
+
+    if (!mounted) return;
+
+    // Named feedback, because the tree hides branch names: after a drop the user
+    // has no on-screen way to confirm WHICH branch received the game, and a
+    // silent success would make the one destructive-looking gesture in the app
+    // unverifiable.
+    final branchName = toBranchId == null
+        ? null
+        : store.branches
+            .where((b) => b.id == toBranchId)
+            .map((b) => b.name)
+            .firstOrNull;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Tokens.palette.surface,
+        duration: const Duration(seconds: 2),
+        content: Text(
+          branchName == null
+              ? '${drag.item.game.title} is back in the soil.'
+              : '${drag.item.game.title} moved to $branchName.',
           style: TextStyle(color: Tokens.palette.text),
         ),
       ),
@@ -604,34 +657,23 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                RoadmapView(
+                BranchingTreeView(
                   items: items,
                   branches: store.branches,
                   placements: store.placements,
                   coverCache: widget.coverCache,
                   onCoverFound: store.applyCoverUrl,
+                  onMove: (drag, toBranchId) =>
+                      _moveGame(store, drag, toBranchId),
                   // The header already supplies the gap above; the list only
                   // needs to clear the control at the bottom.
                   topInset: 0,
                   bottomInset: chrome.bottom,
-                  onSelect: (item) {
-                    final hours = item.game.hours;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        backgroundColor: Tokens.palette.surface,
-                        duration: const Duration(seconds: 2),
-                        content: Text(
-                          item.isSeed
-                              ? '${item.game.title} \u00B7 seed from '
-                                  '${item.entry.recommendedBy ?? "somewhere"}'
-                              : '${item.game.title} \u00B7 '
-                                  '${item.entry.progress.label}'
-                                  '${hours == null ? '' : ' \u00B7 $hours h'}',
-                          style: TextStyle(color: Tokens.palette.text),
-                        ),
-                      ),
-                    );
-                  },
+                  // Tap opens the status sheet, because long-press is the DRAG
+                  // now (press and hold moves a game between branches). The tap
+                  // used to show an information snackbar, which was strictly less
+                  // useful than the thing the user actually wants from a game.
+                  onSelect: _openStatusSheet,
                   onHold: _openStatusSheet,
                 ),
 

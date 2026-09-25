@@ -39,16 +39,16 @@ void main() {
 
     Future<void> pump(WidgetTester tester) async {
       tester.view.devicePixelRatio = 1.0;
-      // Tall on purpose. The home screen is now a roadmap: a vertical path with
-      // one node per game, which is far taller than the list it replaced, and on
-      // a 915pt surface the last few of the ten seeded games are never built. A
-      // finder then matches nothing and `longPress` throws "Bad state: No
-      // element", which reads as a broken rating flow and is a viewport.
+      // WIDE on purpose, not just tall. The home screen is now a branching tree,
+      // and the seeded fixture has no branches -- so every game sits in the soil
+      // tray, which scrolls HORIZONTALLY. On a 412pt-wide surface only the first
+      // few cards are ever built, a finder matches nothing, and `tap` throws "Bad
+      // state: No element", which reads as a broken rating flow and is a viewport.
       //
-      // This test is about the harvest TRIGGER, not about layout -- collection_
-      // layout_test owns the geometry -- so the honest fix is a surface big
-      // enough to hold the road rather than scroll choreography in every case.
-      tester.view.physicalSize = const Size(412, 2000);
+      // This test is about the harvest TRIGGER; collection_layout_test owns
+      // geometry. So the surface is sized to hold the row rather than adding
+      // scroll choreography to every case.
+      tester.view.physicalSize = const Size(1400, 1200);
       addTearDown(tester.view.reset);
 
       await tester.runAsync(() async {
@@ -67,9 +67,15 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    /// Opens the status sheet on a row by long-pressing its title.
+    /// Opens the status sheet on a game by TAPPING it.
+    ///
+    /// It used to long-press. The tree now uses press-and-hold to DRAG a game
+    /// between branches, and an InkWell long-press inside a LongPressDraggable
+    /// wins the gesture arena and stops the drag starting at all -- so the two
+    /// cannot share the gesture. Moving between branches kept long-press and the
+    /// status sheet moved to tap.
     Future<void> openStatusSheet(WidgetTester tester, String title) async {
-      await tester.longPress(find.text(title));
+      await tester.tap(find.text(title));
       await tester.pumpAndSettle();
     }
 

@@ -73,10 +73,10 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
       );
       await tester.pumpAndSettle();
-      if (find.byKey(const Key('roadmap-list')).evaluate().isNotEmpty) break;
+      if (find.byKey(const Key('tree-scroll')).evaluate().isNotEmpty) break;
     }
     expect(
-      find.byKey(const Key('roadmap-list')),
+      find.byKey(const Key('tree-scroll')),
       findsOneWidget,
       reason: 'the collection never loaded, so nothing below can be measured',
     );
@@ -86,7 +86,7 @@ void main() {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final list = tester.getRect(find.byKey(const Key('roadmap-list')));
+    final list = tester.getRect(find.byKey(const Key('tree-scroll')));
 
     // The list's own viewport must begin at or below the header's painted
     // bottom. This is structural now -- they are siblings in a Column -- and the
@@ -107,7 +107,7 @@ void main() {
     await pump(tester, textScale: 2.0);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final list = tester.getRect(find.byKey(const Key('roadmap-list')));
+    final list = tester.getRect(find.byKey(const Key('tree-scroll')));
 
     expect(list.top, greaterThanOrEqualTo(header.bottom));
   });
@@ -116,13 +116,13 @@ void main() {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final viewport = tester.getRect(find.byKey(const Key('roadmap-list')));
+    final viewport = tester.getRect(find.byKey(const Key('tree-scroll')));
 
     // Every visible node title must be painted below the header. Measured per
     // node rather than trusting the padding, because one could still intrude
     // through a negative margin or an unexpected transform.
     final titles = find.descendant(
-      of: find.byKey(const Key('roadmap-list')),
+      of: find.byKey(const Key('tree-scroll')),
       matching: find.byType(Text),
     );
     expect(titles, findsWidgets);
@@ -153,11 +153,10 @@ void main() {
   testWidgets('the last row clears the add control', (tester) async {
     await pump(tester);
 
-    final list = tester.widget<ListView>(
-        find.byKey(const Key('roadmap-list')));
+    final list = tester.widget<SingleChildScrollView>(find.byKey(const Key('tree-scroll')));
     final padding = list.padding! as EdgeInsets;
     final addMenu = tester.getRect(find.byType(AddMenu));
-    final viewport = tester.getRect(find.byKey(const Key('roadmap-list')));
+    final viewport = tester.getRect(find.byKey(const Key('tree-scroll')));
 
     // The reserved bottom band must reach at least as high as the add control's
     // top, or the final row sits behind the button that covers it.
@@ -173,8 +172,7 @@ void main() {
       (tester) async {
     await pump(tester);
 
-    final list = tester.widget<ListView>(
-        find.byKey(const Key('roadmap-list')));
+    final list = tester.widget<SingleChildScrollView>(find.byKey(const Key('tree-scroll')));
     final padding = list.padding! as EdgeInsets;
 
     // Padding alone only fixes where the list comes to REST. The scrim is what
@@ -182,7 +180,7 @@ void main() {
     // band -- a scrim shorter than the inset leaves a strip where a row is
     // visible half-behind the control.
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    final viewport = tester.getRect(find.byKey(const Key('roadmap-list')));
+    final viewport = tester.getRect(find.byKey(const Key('tree-scroll')));
 
     expect(scrim.height, moreOrLessEquals(padding.bottom, epsilon: 0.5));
     expect(scrim.bottom, moreOrLessEquals(viewport.bottom, epsilon: 0.5));
@@ -217,15 +215,31 @@ void main() {
   });
 
   testWidgets('the scrim never swallows a scroll gesture', (tester) async {
-    // A deliberately short surface, so the seeded collection definitely
-    // overflows. On a tall screen the rows can fit, the list is then not
-    // scrollable at all, and a drag that moves nothing would prove nothing
-    // about whether the scrim is passing pointers through.
+    // Branches FIRST, so the tree actually overflows.
+    //
+    // The seeded fixture has no branches, so every game sits in the single soil
+    // tray -- roughly 200pt tall, which fits a short surface. The viewport then
+    // does not scroll at all and this test's own precondition fails, correctly
+    // reporting that it cannot prove anything about hit testing. Real branch rows
+    // are what make the content taller than the screen.
+    await tester.runAsync(() async {
+      for (var i = 0; i < 4; i++) {
+        final id = await repo.createBranch('Branch $i', sortOrder: i);
+        final games = await repo.load();
+        if (i < games.length) await repo.place(games[i].game.igdbId, id);
+      }
+    });
+
+    // A deliberately short surface, so the tree definitely overflows. On a tall
+    // screen the rows can fit, the viewport is then not scrollable at all, and a
+    // drag that moves nothing would prove nothing about the scrim.
     await pump(tester, size: const Size(412, 420));
 
-    final scrollable = find.descendant(
-      of: find.byKey(const Key('roadmap-list')),
-      matching: find.byType(Scrollable),
+    // The tree's OWN vertical scroller. Scoped by axis, because every branch limb
+    // and the soil tray is a horizontal scroller too -- an unscoped Scrollable
+    // finder now matches several and `state` throws "Too many elements".
+    final scrollable = find.byWidgetPredicate(
+      (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
     );
     final position = tester.state<ScrollableState>(scrollable).position;
     expect(position.maxScrollExtent, greaterThan(0),
@@ -234,17 +248,16 @@ void main() {
 
     final before = position.pixels;
 
-    // Drag DOWNWARD starting INSIDE the bottom band, which is where the scrim is
+    // Drag UPWARD starting INSIDE the bottom band, which is where the scrim is
     // painted. If the scrim were hit-testable this would move nothing and the
     // bottom of the screen would be dead to touch.
     //
-    // Downward, not upward, because the road is a REVERSED list: it rests at
-    // offset 0 showing the bottom of the path, so an upward drag is already at
-    // the start and clamps to 0 -- which looks exactly like a scrim eating the
-    // gesture. The direction that advances a reversed viewport is the one that
-    // proves the pointer got through.
+    // Upward again: the branching tree scrolls normally, unlike the reversed
+    // roadmap it replaced, so the direction that advances the viewport is the
+    // ordinary one. The reversal is exactly the kind of detail that made this
+    // assertion look like a scrim bug twice.
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    await tester.dragFrom(scrim.center, const Offset(0, 120));
+    await tester.dragFrom(scrim.center, const Offset(0, -120));
     await tester.pumpAndSettle();
 
     expect(
