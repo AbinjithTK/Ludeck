@@ -41,6 +41,15 @@ class VisitScreen extends StatefulWidget {
 class _VisitScreenState extends State<VisitScreen> {
   late Future<PublishedTree> _future;
 
+  // Reaction/follow state is read separately from the tree itself: reacting
+  // does not change what the tree contains, so re-fetching the whole tree on
+  // every tap would be wasted work and would also flicker every row while it
+  // reloads. Loaded once alongside the tree, updated locally after a write
+  // succeeds.
+  List<TreeReaction> _reactions = const [];
+  bool _following = false;
+  bool _actionInFlight = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +59,80 @@ class _VisitScreenState extends State<VisitScreen> {
   void _load() {
     final backend = context.read<SocialBackend>();
     _future = backend.treeByHandle(widget.handle);
+    _loadReactionsAndFollow(backend);
+  }
+
+  Future<void> _loadReactionsAndFollow(SocialBackend backend) async {
+    try {
+      final reactions = await backend.reactionsFor(widget.handle);
+      // following() requires sign-in; a signed-out visitor simply cannot be
+      // following anyone, which is a real answer, not an error.
+      final follows = backend.currentProfile == null
+          ? const <String>[]
+          : await backend.following();
+      if (!mounted) return;
+      setState(() {
+        _reactions = reactions;
+        _following = follows.contains(widget.handle);
+      });
+    } on SocialException {
+      // Reactions/follow state failing to load should not block the tree
+      // itself from rendering -- the counts simply start at zero.
+    }
+  }
+
+  bool get _signedIn => context.read<SocialBackend>().currentProfile != null;
+
+  Future<void> _react(ReactionKind kind) async {
+    final backend = context.read<SocialBackend>();
+    setState(() => _actionInFlight = true);
+    try {
+      if (!_signedIn) await backend.signIn();
+      await backend.react(widget.handle, kind);
+      final reactions = await backend.reactionsFor(widget.handle);
+      if (!mounted) return;
+      setState(() {
+        _reactions = reactions;
+        _actionInFlight = false;
+      });
+    } on SocialException catch (e) {
+      if (!mounted) return;
+      setState(() => _actionInFlight = false);
+      _showError(e);
+    }
+  }
+
+  Future<void> _toggleFollow() async {
+    final backend = context.read<SocialBackend>();
+    final next = !_following;
+    setState(() {
+      _following = next; // optimistic -- follow/unfollow is a toggle a user
+      _actionInFlight = true; // expects to see reflected immediately.
+    });
+    try {
+      if (!_signedIn) await backend.signIn();
+      await backend.setFollowing(widget.handle, next);
+      if (!mounted) return;
+      setState(() => _actionInFlight = false);
+    } on SocialException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _following = !next; // roll back the optimistic flip.
+        _actionInFlight = false;
+      });
+      _showError(e);
+    }
+  }
+
+  void _showError(SocialException e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(e.failure == SocialFailure.notConfigured
+            ? "Sharing isn't set up yet on this build."
+            : 'Something went wrong. Try again.'),
+        backgroundColor: Tokens.cosmos.panelDeep,
+      ),
+    );
   }
 
   Future<void> _plant(PublishedGame game) async {
@@ -123,7 +206,15 @@ class _VisitScreenState extends State<VisitScreen> {
                     handle: widget.handle,
                   );
                 }
-                return _VisitBody(tree: snapshot.data!, onPlant: _plant);
+                return _VisitBody(
+                  tree: snapshot.data!,
+                  onPlant: _plant,
+                  reactions: _reactions,
+                  isFollowing: _following,
+                  actionsEnabled: !_actionInFlight,
+                  onReact: _react,
+                  onToggleFollow: _toggleFollow,
+                );
               },
             ),
           ),
@@ -160,12 +251,28 @@ class _VisitError extends StatelessWidget {
 }
 
 /// The visited tree itself: owner summary, then every game grouped by branch.
-/// Read-only throughout -- the only interactive element on any row is Plant.
+/// Read-only except for the audience verbs (react, follow) and Plant.
 class _VisitBody extends StatelessWidget {
-  const _VisitBody({required this.tree, required this.onPlant});
+  const _VisitBody({
+    required this.tree,
+    required this.onPlant,
+    required this.reactions,
+    required this.isFollowing,
+    required this.actionsEnabled,
+    required this.onReact,
+    required this.onToggleFollow,
+  });
 
   final PublishedTree tree;
   final ValueChanged<PublishedGame> onPlant;
+  final List<TreeReaction> reactions;
+  final bool isFollowing;
+  final bool actionsEnabled;
+  final ValueChanged<ReactionKind> onReact;
+  final VoidCallback onToggleFollow;
+
+  int _count(ReactionKind kind) =>
+      reactions.where((r) => r.kind == kind).length;
 
   @override
   Widget build(BuildContext context) {
@@ -204,6 +311,16 @@ class _VisitBody extends StatelessWidget {
             ],
           ),
         ),
+        SizedBox(height: Tokens.space.sm),
+        _ReactionBar(
+          admireCount: _count(ReactionKind.admire),
+          wishlistCount: _count(ReactionKind.wishlist),
+          playedCount: _count(ReactionKind.played),
+          isFollowing: isFollowing,
+          enabled: actionsEnabled,
+          onReact: onReact,
+          onToggleFollow: onToggleFollow,
+        ),
         SizedBox(height: Tokens.space.md),
         if (tree.games.isEmpty)
           SoftCard(
@@ -228,6 +345,131 @@ class _VisitBody extends StatelessWidget {
             SizedBox(height: Tokens.space.sm),
           ],
       ],
+    );
+  }
+}
+
+/// The audience verbs: three reactions (admire/wishlist/played) with their
+/// live counts, plus follow. Distinct row from Plant's per-game buttons --
+/// these apply to the WHOLE tree, not one game.
+///
+/// Each reaction is a TOGGLE per visitor (tapping a kind you already gave
+/// again is a no-op on the backend's side, per FakeSocialBackend/RLS's unique
+/// constraint), so this bar shows counts, not a per-visitor selected state --
+/// the backend has no method to ask "did I react with X", and adding one
+/// is more than this stage needs.
+class _ReactionBar extends StatelessWidget {
+  const _ReactionBar({
+    required this.admireCount,
+    required this.wishlistCount,
+    required this.playedCount,
+    required this.isFollowing,
+    required this.enabled,
+    required this.onReact,
+    required this.onToggleFollow,
+  });
+
+  final int admireCount;
+  final int wishlistCount;
+  final int playedCount;
+  final bool isFollowing;
+  final bool enabled;
+  final ValueChanged<ReactionKind> onReact;
+  final VoidCallback onToggleFollow;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Expanded(
+            child: _ReactionButton(
+              icon: Icons.auto_awesome,
+              label: 'Admire',
+              count: admireCount,
+              onTap: enabled ? () => onReact(ReactionKind.admire) : null,
+            ),
+          ),
+          SizedBox(width: Tokens.space.xs),
+          Expanded(
+            child: _ReactionButton(
+              icon: Icons.bookmark_outline,
+              label: 'Wishlist',
+              count: wishlistCount,
+              onTap: enabled ? () => onReact(ReactionKind.wishlist) : null,
+            ),
+          ),
+          SizedBox(width: Tokens.space.xs),
+          Expanded(
+            child: _ReactionButton(
+              icon: Icons.videogame_asset_outlined,
+              label: 'Played too',
+              count: playedCount,
+              onTap: enabled ? () => onReact(ReactionKind.played) : null,
+            ),
+          ),
+          SizedBox(width: Tokens.space.xs),
+          Expanded(
+            child: _ReactionButton(
+              icon: isFollowing ? Icons.notifications_active : Icons.notifications_none,
+              label: isFollowing ? 'Following' : 'Follow',
+              count: null,
+              selected: isFollowing,
+              onTap: enabled ? onToggleFollow : null,
+            ),
+          ),
+        ],
+      );
+}
+
+class _ReactionButton extends StatelessWidget {
+  const _ReactionButton({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.onTap,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final int? count;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = count;
+    final text = n == null ? label : '$label${n > 0 ? ' $n' : ''}';
+    return Semantics(
+      label: text,
+      button: true,
+      selected: selected,
+      excludeSemantics: true,
+      child: SoftCard(
+        deep: selected,
+        onTap: onTap,
+        padding: EdgeInsets.symmetric(vertical: Tokens.space.sm),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: selected ? Tokens.palette.accent : Tokens.palette.text,
+            ),
+            SizedBox(height: Tokens.space.xxs),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: Tokens.type.caption,
+                color: Tokens.palette.textDim,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
