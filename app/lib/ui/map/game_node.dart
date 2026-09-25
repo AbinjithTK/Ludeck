@@ -132,7 +132,7 @@ class _GameNodeState extends State<GameNode>
       game.title,
       if (widget.branchName case final String branch) 'on $branch',
       item.isSeed
-          ? 'Seed from ${item.entry.recommendedBy ?? 'somewhere'}'
+          ? 'Bud, recommended by ${item.entry.recommendedBy ?? 'someone'}'
           : item.entry.progress.label,
       if (item.isHarvested && (item.entry.rating ?? 0) > 0)
         'rated ${item.entry.rating} out of 5',

@@ -13,7 +13,13 @@ library;
 enum Ownership {
   /// Seen and saved, not owned. Someone recommended it, or it came off a clip.
   /// This is the state the judged tie-break criterion is about.
-  spotted('Spotted', 'Seed'),
+  ///
+  /// Tree word is 'Bud', not 'Seed'. Changed 2026-09-26: a seed does not become
+  /// an apple on a tree that already exists, it grows its own tree, so a
+  /// recommendation arriving on YOUR tree is a bud on it. The social act of
+  /// taking a cutting from someone else's tree keeps the graft word. `name` is
+  /// what persists, so this cost no migration.
+  spotted('Spotted', 'Bud'),
   owned('Owned', 'On the tree'),
 
   /// Sold, traded, refunded, or lapsed out of a subscription.

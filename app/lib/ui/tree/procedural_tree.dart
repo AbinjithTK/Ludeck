@@ -111,6 +111,7 @@ class TreeFruit {
     required this.depth,
     required this.harvested,
     required this.branchId,
+    this.bud = false,
   });
 
   final TreeItem item;
@@ -131,6 +132,19 @@ class TreeFruit {
   final double depth;
 
   final bool harvested;
+
+  /// A game recommended but not owned yet: it hangs as a BUD, not as fruit.
+  ///
+  /// It used to sit in a strip of soil below the tree. That was wrong twice over.
+  /// Literally: a seed does not become an apple on a tree that already exists,
+  /// it grows its own tree, and the user said so. And compositionally: on a real
+  /// collection it put more than half the games in a cramped bar under a sparse
+  /// tree, so the strip read as a bookmark row and the tree looked empty.
+  ///
+  /// A bud is rendered SMALLER than fruit and with a green collar, so "not yet
+  /// yours" is legible at a glance without reading a label. It keeps its cover
+  /// art, because a game you cannot identify is not worth showing.
+  final bool bud;
 
   /// The branch this fruit hangs on, or [ProceduralTree.trunkBranchId] when the
   /// game is on no branch at all.
@@ -161,18 +175,11 @@ class TreeLimb {
   double get opacity => 1 - depth * 0.30;
 }
 
-/// A recommendation not yet owned, resting in the soil at the base.
-class TreeSeed {
-  const TreeSeed({
-    required this.item,
-    required this.centre,
-    required this.radius,
-  });
-
-  final TreeItem item;
-  final Offset centre;
-  final double radius;
-}
+// `TreeSeed` used to live here -- a recommendation resting in soil at the base.
+// It is gone: recommendations now hang on the tree as buds (`TreeFruit.bud`).
+// See `docs/DECISIONS.md`, "The shell, the social area, and the seed lifecycle".
+// The GROUND has not gone anywhere; `ProceduralTree.soilY` is still the line the
+// trunk stands on and the painter still draws earth there.
 
 /// The whole generated tree.
 class ProceduralTree {
@@ -183,7 +190,6 @@ class ProceduralTree {
     required this.limbs,
     required this.crown,
     required this.trunkFruit,
-    required this.soil,
     required this.soilY,
     required this.seed,
   });
@@ -208,13 +214,15 @@ class ProceduralTree {
   /// a big limb; the crown is the growth you get for free.
   final List<TreeStem> crown;
 
-  /// Owned games on no branch. They hang in the [crown] rather than being
-  /// hidden, which is the same rule publishing follows ("On the trunk") -- and
-  /// it is why the home screen no longer renders an empty canvas for a user who
-  /// has games but has never made a branch.
+  /// Games on no branch, hanging in the [crown] rather than being hidden. This
+  /// is the same rule publishing follows ("On the trunk"), and it is why the home
+  /// screen no longer renders an empty canvas for a user who has games but has
+  /// never made a branch. Buds live here too until they are filed.
   final List<TreeFruit> trunkFruit;
 
-  final List<TreeSeed> soil;
+  /// The ground line the trunk stands on. Not a container for anything: the soil
+  /// STRIP that used to hold recommendations is gone (see [TreeFruit.bud]), but
+  /// the earth the tree grows out of is still drawn here.
   final double soilY;
 
   /// The seed the shape was generated from. Exposed so a test can assert two
@@ -225,6 +233,17 @@ class ProceduralTree {
       [for (final l in limbs) ...l.fruit, ...trunkFruit];
 
   int get fruitCount => allFruit.length;
+
+  /// Recommendations, wherever they hang.
+  Iterable<TreeFruit> get buds => allFruit.where((f) => f.bud);
+
+  /// Games the user has not filed onto a named branch yet, buds included.
+  ///
+  /// This is what the "N to place" affordance counts. It is deliberately a count
+  /// of items ON THE TREE rather than of items in a holding area: nothing waits
+  /// off-tree any more, so filing is a way of arranging what is already there,
+  /// not a chore standing between a game and its picture.
+  int get unfiledCount => trunkFruit.length;
 
   /// The trunk's half-width EXCLUDING the root flare.
   ///
@@ -258,9 +277,6 @@ class ProceduralTree {
     for (final f in allFruit) {
       consider(f.item, f.centre, f.radius);
     }
-    for (final s in soil) {
-      consider(s.item, s.centre, s.radius);
-    }
     return best;
   }
 
@@ -281,11 +297,12 @@ class ProceduralTree {
     final soilY = canvas.height - canvas.height * 0.12;
     final centreX = canvas.width / 2;
 
-    // Shelved games are out of sight by the user's own choice; seeds are not
-    // owned yet and belong in the soil, not on a limb.
+    // Shelved games are out of sight by the user's own choice. Everything else
+    // hangs on the tree: owned games as fruit, recommendations as BUDS. Nothing
+    // waits in a strip underneath any more -- see `TreeFruit.bud`.
     final live = items.where((i) => !i.entry.shelved).toList();
     final owned = live.where((i) => !i.isSeed).toList();
-    final seedItems = live.where((i) => i.isSeed).toList();
+    final budItems = live.where((i) => i.isSeed).toList();
 
     final ordered = [...branches]
       ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
@@ -312,7 +329,13 @@ class ProceduralTree {
     final seed = _seedFor(ordered, owned);
     final rng = _Lcg(seed);
 
-    final byId = <int, TreeItem>{for (final i in owned) i.game.igdbId: i};
+    // Buds are indexed alongside owned games, so a recommendation CAN be filed
+    // onto a named branch. Previously `placements` silently dropped any id that
+    // was not owned, which meant a recommendation could not be organised at all.
+    final byId = <int, TreeItem>{
+      for (final i in owned) i.game.igdbId: i,
+      for (final i in budItems) i.game.igdbId: i,
+    };
 
     // Membership per branch, and the set of everything placed anywhere.
     final members = <int, List<TreeItem>>{};
@@ -322,14 +345,17 @@ class ProceduralTree {
       final onBranch = <TreeItem>[];
       for (final id in ids) {
         final item = byId[id];
-        if (item == null) continue; // placed but shelved, seeded or gone
+        if (item == null) continue; // placed but shelved or gone
         onBranch.add(item);
         placedIds.add(id);
       }
       members[b.id] = _tipwardOrder(onBranch);
     }
-    final unplaced =
-        _tipwardOrder(owned.where((i) => !placedIds.contains(i.game.igdbId)));
+    // Unfiled games, owned and recommended together, ordered so the ones with
+    // the most life in them sit furthest out.
+    final unplaced = _tipwardOrder(
+      [...owned, ...budItems].where((i) => !placedIds.contains(i.game.igdbId)),
+    );
 
     // The trunk thickens with the whole load, so a big collection reads as a
     // big tree before a single title is legible.
@@ -359,7 +385,14 @@ class ProceduralTree {
     var totalLoad = 0.0;
     final loads = <int, double>{};
     for (final b in ordered) {
-      final load = 1.0 + (members[b.id]?.length ?? 0);
+      // A bud counts for less than a fruit, because it weighs less: a
+      // recommendation is a small growth at the end of a branch, not a hanging
+      // game. Counting them equally made a branch of six wishlist items as thick
+      // as a branch of six games the user had actually played.
+      var load = 1.0;
+      for (final m in (members[b.id] ?? const <TreeItem>[])) {
+        load += m.isSeed ? 0.45 : 1.0;
+      }
       loads[b.id] = load;
       totalLoad += load;
     }
@@ -525,12 +558,6 @@ class ProceduralTree {
       limbs: separated.limbs,
       crown: crown,
       trunkFruit: separated.trunkFruit,
-      soil: _soil(
-        items: seedItems,
-        canvas: canvas,
-        soilY: soilY,
-        fruitRadius: fruitRadius,
-      ),
       soilY: soilY,
       seed: seed,
     );
@@ -585,6 +612,17 @@ class ProceduralTree {
   final centres = [for (final f in flat) f.centre];
   final origin = [...centres];
 
+  // Separation radius, which is NOT the draw radius for a bud.
+  //
+  // A bud's calyx is painted on the card's shoulder, ABOVE its top edge, so the
+  // shape the eye has to see is taller than the card the separation pass was
+  // comparing. A capture showed two bud pairs sitting close enough that the upper
+  // card covered the lower one's calyx -- the cards were legally touching, and
+  // the signal that says "not yours yet" was gone. 1.22 buys the cap its room.
+  final clearance = [
+    for (final f in flat) f.radius * (f.bud ? 1.22 : 1.0),
+  ];
+
   const rounds = 14;
   for (var round = 0; round < rounds; round++) {
     var moved = false;
@@ -593,7 +631,7 @@ class ProceduralTree {
         // 0.94 rather than 1.0: cards are allowed to touch and slightly kiss,
         // which is what fruit on a branch actually does. Demanding a full gap
         // spread a loaded canopy into a grid.
-        final want = (flat[a].radius + flat[b].radius) * 0.94;
+        final want = (clearance[a] + clearance[b]) * 0.94;
         final dx = centres[b].dx - centres[a].dx;
         final dyReal = centres[b].dy - centres[a].dy;
         final dy = dyReal / ratio;
@@ -635,6 +673,12 @@ class ProceduralTree {
     if (!moved) break;
   }
 
+  // EVERY field is carried across, not just the ones the separation pass cares
+  // about. This rebuild silently dropped `bud` when it was added, which compiled
+  // cleanly and made every recommendation render as a full-size fruit -- a
+  // constructor that lists fields by hand cannot be checked by the analyzer, so
+  // `a bud survives the separation pass` in procedural_tree_test.dart is what
+  // guards it.
   TreeFruit moveTo(TreeFruit f, Offset centre) => TreeFruit(
         item: f.item,
         centre: centre,
@@ -643,6 +687,7 @@ class ProceduralTree {
         depth: f.depth,
         harvested: f.harvested,
         branchId: f.branchId,
+        bud: f.bud,
       );
 
   final perLimb = [for (var i = 0; i < limbs.length; i++) <TreeFruit>[]];
@@ -799,6 +844,11 @@ TreeStem _limbStem({
 /// The alternating perpendicular offset is what stops adjacent fruit from
 /// overlapping, and the small downward nudge is gravity: fruit hangs below the
 /// wood it grows on rather than balancing on top of it.
+///
+/// A BUD -- a game recommended but not owned -- is hung by the same code at
+/// [budScale] of the radius. Same stalk, same gravity, smaller body: that is the
+/// whole visual difference, and it is enough, because a smaller card next to a
+/// full one reads as younger growth without needing a label.
 List<TreeFruit> _hang({
   required List<TreeItem> items,
   required TreeStem stem,
@@ -815,9 +865,14 @@ List<TreeFruit> _hang({
   final radius = baseRadius * (1 - depth * 0.25);
 
   for (var k = 0; k < count; k++) {
+    final isBud = items[k].isSeed;
+    // 0.66, not 0.42. A bud still has to be identifiable as a specific game --
+    // the soil chips it replaces were 18px wide at 0.42, too small to tell one
+    // cover from another, which defeats showing the art at all.
+    final r = isBud ? radius * 0.66 : radius;
     final u = count == 1 ? (from + to) / 2 : from + (to - from) * (k / (count - 1));
     final at = stem.sample(u);
-    final stagger = (k.isEven ? 1.0 : -1.0) * radius * 0.78;
+    final stagger = (k.isEven ? 1.0 : -1.0) * r * 0.78;
     final anchor = at.point + at.normal * (stagger * 0.5);
     // 1.55 rather than a smaller nudge because a fruit is rendered as a PORTRAIT
     // cover card, not a circle: its height is 2.67 radii, so a smaller offset put
@@ -826,50 +881,18 @@ List<TreeFruit> _hang({
     // read as hanging rather than as pinned on top.
     out.add(TreeFruit(
       item: items[k],
-      centre: at.point + at.normal * stagger + Offset(0, radius * 1.55),
+      centre: at.point + at.normal * stagger + Offset(0, r * 1.55),
       anchor: anchor,
-      radius: radius,
+      radius: r,
       depth: depth,
       harvested: items[k].isHarvested,
       branchId: branchId,
+      bud: isBud,
     ));
   }
   return out;
 }
 
-/// Seeds in rows in the soil.
-///
-/// They WRAP rather than shrink: a seed getting smaller the more you have would
-/// imply each one matters less, which is the opposite of what a recommendation
-/// is.
-List<TreeSeed> _soil({
-  required List<TreeItem> items,
-  required Size canvas,
-  required double soilY,
-  required double fruitRadius,
-}) {
-  final out = <TreeSeed>[];
-  // 0.62 of a fruit rather than 0.42. A seed is rendered as a real cover chip,
-  // and at 0.42 the chip was 18px wide -- too small to tell one game from
-  // another, which defeats the point of showing the art at all. Seeds stay
-  // SMALLER than fruit, because a recommendation is not yet a game you own.
-  final r = fruitRadius * 0.62;
-  final gap = r * 2.6;
-  final perRow = math.max(1, (canvas.width * 0.8 / gap).floor());
-
-  for (var i = 0; i < items.length; i++) {
-    final row = i ~/ perRow;
-    final col = i % perRow;
-    final rowCount = math.min(perRow, items.length - row * perRow);
-    final rowWidth = (rowCount - 1) * gap;
-    out.add(TreeSeed(
-      item: items[i],
-      centre: Offset(
-        canvas.width / 2 - rowWidth / 2 + col * gap,
-        soilY + r * 2.0 + row * gap * 0.8,
-      ),
-      radius: r,
-    ));
-  }
-  return out;
-}
+// `_soil` used to lay recommendations out in rows below the ground line. It is
+// gone with `TreeSeed`: recommendations hang on the tree as buds now, so there is
+// nothing to lay out down there.

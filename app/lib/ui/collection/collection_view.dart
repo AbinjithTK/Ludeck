@@ -172,7 +172,7 @@ class _CollectionViewState extends State<CollectionView> {
           where((i) => !i.isSeed && i.entry.progress == Progress.finished)),
       _Group('abandoned', 'Set aside',
           where((i) => !i.isSeed && i.entry.progress == Progress.abandoned)),
-      _Group('seeds', 'Seeds', where((i) => i.isSeed)),
+      _Group('buds', 'Buds', where((i) => i.isSeed)),
     ];
 
     return buckets.where((g) => g.items.isNotEmpty).toList();

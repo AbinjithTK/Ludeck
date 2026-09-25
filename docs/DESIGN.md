@@ -40,7 +40,7 @@ flavour text; they decide what the UI is allowed to do.
 
 | Metaphor | Means | Rule it imposes |
 |---|---|---|
-| **Seed** | Someone recommended it. Not owned. | A seed can sit unplanted forever without reproach |
+| **Bud** | Someone recommended it. Not owned. | A bud can sit unopened forever without reproach |
 | **Growing** | Owned, not yet finished | Fruit does not rot. Nothing decays over time |
 | **Harvested** | Finished | Harvest is the celebration moment. The one place delight is spent |
 | **Pressed** | Set aside, stopped playing | Kept, not discarded. A pressed flower, not compost |
@@ -65,7 +65,7 @@ schema migration is expensive. Both labels live on the enum itself:
 
 | Enum value | Plain label | Tree word |
 |---|---|---|
-| `Ownership.spotted` | Spotted | Seed |
+| `Ownership.spotted` | Spotted | Bud |
 | `Ownership.owned` | Owned | On the tree |
 | `Ownership.released` | Let go | Given away |
 | `Progress.untouched` | Not started | Growing |
@@ -89,17 +89,29 @@ diagram inside a panel instead of a place.
 
 Layout, bottom to top:
 
-- **The ground** carries the seeds, resting in soil. Unplanted
-  recommendations, waiting.
+- **The ground** is where the trunk stands. It carries nothing. Until
+  2026-09-26 it held a strip of recommendations resting in soil; that strip is
+  gone, because a seed does not become an apple on a tree that already exists,
+  and because on a real collection it put more than half the games in a cramped
+  bar under a sparse tree. See `DECISIONS.md`.
+- **Buds** are recommendations, hanging on the wood. Smaller than fruit, with a
+  green calyx, so "not yours yet" reads without a label while the cover art stays
+  identifiable. A bud can be filed onto a named branch like anything else.
 - **Branches** are the user's own named groups. See §13.
 - **Fruit** are games, positioned on their branch. Order within a branch is
   deterministic, with harvested fruit sorted last, so the arrangement does not
   shuffle between launches.
 
+**Grafting** is the social act, and it is separate from the bud. You take a
+cutting from someone else's tree and it grows on yours while staying their
+variety -- which is exactly "a friend recommended this, it is mine now, and I
+remember where it came from". `Entry.recommendedBy` is where that provenance
+already lived.
+
 ### The status line is two lines and counts only what exists
 
 The headline counts what is on the tree: "41 on the tree." At zero it says
-"Nothing planted yet.", and with seeds but nothing owned, "Seeds only, for now."
+"Nothing growing yet.", and with buds but nothing owned, "All buds, for now."
 It can only go up, which is the whole difference between this and a backlog.
 
 The second line omits any part that is zero rather than printing the zero, so it

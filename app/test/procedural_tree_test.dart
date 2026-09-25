@@ -129,14 +129,114 @@ void main() {
       expect(tree.fruitCount, 3);
     });
 
-    test('seeds go to the soil and never onto wood', () {
+    test('a recommendation hangs on the wood as a BUD, not in a strip below', () {
       final tree = _build(
         items: [_item(10, 'Hades'), _item(99, 'Pentiment', seed: true)],
       );
 
-      expect(tree.soil, hasLength(1));
-      expect(tree.soil.single.item.game.igdbId, 99);
-      expect(tree.allFruit.map((f) => f.item.game.igdbId), isNot(contains(99)));
+      // The inversion of the old rule. Recommendations used to be forbidden from
+      // the wood and laid out in soil; on a real collection that put more than
+      // half the games in a bar under a sparse tree.
+      final ids = tree.allFruit.map((f) => f.item.game.igdbId);
+      expect(ids, contains(99));
+      expect(tree.buds.map((f) => f.item.game.igdbId), [99]);
+      expect(tree.buds.single.anchor, isNotNull);
+    });
+
+    test('a bud is smaller than a fruit, so not-yet-yours reads without a label',
+        () {
+      final tree = _build(
+        items: [_item(10, 'Hades'), _item(99, 'Pentiment', seed: true)],
+      );
+
+      final fruit = tree.allFruit.firstWhere((f) => !f.bud);
+      final bud = tree.buds.single;
+      expect(bud.radius, lessThan(fruit.radius));
+      // Small enough to differ, large enough to identify the cover art.
+      expect(bud.radius / fruit.radius, inInclusiveRange(0.45, 0.80));
+    });
+
+    test('a recommendation can be filed onto a named branch', () {
+      final tree = _build(
+        branches: [_branch(1, 'Someday', 0)],
+        placements: {1: [99]},
+        items: [_item(10, 'Hades'), _item(99, 'Pentiment', seed: true)],
+      );
+
+      // Before buds, `placements` silently dropped any id that was not owned, so
+      // a recommendation could not be organised at all.
+      final limb = tree.limbs.single;
+      expect(limb.fruit.map((f) => f.item.game.igdbId), [99]);
+      expect(limb.fruit.single.bud, isTrue);
+      expect(limb.fruit.single.branchId, 1);
+    });
+
+    test('a bud survives the separation pass with every field intact', () {
+      // The separation pass RECONSTRUCTS each fruit to move it, by listing fields
+      // by hand. When `bud` was added that list was not updated, so every
+      // recommendation came out as a full-size fruit -- and it compiled, because
+      // the field has a default. This is a crowded tree, so the pass definitely
+      // runs and definitely moves things.
+      final tree = _build(
+        items: [
+          for (var i = 0; i < 9; i++) _item(100 + i, 'Owned $i'),
+          for (var i = 0; i < 5; i++) _item(200 + i, 'Rec $i', seed: true),
+        ],
+      );
+
+      expect(tree.buds, hasLength(5));
+      for (final b in tree.buds) {
+        expect(b.item.isSeed, isTrue);
+        expect(b.anchor.dx.isFinite, isTrue);
+        expect(b.radius, greaterThan(0));
+        expect(b.harvested, isFalse);
+      }
+      // And the owned games did not become buds.
+      expect(tree.allFruit.where((f) => !f.bud), hasLength(9));
+    });
+
+    test("a bud's calyx is never covered by the card above it", () {
+      // The calyx is painted on the card's shoulder, so "cards may touch" is not
+      // good enough for a bud: a legally-touching neighbour above it hid the cap
+      // and the not-yours-yet signal disappeared. Caught on a capture, not by a
+      // test, which is why it is pinned here now.
+      //
+      // Run at BOTH the fixture radius and the one the view actually ships
+      // (`Tokens.size.fruit / 2` = 28 at 412pt width). The property is scale
+      // invariant in principle, and arguing that is worse than asserting the
+      // number the user's phone uses.
+      for (final fruitRadius in const [22.0, 28.0]) {
+        final tree = ProceduralTree.build(
+          canvas: const Size(412, 760),
+          branches: const [],
+          placements: const {},
+          items: [
+            for (var i = 0; i < 3; i++) _item(400 + i, 'Owned $i'),
+            for (var i = 0; i < 7; i++) _item(500 + i, 'Rec $i', seed: true),
+          ],
+          fruitRadius: fruitRadius,
+          trunkWidth: 32,
+        );
+
+        expect(tree.buds, hasLength(7), reason: 'r=$fruitRadius');
+        final all = tree.allFruit.toList();
+        for (final bud in tree.buds) {
+          // The calyx occupies roughly 1.30 to 1.60 radii above the centre.
+          final capTop = bud.centre.dy - bud.radius * 1.60;
+          final capBottom = bud.centre.dy - bud.radius * 1.30;
+          for (final other in all) {
+            if (other.centre == bud.centre) continue;
+            final oTop = other.centre.dy - other.radius * 1.33;
+            final oBottom = other.centre.dy + other.radius * 1.33;
+            final overlapsY = oTop < capBottom && oBottom > capTop;
+            final overlapsX =
+                (other.centre.dx - bud.centre.dx).abs() < other.radius * 0.85;
+            expect(overlapsY && overlapsX, isFalse,
+                reason: 'r=$fruitRadius: a card covers the calyx of the bud '
+                    'at ${bud.centre}');
+          }
+        }
+      }
     });
 
     test('a shelved game appears nowhere', () {
@@ -147,7 +247,7 @@ void main() {
       );
 
       expect(tree.allFruit.map((f) => f.item.game.igdbId), isNot(contains(10)));
-      expect(tree.soil, isEmpty);
+      expect(tree.buds, isEmpty);
     });
 
     test('one limb per branch, in the user order', () {
@@ -369,7 +469,7 @@ void main() {
 
       expect(tree.limbs, isEmpty);
       expect(tree.trunkFruit, isEmpty);
-      expect(tree.soil, isEmpty);
+      expect(tree.buds, isEmpty);
       expect(tree.fruitCount, 0);
       expect(tree.trunk.spine, isNotEmpty);
     });

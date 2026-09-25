@@ -175,7 +175,7 @@ class _VisitScreenState extends State<VisitScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Planted ${game.title} in your soil'),
+        content: Text('Grafted ${game.title} onto your tree'),
         backgroundColor: Tokens.cosmos.panelDeep,
       ),
     );

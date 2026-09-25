@@ -133,11 +133,14 @@ void main() {
 
       final items = store.items!;
       expect(items, hasLength(1));
-      final planted = items.single;
-      expect(planted.game.title, 'Hades');
-      expect(planted.entry.ownership, Ownership.spotted);
-      expect(planted.entry.recommendedBy, 'ada');
-      expect(find.textContaining('Planted Hades'), findsOneWidget);
+      final grafted = items.single;
+      expect(grafted.game.title, 'Hades');
+      expect(grafted.entry.ownership, Ownership.spotted);
+      expect(grafted.entry.recommendedBy, 'ada');
+      // "Planted in your soil" was wrong: a seed grows its own tree. Taking a
+      // cutting from someone else's tree and growing it on yours is a GRAFT,
+      // which is also what carries `recommendedBy` above its literal meaning.
+      expect(find.textContaining('Grafted Hades'), findsOneWidget);
     });
   });
 }

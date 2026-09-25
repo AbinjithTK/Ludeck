@@ -353,6 +353,45 @@ class ProceduralTreePainter extends CustomPainter {
       paint.strokeWidth = math.max(1.2, f.radius * 0.10);
       canvas.drawLine(f.anchor, f.centre - Offset(0, f.radius * 0.55), paint);
     }
+
+    // A CALYX behind each bud: the little leafy cup a real bud sits in.
+    //
+    // Size alone was not enough to read "not yours yet". A smaller cover card
+    // among larger ones looks like a card further away, because scale is already
+    // the depth cue -- so the difference needs a second channel, and a shape the
+    // eye knows is young growth is better than a badge to decode. Drawn BEFORE
+    // the cover widget paints over it, so it shows as a collar around the top of
+    // the card rather than sitting on the art.
+    final calyx = Paint()
+      ..color = Tokens.canopy.foliageLit
+      ..style = PaintingStyle.fill;
+    for (final f in tree.allFruit) {
+      if (!f.bud) continue;
+      // 1.30 radii above centre, NOT 0.62.
+      //
+      // A cover is a PORTRAIT card: its height is 2.67 radii, so its top edge is
+      // 1.33 radii above the centre. At 0.62 the calyx was painted fully inside
+      // the card and the widget covered it completely -- it rendered, it was
+      // correct, and it was invisible, which a capture caught and no test would
+      // have. It has to sit on the card's shoulder to be seen at all.
+      final top = f.centre - Offset(0, f.radius * 1.30);
+      final r = f.radius * 0.78;
+      // Three short lobes, centre one upright. A single circle read as a dot.
+      for (final lean in const [-0.72, 0.0, 0.72]) {
+        canvas.save();
+        canvas.translate(top.dx, top.dy);
+        canvas.rotate(lean);
+        canvas.drawOval(
+          Rect.fromCenter(
+            center: Offset(0, -r * 0.40),
+            width: r * 0.58,
+            height: r * 1.05,
+          ),
+          calyx,
+        );
+        canvas.restore();
+      }
+    }
   }
 
   @override

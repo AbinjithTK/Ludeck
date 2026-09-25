@@ -180,26 +180,10 @@ class _ProceduralTreeViewState extends State<ProceduralTreeView> {
                   interactive: interactive,
                 ),
 
-              for (final seed in tree.soil)
-                Positioned(
-                  left: seed.centre.dx - seed.radius,
-                  top: seed.centre.dy - seed.radius,
-                  child: IgnorePointer(
-                    ignoring: !interactive,
-                    child: GameNode(
-                      key: ValueKey('seed-${seed.item.game.igdbId}'),
-                      item: seed.item,
-                      cardWidth: seed.radius * 2,
-                      showTitle: false,
-                      coverCache: widget.coverCache,
-                      onCoverFound: widget.onCoverFound,
-                      onTap: () => widget.onSelect?.call(seed.item),
-                      onLongPress: widget.onHold == null
-                          ? null
-                          : () => widget.onHold!.call(seed.item),
-                    ),
-                  ),
-                ),
+              // There is no soil strip any more. Recommendations are buds in the
+              // list above -- smaller cards on the wood -- so they go through the
+              // same depth sort, the same stalk and the same tap target as
+              // everything else instead of living in a separate bar underneath.
             ],
           ),
         );

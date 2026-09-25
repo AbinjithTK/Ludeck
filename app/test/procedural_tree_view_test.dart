@@ -127,7 +127,8 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('Celeste')), findsOneWidget);
     });
 
-    testWidgets('seeds render too, smaller than fruit', (tester) async {
+    testWidgets('a recommendation renders as a bud on the tree, above the '
+        'ground line, smaller than a fruit', (tester) async {
       await _pumpTree(tester, items: [
         _item(10, 'Owned'),
         _item(11, 'Suggested', seed: true),
@@ -137,11 +138,21 @@ void main() {
       expect(nodes, hasLength(2));
 
       final fruit = nodes.firstWhere((n) => n.item.game.igdbId == 10);
-      final seed = nodes.firstWhere((n) => n.item.game.igdbId == 11);
+      final bud = nodes.firstWhere((n) => n.item.game.igdbId == 11);
       // A recommendation is not yet a game you own, and the size says so --
       // while still being big enough to tell one cover from another.
-      expect(seed.cardWidth, lessThan(fruit.cardWidth));
-      expect(seed.cardWidth, greaterThan(20));
+      expect(bud.cardWidth, lessThan(fruit.cardWidth));
+      expect(bud.cardWidth, greaterThan(20));
+
+      // THE change. It used to be laid out in a strip BELOW the ground line; it
+      // now hangs on the wood, so it must sit above that line like any fruit.
+      final surface = tester.getRect(find.byType(ProceduralTreeView));
+      final budRect = tester.getRect(
+        find.byWidget(bud as Widget),
+      );
+      final groundLine = surface.top + surface.height * (1 - 0.12);
+      expect(budRect.center.dy, lessThan(groundLine),
+          reason: 'a bud below the ground line is back in the old soil strip');
     });
 
     testWidgets('no title is painted under a fruit', (tester) async {
@@ -419,6 +430,20 @@ void main() {
       }
 
       await shoot('tree-empty', const [], const [], const {});
+      // A bud-heavy tree, so the calyx can actually be LOOKED at. The loaded
+      // fixture below has five buds among twelve games, which is not enough to
+      // judge the bud treatment -- and the first version of the calyx was
+      // painted inside the cover card, so it was invisible in exactly that
+      // fixture while every test stayed green.
+      await shoot(
+        'tree-buds',
+        [
+          for (var i = 0; i < 3; i++) _item(400 + i, 'Owned $i', harvested: i == 0),
+          for (var i = 0; i < 7; i++) _item(500 + i, 'Rec $i', seed: true),
+        ],
+        const [],
+        const {},
+      );
       await shoot(
         'tree-no-branches',
         [for (var i = 0; i < 8; i++) _item(100 + i, 'Game $i', harvested: i == 1)],
