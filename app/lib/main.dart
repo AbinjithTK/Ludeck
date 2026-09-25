@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import 'data/enums.dart';
 import 'data/models.dart';
 import 'data/repository.dart';
+import 'services/catalog_service.dart';
+import 'services/share_intake.dart';
+import 'services/share_resolver.dart';
+import 'ui/intake/confirm_sheet.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
-import 'ui/tree/tree_scene.dart';
+import 'ui/collection/collection_view.dart';
 
 Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
@@ -69,15 +73,28 @@ class LudeckApp extends StatelessWidget {
 }
 
 class TreeScreen extends StatefulWidget {
-  const TreeScreen({super.key, required this.repo});
+  const TreeScreen({
+    super.key,
+    required this.repo,
+    this.intake = const PlatformShareIntake(),
+    this.catalog,
+  });
 
   final Repository repo;
+
+  /// Where shared text arrives from. Injectable so a test can hand one in
+  /// without an Android activity behind it.
+  final ShareIntake intake;
+
+  /// Game facts. Defaults to the fixture catalogue, which is what actually runs
+  /// until the IGDB proxy is deployed.
+  final CatalogSource? catalog;
 
   @override
   State<TreeScreen> createState() => _TreeScreenState();
 }
 
-class _TreeScreenState extends State<TreeScreen> {
+class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// Null means the first read has not come back yet. It is not the same as an
   /// empty collection, and the two must not render the same way.
   List<TreeItem>? _items;
@@ -91,7 +108,106 @@ class _TreeScreenState extends State<TreeScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addObserver(this);
+    _catalog = widget.catalog ?? FixtureCatalog();
+    _resolver = ShareResolver(catalog: _catalog);
+    _load().then((_) => _drainShare());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// A share into an already-running app arrives at MainActivity.onNewIntent
+  /// and then the activity resumes, so resume is where it gets picked up. The
+  /// intake clears itself when taken, so asking on every resume is safe.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _drainShare();
+  }
+
+  late CatalogSource _catalog;
+  late ShareResolver _resolver;
+
+  /// Guards against two overlapping sheets. A resume can land while one is
+  /// already open, and two stacked sheets for one share is not a state anybody
+  /// can reason about.
+  bool _handlingShare = false;
+
+  Future<void> _drainShare() async {
+    if (_handlingShare) return;
+    _handlingShare = true;
+    try {
+      final text = await widget.intake.takePending();
+      if (text == null || !mounted) return;
+
+      final resolution = await _resolver.resolve(text);
+      if (!mounted) return;
+
+      final choice = await showIntakeSheet(context, resolution);
+      if (choice == null || choice.accepted.isEmpty) return;
+
+      await _applyIntake(resolution, choice);
+    } finally {
+      _handlingShare = false;
+    }
+  }
+
+  /// Writes the accepted games and records where each came from.
+  ///
+  /// `upsert` does nothing on an existing entry, which is deliberate: sharing a
+  /// game you already own must not reset its progress or its rating. The source
+  /// row is still added, because the fact that it came up again is itself worth
+  /// keeping.
+  Future<void> _applyIntake(ShareResolution r, IntakeChoice choice) async {
+    final now = DateTime.now();
+
+    for (final candidate in choice.accepted) {
+      final id = candidate.igdbId;
+      if (id == null) continue;
+
+      final game = await _catalog.byId(id);
+      if (game == null) continue;
+
+      await widget.repo.upsert(TreeItem(
+        game: game,
+        entry: Entry(
+          igdbId: id,
+          // A share is a recommendation, not a purchase. Ownership and progress
+          // are separate axes and neither is implied by the other.
+          ownership: Ownership.spotted,
+          progress: Progress.untouched,
+          recommendedBy: choice.recommendedBy,
+        ),
+        copies: const [],
+      ));
+
+      await widget.repo.addSource(Source(
+        igdbId: id,
+        url: candidate.link?.uri.toString(),
+        kind: r.kind,
+        matchMethod: candidate.method,
+        addedAt: now,
+      ));
+    }
+
+    await _load();
+    if (!mounted) return;
+
+    final n = choice.accepted.length;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Tokens.palette.surface,
+        content: Text(
+          n == 1
+              ? 'Added ${choice.accepted.single.title}.'
+              : 'Added $n games.',
+          style: TextStyle(color: Tokens.palette.text),
+        ),
+      ),
+    );
   }
 
   Future<void> _load() async {
@@ -312,18 +428,16 @@ class _TreeScreenState extends State<TreeScreen> {
     }
 
     return Scaffold(
-      // No SafeArea around the canvas, and no Column. This is the Tolan layout
-              // from `tolan/home/01-world-character-collapsed-ui.png`: the scene IS the
-      // screen, edge to edge and under the status bar, and every piece of
-      // interface sits on top of it at the margins.
-      //
-      // What this replaces was a Column whose first child was the header, so
-      // the header reserved roughly 130 logical pixels that the tree could
-      // never use. On a phone that is most of the reason the tree looked small.
+      // The collection visualisation sits behind the chrome. This is the plain
+      // Flutter stand-in for the Rive tree while feature behaviour is built and
+      // tested: the tree wedges the Windows test runner and hides per-item
+      // status behind a canvas. The chrome layout (header top-left, add-menu
+      // bottom-left) is unchanged, so swapping the tree back in later is a
+      // one-widget change here.
       body: Stack(
         fit: StackFit.expand,
         children: [
-          TreeScene(
+          CollectionView(
             items: items,
             onSelect: (item) {
               final hours = item.game.hours;
@@ -335,7 +449,7 @@ class _TreeScreenState extends State<TreeScreen> {
                     item.isSeed
                         ? '${item.game.title} \u00B7 seed from '
                             '${item.entry.recommendedBy ?? "somewhere"}'
-                        : '${item.game.title} \u00B7 ${item.entry.progress.tree}'
+                        : '${item.game.title} \u00B7 ${item.entry.progress.label}'
                             '${hours == null ? '' : ' \u00B7 $hours h'}',
                     style: TextStyle(color: Tokens.palette.text),
                   ),

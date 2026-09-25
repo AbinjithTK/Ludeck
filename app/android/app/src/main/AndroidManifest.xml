@@ -24,6 +24,21 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- Share target. One filter covers a bare link, a link wrapped in
+                 prose, and prose with no link at all, because all three arrive
+                 as text/plain. This is what puts Ludeck in the share sheet of
+                 YouTube, Twitch, TikTok, Instagram, X, Reddit, a browser and
+                 any messaging app.
+
+                 The activity is launchMode="singleTop" above, so a share into a
+                 running app arrives at onNewIntent rather than starting a
+                 second copy. MainActivity handles both paths. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

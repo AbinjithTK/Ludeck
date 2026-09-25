@@ -218,9 +218,14 @@ if ($bareIgnores) {
 # exist yet, so there is nothing to assert against; the rule has to fire the
 # moment that code is written rather than whenever someone remembers to add a
 # test. Comment-aware, so the paragraph you are reading does not trip it.
+#
+# 'share' is directionally ambiguous and the exclusion below is not a loophole.
+# OUTGOING share code must not carry a third party's name. INCOMING intake code
+# must: receiving a recommendation is how `recommended_by` gets filled in the
+# first place. Files named intake_* are the receiving side.
 $privacyHits = @()
 $shareFiles = Get-ChildItem -Path (Join-Path $app 'lib') -Recurse -Filter *.dart |
-    Where-Object { $_.Name -match 'share|export' }
+    Where-Object { $_.Name -match 'share|export' -and $_.Name -notmatch 'intake' }
 foreach ($f in $shareFiles) {
     foreach ($l in (Get-DartCode $f.FullName)) {
         if ($l.Text -match 'recommended_by|recommendedBy|\.channel\b|sourcesFor\s*\(') {
@@ -234,7 +239,54 @@ if ($privacyHits) {
         ' docs\DECISIONS.md invariant 10.')
 } else { Pass 'share layer carries no third party name' }
 
-# --- 8. The analyzer and the tests actually pass ----------------------------
+# --- 8. A widget test that mounts a DB-backed screen must mount it in runAsync
+#
+# This rule exists because of a bug that cost several hours and looked like
+# something else entirely.
+#
+# `testWidgets` runs its body in a FakeAsync zone. sqflite does real file I/O,
+# which never completes under fake time. A screen whose `initState` starts a
+# load therefore begins a query that can never finish, and that query HOLDS THE
+# DATABASE LOCK. The next real-async call waits on a lock nothing will release.
+# After ten seconds sqflite prints
+#
+#     Warning database has been locked for 0:00:10.000000
+#     Make sure you always use the transaction object ...
+#
+# which blames transaction misuse and is misleading: it is the canned message
+# for ANY lock held that long. Worse, the wait happens in real time while the
+# framework's own test timeout runs on the fake clock, so the run does not fail
+# with a timeout, it HANGS FOREVER. `flutter test` never exits, the orphaned
+# flutter_tester.exe keeps a lock on build\native_assets\windows\sqlite3.dll,
+# and the NEXT run then dies with errno 183 on a stale copy.
+#
+# So: in any test file that touches the repository, every pumpWidget must sit
+# inside a tester.runAsync block.
+$dbTests = Get-ChildItem -Path (Join-Path $app 'test') -Recurse -Filter *.dart |
+    Where-Object { (Get-Content -LiteralPath $_.FullName -Raw) -match 'data/repository\.dart' }
+$badPumps = @()
+foreach ($f in $dbTests) {
+    $lines = Get-Content -LiteralPath $f.FullName
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -notmatch 'pumpWidget\s*\(') { continue }
+        if ($lines[$i] -match '//\s*check:ignore\s*\S') { continue }
+        # Look back a few lines for the enclosing runAsync. A pumpWidget is
+        # always within a line or two of it when written correctly.
+        $from = [Math]::Max(0, $i - 4)
+        $window = ($lines[$from..$i] -join ' ')
+        if ($window -notmatch 'runAsync') {
+            $badPumps += "$($f.Name):$($i + 1)"
+        }
+    }
+}
+if ($badPumps.Count) {
+    Violation 'pumpWidget outside runAsync in a DB-backed test' (
+        ($badPumps -join ', ') +
+        ' -- initState I/O under fake time keeps the sqflite lock and the run hangs' +
+        ' forever rather than failing. Wrap pumpWidget in tester.runAsync.')
+} else { Pass 'DB-backed widget tests mount inside runAsync' }
+
+# --- 9. The analyzer and the tests actually pass -----------------------------
 # A rule check that passes while the build is red is worthless.
 Push-Location $app
 try {

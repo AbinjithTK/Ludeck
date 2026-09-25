@@ -242,9 +242,9 @@ and no way to judge lighting without a device.
 
 ## Tooling defects worth knowing
 
-- `scripts\check.ps1` greps only `.kt`, `.ts` and `.sql`. **It does not protect the
-  Dart code at all.** The colour-literal rule and the enum rule are currently
-  unenforced in Flutter.
+- **Corrected 2026-09-25.** `scripts\check.ps1` used to grep only `.kt`, `.ts` and
+  `.sql`, leaving the Dart that actually ships unenforced. It now reads Dart and runs
+  twelve rules, comment-aware, ending with a real `flutter analyze` and `flutter test`.
 - `check.ps1` previously had two false positives because it matched its own
   documentation. It is now comment-aware, and five of its six rules were
   negative-tested by injecting real violations. Rule 4 (IGDB usage outside the proxy)
@@ -257,3 +257,68 @@ and no way to judge lighting without a device.
 - Sub-agents that read multi-megabyte JSON sequentially truncate and then report "not
   found". Instruct them to grep or to write a script.
 - `kiro-cli chat` needs a TTY. Non-interactive invocations produce no output.
+
+## The hanging `flutter test`, diagnosed 2026-09-25
+
+Three runs wedged over two sessions and it was blamed on Rive twice. Rive was not
+the cause. There were three distinct faults in a chain, and each one hid the next.
+
+**1. The deadlock, which is the real bug.** `testWidgets` runs its body inside a
+FakeAsync zone. sqflite does real file I/O that never completes under fake time.
+`TreeScreen.initState` starts a load, so mounting the screen outside
+`tester.runAsync` began a query that could never finish, and that query **held the
+database lock**. Every later real-async call waited on a lock nothing would release.
+
+**2. The warning that misleads.** After ten seconds sqflite prints
+
+    Warning database has been locked for 0:00:10.000000
+    Make sure you always use the transaction object for database operations
+    during a transaction
+
+That sentence is the canned message for ANY lock held over ten seconds. It is not
+evidence of transaction misuse, and there was none: every `transaction((txn)` block
+in `repository.dart` uses only `txn.*`, and no Database-level call is nested inside
+one. Reading that message literally sends you looking for a bug that does not exist.
+
+**3. Why it hung instead of failing.** The lock wait happens in REAL time inside
+`runAsync`, while the test framework's own timeout runs on the FAKE clock. The fake
+clock never advances, so the timeout never fires. A test that would have failed in
+30 seconds instead hangs indefinitely, and `flutter test` never exits.
+
+**4. The cascade into the next run.** The orphaned `flutter_tester.exe` keeps a
+handle on `build\native_assets\windows\sqlite3.dll`. `Remove-Item` on it fails with
+Access denied, and the NEXT `flutter test` crashes immediately with
+
+    PathExistsException: Cannot copy file to
+    ...build\native_assets\windows\sqlite3.dll (errno = 183)
+
+So a hang in one run presents as a completely unrelated crash in the next.
+
+### Fix and guard
+
+Mount inside `runAsync`:
+
+```dart
+await tester.runAsync(() async {
+  await tester.pumpWidget(MaterialApp(home: TreeScreen(repo: repo, ...)));
+});
+```
+
+`share_to_library_test.dart` went from hanging indefinitely to 8/8 in 5 seconds.
+Full suite: 213 tests in 7 seconds.
+
+`check.ps1` rule 8 now fails any `pumpWidget` that is not inside a `runAsync` block
+in a test file importing `data/repository.dart`. Negative-tested by injecting a
+violating probe test and watching it go red.
+
+### Recovery when a run has already wedged
+
+1. `Get-Process | Where ProcessName -match '^(flutter_tester|dart)$'` and read CPU.
+   CPU that does not climb between two reads a minute apart means wedged, not slow.
+   A genuinely busy run keeps accumulating CPU.
+2. `Stop-Process -Id <pid> -Force` on the orphan.
+3. `Remove-Item -Recurse -Force app\build\native_assets`. It fails while any orphan
+   lives, which is itself the signal that step 2 was incomplete.
+4. Never run `flutter test` from a tool call with no timeout. Use
+   `Start-Process -PassThru` plus `WaitForExit(ms)` so a hang returns a result
+   instead of silence.
