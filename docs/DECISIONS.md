@@ -242,6 +242,50 @@ is the fallback if Flutter runs out of time. It lives in `fallback-kotlin/`.
 categorisation, so the tree has a different shape per person. This replaced an
 earlier design where branches were fixed platforms.
 
+## The shell, the social area, and the seed lifecycle
+
+Decided 2026-09-26 from three sets of options shown side by side. Each is
+isolated to its own stage, so any one can be reversed without touching the others.
+
+**Navigation is a floating pill plus two corner chips, not a tab bar.** A bottom
+tab bar costs 56dp permanently on the one screen whose entire purpose is the
+tree, and Tolan-style corner-only chrome hides Friends so thoroughly a new user
+would not find it. The pill is translucent over the sky and fades while the tree
+is being dragged. THE FADE MAY NOT HIDE NAVIGATION -- if it cannot be made to
+read while faded, it does not fade.
+
+Before this, the only exits from home were the profile orb and a 17dp glyph, and
+`VisitScreen` -- the whole social surface -- sat four taps deep behind "See what
+a visitor sees" on the user's own share card. So you could only ever visit your
+OWN tree, which is why Follow had no screen where following meant anything.
+
+**The social area is a friends list with handle search.** Find by handle, follow,
+tap to open their tree, graft from a visit. Not an "orchard" of friends' trees as
+a walkable landscape: that is a second world with its own lighting and camera,
+and it is not what makes Follow reachable. No counts, no feed -- the freeze above
+still holds, and all three options were drawn to respect it.
+
+**Wishlist games become BUDS on the tree; the soil strip becomes an inbox.**
+A seed does not become an apple on a tree that already exists -- it grows its own
+tree. The real mechanism for "a friend recommended this, it is mine now, and I
+remember it came from them" is GRAFTING, and `Entry.recommendedBy` already stores
+that provenance. So seed/graft keeps its meaning as the social act, and the
+wishlist gets the lifecycle it actually has: bud, blossom, fruit, harvested.
+
+The strip is not deleted outright. It shrinks to "just arrived, not placed yet"
+and empties as games are filed, because a new arrival needs somewhere to land
+before it is placed and organising should stay a deliberate act. Its empty state
+must read as FINISHED, not as broken.
+
+This is presentation, not persistence: `DESIGN.md` §3 already states the tree
+words are a presentation layer, so there is **no schema migration** in any of it.
+
+It also fixes two rendering defects for free. The user's own screenshot had 7
+seeds against 4 on the tree, so more than half the collection sat in a cramped
+strip while the tree above it was sparse -- and Stage 2 of the render work left
+the lower third of the trunk bare while covers crowded the top. Moving the bulk
+of the collection onto the wood is the same change as fixing both.
+
 ## Copy rules
 
 No em dashes. No arrows. No horizontal rules. No "delve", "leverage", "seamless",
