@@ -10,6 +10,8 @@ import 'services/http_catalog.dart';
 import 'services/link_metadata.dart';
 import 'services/cover_art_cache.dart';
 import 'services/share_resolver.dart';
+import 'services/social/social_backend.dart';
+import 'services/social/social_service.dart';
 import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
 import 'ui/add/add_screen.dart';
@@ -27,22 +29,33 @@ Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
   WidgetsFlutterBinding.ensureInitialized();
   final repo = await Repository.open();
-  runApp(LudeckApp(repo: repo));
+  // No URL/key configured on this build yet -- resolves instantly to the fake
+  // in local-only mode. Once a Supabase project exists (docs/DEPLOY-PROXY.md),
+  // its URL and publishable key are passed here, and publishing starts leaving
+  // the device instead of staying local.
+  final social = await resolveSocialBackend();
+  runApp(LudeckApp(repo: repo, social: social));
 }
 
 class LudeckApp extends StatelessWidget {
-  const LudeckApp({super.key, required this.repo});
+  const LudeckApp({super.key, required this.repo, required this.social});
 
   final Repository repo;
+  final SocialBackend social;
 
   @override
   Widget build(BuildContext context) {
     final t = Tokens.type;
     // The store is created here, above MaterialApp, so it outlives any route
     // and a sheet pushed on top of the screen reads the same state the screen
-    // does.
-    return ChangeNotifierProvider<LudeckStore>(
-      create: (_) => LudeckStore(repo)..load(),
+    // does. The social backend is provided the same way, for the same reason --
+    // the publish screen and the share card both need it, and neither should
+    // have to be handed it explicitly through a route argument.
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<LudeckStore>(create: (_) => LudeckStore(repo)..load()),
+        Provider<SocialBackend>.value(value: social),
+      ],
       child: MaterialApp(
       title: 'Ludeck',
       debugShowCheckedModeBanner: false,

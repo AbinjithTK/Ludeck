@@ -36,6 +36,7 @@ import '../../domain/level.dart';
 import '../../domain/season.dart';
 import '../../state/ludeck_store.dart';
 import '../gamified/primitives.dart';
+import '../publish/publish_screen.dart';
 import '../tokens.dart';
 import '../tree/tree_scene.dart';
 
@@ -130,6 +131,12 @@ class ProfileBody extends StatelessWidget {
             ),
             children: [
               _Portrait(hero: hero),
+              SizedBox(height: Tokens.space.sm),
+              _ShareEntry(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PublishScreen()),
+                ),
+              ),
               SizedBox(height: Tokens.space.lg),
               _Ladder(ladder: ladder),
               SizedBox(height: Tokens.space.lg),
@@ -140,6 +147,37 @@ class ProfileBody extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The entry point into publish consent. docs/DECISIONS.md: sharing is never
+/// gated, so this is a plain tappable card, reachable by every user, with no
+/// entitlement check anywhere near it.
+class _ShareEntry extends StatelessWidget {
+  const _ShareEntry({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => SoftCard(
+        onTap: onTap,
+        child: Row(
+          children: [
+            Icon(Icons.ios_share, size: 18, color: Tokens.palette.accent),
+            SizedBox(width: Tokens.space.sm),
+            Expanded(
+              child: Text(
+                'Share your tree',
+                style: TextStyle(
+                  fontSize: Tokens.type.body,
+                  fontWeight: FontWeight.w600,
+                  color: Tokens.palette.text,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: Tokens.palette.textDim),
+          ],
+        ),
+      );
 }
 
 /// The tree, framed as a portrait.
