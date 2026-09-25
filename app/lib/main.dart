@@ -140,7 +140,21 @@ class _StartupGateState extends State<_StartupGate> {
           // moment later; nothing is lost by not blocking on this read.
           if (snapshot.data == false) {
             return OnboardingScreen(
-              onDone: () => setState(() => _seen = Future.value(true)),
+              // A block body, not `() => _seen = Future.value(true)` -- that
+              // arrow-body's value is the assignment expression's own value,
+              // which is a Future (the RHS type), so the callback's INFERRED
+              // return type becomes Future<bool> instead of void. setState
+              // asserts its callback returns void and throws at runtime on a
+              // real device tap (confirmed via logcat, not by inspection) --
+              // this compiled clean and every widget test using onDone still
+              // passed, because none of them drove onDone through
+              // _StartupGate's own wiring (test/startup_gate_test.dart now
+              // does).
+              onDone: () {
+                setState(() {
+                  _seen = Future.value(true);
+                });
+              },
             );
           }
           return widget.child;
