@@ -18,6 +18,7 @@ import 'ui/add/add_screen.dart';
 import 'ui/branches/branch_screen.dart';
 import 'ui/chrome_metrics.dart';
 import 'ui/harvest/rating_sheet.dart';
+import 'ui/onboarding/onboarding_screen.dart';
 import 'ui/profile/profile_screen.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
@@ -97,13 +98,54 @@ class LudeckApp extends StatelessWidget {
           ),
         ),
       ),
-      home: TreeScreen(
-        metadata: LinkMetadataReader(),
-        coverCache: CoverArtCache(),
+      home: _StartupGate(
+        child: TreeScreen(
+          metadata: LinkMetadataReader(),
+          coverCache: CoverArtCache(),
+        ),
       ),
       ),
     );
   }
+}
+
+/// Decides between onboarding and the real home screen at startup, based on
+/// whether onboarding has been shown before. A gate rather than routing logic
+/// inside TreeScreen itself, so TreeScreen's own tests (which construct it
+/// directly) are untouched by this.
+class _StartupGate extends StatefulWidget {
+  const _StartupGate({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_StartupGate> createState() => _StartupGateState();
+}
+
+class _StartupGateState extends State<_StartupGate> {
+  late Future<bool> _seen;
+
+  @override
+  void initState() {
+    super.initState();
+    _seen = hasSeenOnboarding();
+  }
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<bool>(
+        future: _seen,
+        builder: (context, snapshot) {
+          // While the flag itself is loading, show the real screen underneath
+          // rather than a blank frame -- if onboarding is needed, it appears a
+          // moment later; nothing is lost by not blocking on this read.
+          if (snapshot.data == false) {
+            return OnboardingScreen(
+              onDone: () => setState(() => _seen = Future.value(true)),
+            );
+          }
+          return widget.child;
+        },
+      );
 }
 
 class TreeScreen extends StatefulWidget {

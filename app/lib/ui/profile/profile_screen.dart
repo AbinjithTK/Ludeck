@@ -36,6 +36,7 @@ import '../../domain/level.dart';
 import '../../domain/season.dart';
 import '../../state/ludeck_store.dart';
 import '../gamified/primitives.dart';
+import '../onboarding/onboarding_screen.dart';
 import '../publish/publish_screen.dart';
 import '../tokens.dart';
 import '../tree/tree_scene.dart';
@@ -137,6 +138,12 @@ class ProfileBody extends StatelessWidget {
                   MaterialPageRoute(builder: (_) => const PublishScreen()),
                 ),
               ),
+              SizedBox(height: Tokens.space.xs),
+              _HowItWorksEntry(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                ),
+              ),
               SizedBox(height: Tokens.space.lg),
               _Ladder(ladder: ladder),
               SizedBox(height: Tokens.space.lg),
@@ -167,6 +174,37 @@ class _ShareEntry extends StatelessWidget {
             Expanded(
               child: Text(
                 'Share your tree',
+                style: TextStyle(
+                  fontSize: Tokens.type.body,
+                  fontWeight: FontWeight.w600,
+                  color: Tokens.palette.text,
+                ),
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: Tokens.palette.textDim),
+          ],
+        ),
+      );
+}
+
+/// Re-opens onboarding. "Re-openable from settings" -- FEATURES.md's own
+/// requirement for a first-run explainer that must not be a one-time-only
+/// thing.
+class _HowItWorksEntry extends StatelessWidget {
+  const _HowItWorksEntry({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => SoftCard(
+        onTap: onTap,
+        child: Row(
+          children: [
+            Icon(Icons.help_outline, size: 18, color: Tokens.palette.accent),
+            SizedBox(width: Tokens.space.sm),
+            Expanded(
+              child: Text(
+                'How Ludeck works',
                 style: TextStyle(
                   fontSize: Tokens.type.body,
                   fontWeight: FontWeight.w600,
