@@ -93,12 +93,14 @@ Future<void> _pump(
 }
 
 void main() {
-  group('branch names are hidden but never lost', () {
-    // The whole point of the design request: a seamless tree with no visible
-    // category labels, that a screen reader can still navigate by category.
+  group('branch names are visible and announced', () {
+    // This REVERSES an earlier decision. Names were hidden for a seamless look,
+    // with tap-to-reveal as the escape hatch. On a device that made every branch
+    // anonymous until poked, and the reveal itself rendered "Finished someday" as
+    // "Finis hed..." because it was squeezed into the 32pt trunk column. Visible
+    // by default, on the limb where there is room, is the better trade.
 
-    testWidgets('a branch name is not painted anywhere by default',
-        (tester) async {
+    testWidgets('the branch name is painted on the limb', (tester) async {
       await _pump(
         tester,
         items: [_item(1, 'Hollow Knight')],
@@ -106,11 +108,24 @@ void main() {
         placements: const {10: [1]},
       );
 
-      // findsNothing on the TEXT specifically -- the name must not be rendered.
-      expect(find.text('Metroidvanias'), findsNothing);
+      expect(find.text('Metroidvanias'), findsOneWidget);
     });
 
-    testWidgets('but it IS announced on the game', (tester) async {
+    testWidgets('an empty branch is named too', (tester) async {
+      // An unnamed empty branch is just a stray "nothing here" label with no way
+      // to tell which branch it belongs to.
+      await _pump(
+        tester,
+        items: [_item(1, 'Hollow Knight')],
+        branches: const [_branchA, _branchB],
+        placements: const {10: [1]},
+      );
+
+      expect(find.text('Short evenings'), findsOneWidget);
+      expect(find.text('Nothing on it yet'), findsOneWidget);
+    });
+
+    testWidgets('the name is still announced on the game', (tester) async {
       final handle = tester.ensureSemantics();
       await _pump(
         tester,
@@ -123,8 +138,8 @@ void main() {
         find.bySemanticsLabel(
             'Hollow Knight, on Metroidvanias, Not started'),
         findsOneWidget,
-        reason: 'a screen reader must be told which branch a game hangs on, '
-            'even though nothing paints it',
+        reason: 'a screen reader should not have to infer the branch from '
+            'layout position',
       );
       handle.dispose();
     });
@@ -141,25 +156,6 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('Metroidvanias branch, 1 game')),
           findsOneWidget);
       handle.dispose();
-    });
-
-    testWidgets('tapping the junction reveals the name on screen',
-        (tester) async {
-      await _pump(
-        tester,
-        items: [_item(1, 'Hollow Knight')],
-        branches: const [_branchA],
-        placements: const {10: [1]},
-      );
-
-      expect(find.text('Metroidvanias'), findsNothing);
-
-      // The junction carries the count; tapping it opens the name. This is the
-      // escape hatch that keeps "visually hidden" from meaning "unknowable".
-      await tester.tap(find.text('1'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Metroidvanias'), findsOneWidget);
     });
   });
 
@@ -269,7 +265,7 @@ void main() {
         placements: const {10: [1]},
       );
 
-      expect(find.text('Empty branch'), findsOneWidget);
+      expect(find.text('Nothing on it yet'), findsOneWidget);
     });
 
     testWidgets('a placement naming a missing game is skipped', (tester) async {

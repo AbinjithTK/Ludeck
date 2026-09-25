@@ -94,12 +94,6 @@ class _BranchingTreeViewState extends State<BranchingTreeView> {
   Set<int>? _seen;
   Set<int> _arriving = const {};
 
-  /// Branch ids whose name the user has asked to see.
-  ///
-  /// The names are hidden by default and revealed per branch on demand. View
-  /// state, not a fact about the collection, so it lives here and is not stored.
-  final Set<int> _revealed = <int>{};
-
   /// True while a drag is in flight, so every branch can show a drop target.
   /// Without it the user has to guess where a game may legally go.
   bool _dragging = false;
@@ -149,11 +143,7 @@ class _BranchingTreeViewState extends State<BranchingTreeView> {
         // tree rather than leaving a gap on one side.
         side: i.isEven ? BranchSide.right : BranchSide.left,
         arriving: _arriving,
-        revealed: _revealed.contains(branch.id),
         dragging: _dragging,
-        onToggleReveal: () => setState(() {
-          if (!_revealed.remove(branch.id)) _revealed.add(branch.id);
-        }),
         onSelect: widget.onSelect,
         onHold: widget.onHold,
         onAccept: (drag) => widget.onMove?.call(drag, branch.id),
@@ -209,9 +199,7 @@ class _BranchRow extends StatelessWidget {
     required this.games,
     required this.side,
     required this.arriving,
-    required this.revealed,
     required this.dragging,
-    required this.onToggleReveal,
     required this.onSelect,
     required this.onHold,
     required this.onAccept,
@@ -225,9 +213,7 @@ class _BranchRow extends StatelessWidget {
   final List<TreeItem> games;
   final BranchSide side;
   final Set<int> arriving;
-  final bool revealed;
   final bool dragging;
-  final VoidCallback onToggleReveal;
   final ValueChanged<TreeItem> onSelect;
   final ValueChanged<TreeItem> onHold;
   final ValueChanged<GameDrag> onAccept;
@@ -258,8 +244,8 @@ class _BranchRow extends StatelessWidget {
           highlighted: hovering,
           receptive: dragging,
           child: games.isEmpty
-              ? _EmptyLimb(receptive: dragging)
-              : _BranchGames(
+              ? _EmptyLimb(receptive: dragging, name: branch.name, side: side)
+              : _LimbContent(
                   games: games,
                   side: side,
                   branchName: branch.name,
@@ -280,8 +266,6 @@ class _BranchRow extends StatelessWidget {
     final junction = _Junction(
       branch: branch,
       count: games.length,
-      revealed: revealed,
-      onTap: onToggleReveal,
     );
 
     // The trunk runs down the MIDDLE, with limbs going outward on both sides.
@@ -341,89 +325,58 @@ class _BranchRow extends StatelessWidget {
 
 /// The node on the spine where a branch attaches.
 ///
-/// This is the branch's only visible presence, and it deliberately shows a COUNT
-/// rather than a name. Tapping it reveals the name -- which is the escape hatch
-/// that keeps "visually hidden" from meaning "unknowable".
+/// Count only. The NAME lives on the limb, where there is room for it -- it used
+/// to be revealed here on tap, inside the 32pt-wide centre column, which rendered
+/// "Finished someday" as "Finis hed...". A narrow column is the wrong place for a
+/// name, and tap-to-reveal was the wrong answer to "keep it seamless": it made
+/// every branch anonymous until poked.
 class _Junction extends StatelessWidget {
   const _Junction({
     required this.branch,
     required this.count,
-    required this.revealed,
-    required this.onTap,
   });
 
   final Branch branch;
   final int count;
-  final bool revealed;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      button: true,
-      // Named here too, not only on the nodes: a screen-reader user exploring the
-      // trunk must be able to learn what this branch is without entering it.
+      // Not a button any more -- nothing to tap, because the name is on screen.
       label: count == 1
-          ? '${branch.name} branch, 1 game. Double tap to show the name.'
-          : '${branch.name} branch, $count games. Double tap to show the name.',
+          ? '${branch.name} branch, 1 game'
+          : '${branch.name} branch, $count games',
       excludeSemantics: true,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: Tokens.space.md),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Tokens.cosmos.panelDeep,
-                  border: Border.all(
-                    color: count > 0
-                        ? Tokens.palette.accent
-                        : Tokens.cosmos.panelEdge,
-                    width: 2,
-                  ),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: 9,
-                    color: Tokens.palette.text,
-                    fontWeight: FontWeight.w700,
-                  ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: Tokens.space.md),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Tokens.cosmos.panelDeep,
+                border: Border.all(
+                  color: count > 0
+                      ? Tokens.palette.accent
+                      : Tokens.cosmos.panelEdge,
+                  width: 2,
                 ),
               ),
-              // The revealed name. Animated so the reveal reads as the junction
-              // opening rather than as text appearing from nowhere.
-              AnimatedSize(
-                duration: Tokens.motion.swap,
-                curve: Tokens.motion.easeOut,
-                child: revealed
-                    ? Padding(
-                        padding: EdgeInsets.only(top: Tokens.space.xxs),
-                        child: SizedBox(
-                          width: 72,
-                          child: Text(
-                            branch.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: Tokens.type.caption,
-                              color: Tokens.palette.textDim,
-                            ),
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+              alignment: Alignment.center,
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: Tokens.palette.text,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -467,9 +420,13 @@ class _Limb extends StatelessWidget {
   }
 }
 
-/// A branch's games, scrollable along the limb.
-class _BranchGames extends StatelessWidget {
-  const _BranchGames({
+/// A branch's NAME plus its games.
+///
+/// The name is pinned at the trunk end and sits OUTSIDE the horizontal scroller,
+/// so it stays on screen while the games scroll past it. Putting it inside the
+/// scroller would let a branch scroll until it was anonymous.
+class _LimbContent extends StatelessWidget {
+  const _LimbContent({
     required this.games,
     required this.side,
     required this.branchName,
@@ -499,12 +456,12 @@ class _BranchGames extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
+    final scroller = SingleChildScrollView(
       key: Key('branch-games-$branchId'),
       scrollDirection: Axis.horizontal,
       // A left branch fills from the trunk outward, so its content starts at the
-      // right edge. Without this a short left branch would float away from its
-      // own junction with a gap in between.
+      // right edge; without this a short left branch floats away from its own
+      // junction with a gap in between.
       reverse: side == BranchSide.left,
       child: Row(
         children: [
@@ -528,7 +485,50 @@ class _BranchGames extends StatelessWidget {
         ],
       ),
     );
+
+    final label = _BranchName(name: branchName, side: side);
+
+    return Row(
+      // Name nearest the trunk on both sides, so it always reads as naming THIS
+      // bough rather than the one across the trunk from it.
+      children: side == BranchSide.right
+          ? [label, Expanded(child: scroller)]
+          : [Expanded(child: scroller), label],
+    );
   }
+}
+
+/// A branch's name, on the limb.
+class _BranchName extends StatelessWidget {
+  const _BranchName({required this.name, required this.side});
+
+  final String name;
+  final BranchSide side;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.symmetric(horizontal: Tokens.space.xs),
+        child: ConstrainedBox(
+          // A real width budget, unlike the 72pt box in the trunk that broke
+          // "Finished someday" into "Finis hed...". Long names ellipsize on ONE
+          // line rather than wrapping mid-word.
+          constraints: const BoxConstraints(maxWidth: 104),
+          child: Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            softWrap: true,
+            textAlign:
+                side == BranchSide.right ? TextAlign.left : TextAlign.right,
+            style: TextStyle(
+              fontSize: Tokens.type.caption,
+              color: Tokens.palette.text,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ),
+      );
 }
 
 /// A game that can be picked up by press-and-hold and dropped on a branch.
@@ -610,24 +610,39 @@ class _DraggableGame extends StatelessWidget {
 
 /// A branch with nothing on it.
 class _EmptyLimb extends StatelessWidget {
-  const _EmptyLimb({required this.receptive});
+  const _EmptyLimb({
+    required this.receptive,
+    required this.name,
+    required this.side,
+  });
 
   final bool receptive;
+  final String name;
+  final BranchSide side;
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.symmetric(
-            horizontal: Tokens.space.md, vertical: Tokens.space.md),
-        child: Text(
-          // Says what it IS, and during a drag what it can DO. Never what the
-          // user has failed to do -- DECISIONS.md rules out empty-state guilt.
-          receptive ? 'Drop here' : 'Empty branch',
-          style: TextStyle(
-            fontSize: Tokens.type.caption,
-            color: Tokens.palette.textDim,
-          ),
+  Widget build(BuildContext context) {
+    final label = _BranchName(name: name, side: side);
+    final hint = Padding(
+      padding: EdgeInsets.symmetric(
+          horizontal: Tokens.space.sm, vertical: Tokens.space.md),
+      child: Text(
+        // Says what it IS, and during a drag what it can DO. Never what the user
+        // has failed to do -- DECISIONS.md rules out empty-state guilt.
+        receptive ? 'Drop here' : 'Nothing on it yet',
+        style: TextStyle(
+          fontSize: Tokens.type.caption,
+          color: Tokens.palette.textDim,
         ),
-      );
+      ),
+    );
+
+    return Row(
+      // Name nearest the trunk, matching a populated limb, so an empty branch is
+      // identifiable rather than an anonymous "Empty branch" floating in space.
+      children: side == BranchSide.right ? [label, hint] : [hint, label],
+    );
+  }
 }
 
 /// Games on no branch, at the base of the trunk.
