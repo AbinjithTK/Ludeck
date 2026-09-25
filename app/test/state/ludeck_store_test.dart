@@ -213,6 +213,70 @@ void main() {
     });
   });
 
+  group('branches and placements', () {
+    test('a new store has no branches, and nothing is placed', () async {
+      await repo.seedIfEmpty();
+      await store.load();
+
+      // Nothing seeds a branch, so this is the state of a new install. The view
+      // depends on it: it falls back to status grouping when branches are empty.
+      expect(store.branches, isEmpty);
+      expect(store.placements, isEmpty);
+    });
+
+    test('branches and placements are read with the collection', () async {
+      final item = await anyItem();
+      await store.createBranch('Short evenings');
+      final branch = store.branches.single;
+
+      await store.place(item.game.igdbId, branch.id);
+
+      // No explicit load() here. Read in the same pass as the items, so a view
+      // can never render a branch count that disagrees with its rows.
+      expect(store.placements[branch.id], contains(item.game.igdbId));
+    });
+
+    test('deleting a branch keeps the games, unplaced', () async {
+      final item = await anyItem();
+      final before = store.items!.length;
+      await store.createBranch('Someday');
+      final branch = store.branches.single;
+      await store.place(item.game.igdbId, branch.id);
+
+      await store.deleteBranch(branch.id);
+
+      // A branch is a container. Emptying it does not destroy what was in it.
+      expect(store.branches, isEmpty);
+      expect(store.placements, isEmpty);
+      expect(store.items!.length, before);
+    });
+
+    test('reorderBranches changes the order the store reports', () async {
+      await store.createBranch('First');
+      await store.createBranch('Second');
+      final ids = store.branches.map((b) => b.id).toList();
+
+      await store.reorderBranches(ids.reversed.toList());
+
+      expect(store.branches.map((b) => b.name), ['Second', 'First']);
+    });
+
+    test('a shelved game leaves its branch count', () async {
+      final item = await anyItem();
+      await store.createBranch('Shelf test');
+      final branch = store.branches.single;
+      await store.place(item.game.igdbId, branch.id);
+      expect(store.placements[branch.id], hasLength(1));
+
+      await store.shelve(item.game.igdbId);
+
+      // The placement row survives in the database, but a shelved game is not in
+      // the collection, so counting it would make the heading disagree with the
+      // rows rendered under it.
+      expect(store.placements[branch.id] ?? const [], isEmpty);
+    });
+  });
+
   group('sources', () {
     test('sourcesFor reads without re-loading the collection', () async {
       final item = await anyItem();
@@ -227,6 +291,67 @@ void main() {
       final sources = await store.sourcesFor(item.game.igdbId);
       expect(sources, hasLength(1));
       expect(sources.single.url, 'https://example.com/clip');
+    });
+
+    test('addShared writes the game and its source together', () async {
+      await repo.seedIfEmpty();
+      await store.load();
+      final existing = store.items!.first;
+
+      // One call, one reload. Two separate calls left the collection briefly
+      // holding a game with no source.
+      await store.addShared(
+        TreeItem(
+          game: existing.game,
+          entry: Entry(
+            igdbId: existing.game.igdbId,
+            ownership: Ownership.spotted,
+            progress: Progress.untouched,
+          ),
+          copies: const [],
+        ),
+        Source(
+          igdbId: existing.game.igdbId,
+          url: 'https://example.com/again',
+          kind: SourceKind.web,
+          matchMethod: MatchMethod.text,
+          addedAt: DateTime.now(),
+        ),
+      );
+
+      final sources = await store.sourcesFor(existing.game.igdbId);
+      expect(sources, hasLength(1));
+      expect(store.error, isNull);
+    });
+
+    test('addShared on a game already held keeps its progress', () async {
+      final item = await anyItem();
+      await store.setProgress(item.game.igdbId, Progress.finished);
+
+      await store.addShared(
+        TreeItem(
+          game: item.game,
+          entry: Entry(
+            igdbId: item.game.igdbId,
+            ownership: Ownership.spotted,
+            progress: Progress.untouched,
+          ),
+          copies: const [],
+        ),
+        Source(
+          igdbId: item.game.igdbId,
+          kind: SourceKind.web,
+          matchMethod: MatchMethod.text,
+          addedAt: DateTime.now(),
+        ),
+      );
+
+      // Re-sharing a game must not reset what the user recorded about it. The
+      // source is still added, because the fact it came up again is information.
+      final after = store.items!
+          .firstWhere((i) => i.game.igdbId == item.game.igdbId);
+      expect(after.entry.progress, Progress.finished);
+      expect(await store.sourcesFor(item.game.igdbId), hasLength(1));
     });
   });
 }

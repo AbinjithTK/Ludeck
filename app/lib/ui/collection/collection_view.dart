@@ -18,7 +18,7 @@ import '../tokens.dart';
 ///   - `onSelect` fires on a tap (the tree's tap-a-fruit).
 ///   - `onHold`   fires on a long-press (the tree's hold-a-fruit → status).
 /// so `main.dart` swaps one widget for the other with no other change.
-class CollectionView extends StatelessWidget {
+class CollectionView extends StatefulWidget {
   const CollectionView({
     super.key,
     required this.items,
@@ -26,11 +26,19 @@ class CollectionView extends StatelessWidget {
     required this.onHold,
     required this.topInset,
     required this.bottomInset,
+    this.branches = const [],
+    this.placements = const {},
   });
 
   final List<TreeItem> items;
   final ValueChanged<TreeItem> onSelect;
   final ValueChanged<TreeItem> onHold;
+
+  /// The user's own branches, in their order. Empty is the normal starting state.
+  final List<Branch> branches;
+
+  /// Which game ids hang on which branch id.
+  final Map<int, List<int>> placements;
 
   /// Space to keep clear at the top and bottom for the floating chrome.
   ///
@@ -43,49 +51,110 @@ class CollectionView extends StatelessWidget {
   final double bottomInset;
 
   @override
+  State<CollectionView> createState() => _CollectionViewState();
+}
+
+class _CollectionViewState extends State<CollectionView> {
+  /// Section keys the user has collapsed. Empty means everything is open, which
+  /// is the right default: a collection that opens closed hides its own content.
+  ///
+  /// View state, so it lives here rather than in the store. Collapsing a section
+  /// is not a fact about the collection and has no business being persisted with
+  /// it.
+  final Set<String> _collapsed = <String>{};
+
+  @override
   Widget build(BuildContext context) {
-    // Grouped by the axis that actually matters to the user: on the tree,
-    // growing, harvested, set aside, and seeds. Empty groups are omitted
-    // rather than shown as a zero, matching the subline rule in main.dart.
-    final groups = _group(items);
+    final groups = _group();
 
     return ListView(
       key: const Key('collection-list'),
-      padding: EdgeInsets.fromLTRB(
-          Tokens.space.md, topInset, Tokens.space.md, bottomInset),
+      padding: EdgeInsets.fromLTRB(Tokens.space.md, widget.topInset,
+          Tokens.space.md, widget.bottomInset),
       children: [
         for (final group in groups) ...[
-          _GroupHeading(label: group.label, count: group.items.length),
-          for (final item in group.items)
-            _GameRow(
-              item: item,
-              onTap: () => onSelect(item),
-              onLongPress: () => onHold(item),
-            ),
+          _GroupHeading(
+            label: group.label,
+            count: group.items.length,
+            collapsed: _collapsed.contains(group.key),
+            onToggle: () => setState(() {
+              if (!_collapsed.remove(group.key)) _collapsed.add(group.key);
+            }),
+          ),
+          if (!_collapsed.contains(group.key))
+            for (final item in group.items)
+              _GameRow(
+                item: item,
+                onTap: () => widget.onSelect(item),
+                onLongPress: () => widget.onHold(item),
+              ),
           SizedBox(height: Tokens.space.md),
         ],
       ],
     );
   }
 
-  List<_Group> _group(List<TreeItem> items) {
+  /// Groups the collection by the user's branches when there are any, and by
+  /// status when there are not.
+  ///
+  /// The fallback is not a shortcut. Nothing seeds a branch, so a new install has
+  /// none, and grouping by branch then produces a single unnamed heap of the
+  /// whole collection: strictly less information than the status grouping it
+  /// replaced. Branches earn the sectioning once the user has made some.
+  List<_Group> _group() =>
+      widget.branches.isEmpty ? _byStatus() : _byBranch();
+
+  List<_Group> _byBranch() {
+    final byId = {for (final i in widget.items) i.game.igdbId: i};
+    final placed = <int>{};
+    final groups = <_Group>[];
+
+    for (final branch in widget.branches) {
+      final ids = widget.placements[branch.id] ?? const <int>[];
+      final items = <TreeItem>[];
+      for (final id in ids) {
+        final item = byId[id];
+        // A placement can point at a game the collection does not carry -- a
+        // shelved row, most likely. Skipping keeps the heading's count equal to
+        // the rows beneath it.
+        if (item == null) continue;
+        items.add(item);
+        placed.add(id);
+      }
+      // An empty branch is still shown. The user made it deliberately, and
+      // hiding it would look like it had been deleted.
+      groups.add(_Group('branch-${branch.id}', branch.name, items));
+    }
+
+    // Unplaced last, and only when there is something in it. This is a real
+    // state with its own meaning, not an error: it is where a freshly shared
+    // game lands before the user files it.
+    final unplaced =
+        widget.items.where((i) => !placed.contains(i.game.igdbId)).toList();
+    if (unplaced.isNotEmpty) {
+      groups.add(_Group('unplaced', 'Not on a branch', unplaced));
+    }
+    return groups;
+  }
+
+  List<_Group> _byStatus() {
     List<TreeItem> where(bool Function(TreeItem) test) =>
-        items.where(test).toList();
+        widget.items.where(test).toList();
 
     // A seed is defined by ownership; every other bucket is a progress state
     // of an owned game. Order runs most-active to least, seeds last.
     final buckets = <_Group>[
-      _Group('In hand',
+      _Group('playing', 'In hand',
           where((i) => !i.isSeed && i.entry.progress == Progress.playing)),
-      _Group('Within reach',
+      _Group('installed', 'Within reach',
           where((i) => !i.isSeed && i.entry.progress == Progress.installed)),
-      _Group('Growing',
+      _Group('untouched', 'Growing',
           where((i) => !i.isSeed && i.entry.progress == Progress.untouched)),
-      _Group('Harvested',
+      _Group('finished', 'Harvested',
           where((i) => !i.isSeed && i.entry.progress == Progress.finished)),
-      _Group('Set aside',
+      _Group('abandoned', 'Set aside',
           where((i) => !i.isSeed && i.entry.progress == Progress.abandoned)),
-      _Group('Seeds', where((i) => i.isSeed)),
+      _Group('seeds', 'Seeds', where((i) => i.isSeed)),
     ];
 
     return buckets.where((g) => g.items.isNotEmpty).toList();
@@ -93,41 +162,81 @@ class CollectionView extends StatelessWidget {
 }
 
 class _Group {
-  const _Group(this.label, this.items);
+  const _Group(this.key, this.label, this.items);
+
+  /// Stable across rebuilds, so a collapsed section stays collapsed when the
+  /// collection changes under it. A label would not do: renaming a branch would
+  /// silently expand it.
+  final String key;
   final String label;
   final List<TreeItem> items;
 }
 
 class _GroupHeading extends StatelessWidget {
-  const _GroupHeading({required this.label, required this.count});
+  const _GroupHeading({
+    required this.label,
+    required this.count,
+    required this.collapsed,
+    required this.onToggle,
+  });
 
   final String label;
   final int count;
+  final bool collapsed;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-          top: Tokens.space.sm, bottom: Tokens.space.xs, left: Tokens.space.xxs),
-      child: Row(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: Tokens.type.caption,
-              color: Tokens.palette.textDim,
-              letterSpacing: 0.5,
-            ),
+    return Semantics(
+      // A heading AND a button, because it is both: it names the section and it
+      // opens or closes it. `expanded` is what makes a screen reader announce
+      // the state, which an icon alone communicates only to sighted users.
+      header: true,
+      button: true,
+      expanded: !collapsed,
+      label: count == 1 ? '$label, 1 game' : '$label, $count games',
+      // The child's own text would otherwise be read again after the label.
+      excludeSemantics: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(Tokens.radius.card),
+        onTap: onToggle,
+        child: Padding(
+          padding: EdgeInsets.only(
+              top: Tokens.space.sm,
+              bottom: Tokens.space.xs,
+              left: Tokens.space.xxs),
+          child: Row(
+            children: [
+              // Rotates rather than swapping glyphs, so the control reads as one
+              // thing changing state instead of two different buttons.
+              AnimatedRotation(
+                turns: collapsed ? -0.25 : 0,
+                duration: Tokens.motion.swap,
+                curve: Tokens.motion.easeOut,
+                child: Icon(Icons.expand_more,
+                    size: Tokens.type.caption + 4,
+                    color: Tokens.palette.textDim),
+              ),
+              SizedBox(width: Tokens.space.xxs),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: Tokens.type.caption,
+                  color: Tokens.palette.textDim,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              SizedBox(width: Tokens.space.xs),
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: Tokens.type.caption,
+                  color: Tokens.palette.textDim,
+                ),
+              ),
+            ],
           ),
-          SizedBox(width: Tokens.space.xs),
-          Text(
-            '$count',
-            style: TextStyle(
-              fontSize: Tokens.type.caption,
-              color: Tokens.palette.textDim,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -150,22 +259,45 @@ class _GameRow extends StatelessWidget {
     final entry = item.entry;
 
     // The plain-language status label, never the metaphor word, so a screen
-    // reader announces something a user actually understands. Seeds report
+    // reader announces something a user actually understands. "Ripe" makes no
+    // sense read aloud without the picture. Seeds report
     // who recommended them, since that is the seed's whole point.
     final statusLabel = item.isSeed
         ? 'Seed from ${entry.recommendedBy ?? 'somewhere'}'
         : entry.progress.label;
 
+    final platforms = _orderedPlatforms(item.platforms);
+
     final meta = <String>[
       if (game.releaseYear != null) '${game.releaseYear}',
       if (game.hours != null) '${game.hours} h',
-      for (final p in _orderedPlatforms(item.platforms)) p.label,
+      for (final p in platforms) p.label,
     ].join('  \u00B7  ');
+
+    // A rating belongs to a harvest, so it is shown and announced only on one.
+    final showRating = item.isHarvested && (entry.rating ?? 0) > 0;
+
+    // Everything the row conveys, as one sentence, in the order it matters.
+    // Built from the plain labels rather than from the rendered widgets, because
+    // the pips and the check mark carry meaning visually that has to be said out
+    // loud to be carried at all.
+    final announced = <String>[
+      game.title,
+      statusLabel,
+      if (game.hours != null) 'about ${game.hours} hours',
+      if (platforms.isNotEmpty)
+        'on ${platforms.map((p) => p.label).join(', ')}',
+      if (showRating) 'rated ${entry.rating} out of 5',
+    ].join(', ');
 
     return Semantics(
       button: true,
-      // Announced label uses plain words, never the tree metaphor.
-      label: '${game.title}, $statusLabel',
+      label: announced,
+      // Without this the inner Text widgets are announced AGAIN after the label,
+      // so the title and status are read twice and the metadata is read in a
+      // form ("2017 . 26 h . PC") that does not make sense aloud.
+      excludeSemantics: true,
+      onLongPressHint: 'Change status',
       child: Padding(
         padding: EdgeInsets.only(bottom: Tokens.space.xs),
         child: Material(
@@ -227,7 +359,7 @@ class _GameRow extends StatelessWidget {
                     ),
                   ),
                   SizedBox(width: Tokens.space.sm),
-                  _RatingOrStatus(entry: entry, isSeed: item.isSeed),
+                  _RatingOrStatus(item: item),
                 ],
               ),
             ),
@@ -270,39 +402,62 @@ class _StatusMark extends StatelessWidget {
   }
 }
 
-/// The right edge of a row: a rating when one exists, otherwise the plain
-/// status word. Rating renders as filled/hollow pips so it reads without
-/// relying on colour.
+/// The right edge of a row: the status word, and a rating beneath it when the
+/// game has been harvested and rated.
+///
+/// The rating used to REPLACE the status word, which made the column carry two
+/// different kinds of information depending on the row: an unrated finished game
+/// read "Finished" while a rated one read stars. Completion was still legible
+/// from the check mark on the left, so nothing was lost, but nothing lines up
+/// either. Status is now always present and the rating is additional.
+///
+/// It is shown only on a harvested game. A rating survives a game being moved
+/// back out of finished -- deliberately, since it is a true record of a past
+/// harvest and deleting it silently would be worse -- so without this check a
+/// game that is merely "Playing" could display stars.
+///
+/// Pips render filled against outlined so they read without relying on colour.
 class _RatingOrStatus extends StatelessWidget {
-  const _RatingOrStatus({required this.entry, required this.isSeed});
+  const _RatingOrStatus({required this.item});
 
-  final Entry entry;
-  final bool isSeed;
+  final TreeItem item;
 
   @override
   Widget build(BuildContext context) {
-    final rating = entry.rating;
-    if (rating != null && rating > 0) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 1; i <= 5; i++)
-            Icon(
-              i <= rating ? Icons.star : Icons.star_border,
-              size: 12,
-              color: i <= rating
-                  ? Tokens.palette.accent
-                  : Tokens.palette.textDim,
-            ),
-        ],
-      );
-    }
-    return Text(
-      isSeed ? entry.ownership.label : entry.progress.label,
+    final entry = item.entry;
+    final rating = entry.rating ?? 0;
+    final showRating = item.isHarvested && rating > 0;
+
+    final status = Text(
+      item.isSeed ? entry.ownership.label : entry.progress.label,
       style: TextStyle(
         fontSize: Tokens.type.caption,
         color: Tokens.palette.textDim,
       ),
+    );
+
+    if (!showRating) return status;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        status,
+        SizedBox(height: Tokens.space.xxs),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 1; i <= 5; i++)
+              Icon(
+                i <= rating ? Icons.star : Icons.star_border,
+                size: 11,
+                color: i <= rating
+                    ? Tokens.palette.accent
+                    : Tokens.palette.textDim,
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

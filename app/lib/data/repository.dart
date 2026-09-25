@@ -349,7 +349,7 @@ class Repository {
         },
       );
 
-  Future<List<({int id, String name, int sortOrder})>> branches() async {
+  Future<List<Branch>> branches() async {
     final rows = await _db.query('branches', orderBy: 'sort_order, id');
     return rows
         .map((r) => (
@@ -407,6 +407,31 @@ class Repository {
         where: 'branch_id = ? AND igdb_id = ?',
         whereArgs: [branchId, igdbId],
       );
+
+  /// Which games hang on which branch, keyed by branch id.
+  ///
+  /// One query rather than one per branch: grouping the collection needs every
+  /// placement at once, and N+1 reads on every load would scale with the number
+  /// of branches a user makes.
+  ///
+  /// Shelved games are excluded, matching `loadDetailed`. A placement pointing at
+  /// a shelved game is not wrong, it is simply not shown, and leaving it in would
+  /// make a branch's count disagree with the rows under it.
+  Future<Map<int, List<int>>> placements() async {
+    final rows = await _db.rawQuery('''
+      SELECT p.branch_id, p.igdb_id FROM placements p
+      JOIN entries e ON e.igdb_id = p.igdb_id
+      JOIN games   g ON g.igdb_id = p.igdb_id
+      WHERE e.shelved = 0
+      ORDER BY p.branch_id, p.position, g.title COLLATE NOCASE
+    ''');
+    final out = <int, List<int>>{};
+    for (final r in rows) {
+      final branchId = r['branch_id'] as int;
+      (out[branchId] ??= <int>[]).add(r['igdb_id'] as int);
+    }
+    return out;
+  }
 
   /// Games captured but not yet placed on any branch.
   ///

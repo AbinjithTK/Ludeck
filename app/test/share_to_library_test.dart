@@ -37,9 +37,14 @@ void main() {
   tearDown(() async => repo.close());
 
   /// Lets real async work finish, then settles the widget tree.
+  ///
+  /// 40ms rather than 20. A store write now re-reads the collection, the
+  /// branches and the placements, so a fixed delay tuned to a single query is
+  /// too short and the failure looks exactly like a feature that does not write.
+  /// Any fixed delay here is a compromise; this one has headroom.
   Future<void> settle(WidgetTester tester) async {
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      () => Future<void>.delayed(const Duration(milliseconds: 40)),
     );
     await tester.pumpAndSettle();
   }

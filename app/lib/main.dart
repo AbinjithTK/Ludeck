@@ -178,26 +178,29 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       final game = await _catalog.byId(id);
       if (game == null) continue;
 
-      await store.upsert(TreeItem(
-        game: game,
-        entry: Entry(
-          igdbId: id,
-          // A share is a recommendation, not a purchase. Ownership and progress
-          // are separate axes and neither is implied by the other.
-          ownership: Ownership.spotted,
-          progress: Progress.untouched,
-          recommendedBy: choice.recommendedBy,
+      // One write, one reload. Two separate calls left the collection briefly
+      // holding a game with no source, and cost two full reload cycles per game.
+      await store.addShared(
+        TreeItem(
+          game: game,
+          entry: Entry(
+            igdbId: id,
+            // A share is a recommendation, not a purchase. Ownership and
+            // progress are separate axes and neither is implied by the other.
+            ownership: Ownership.spotted,
+            progress: Progress.untouched,
+            recommendedBy: choice.recommendedBy,
+          ),
+          copies: const [],
         ),
-        copies: const [],
-      ));
-
-      await store.addSource(Source(
-        igdbId: id,
-        url: candidate.link?.uri.toString(),
-        kind: r.kind,
-        matchMethod: candidate.method,
-        addedAt: now,
-      ));
+        Source(
+          igdbId: id,
+          url: candidate.link?.uri.toString(),
+          kind: r.kind,
+          matchMethod: candidate.method,
+          addedAt: now,
+        ),
+      );
     }
 
     if (!mounted) return;
@@ -540,6 +543,8 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               children: [
                 CollectionView(
                   items: items,
+                  branches: store.branches,
+                  placements: store.placements,
                   // The header already supplies the gap above; the list only
                   // needs to clear the control at the bottom.
                   topInset: 0,

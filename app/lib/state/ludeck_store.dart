@@ -28,6 +28,8 @@ class LudeckStore extends ChangeNotifier {
   final Repository _repo;
 
   List<TreeItem>? _items;
+  List<Branch> _branches = const [];
+  Map<int, List<int>> _placements = const {};
   int _skipped = 0;
   bool _isLoading = false;
   Object? _error;
@@ -35,6 +37,17 @@ class LudeckStore extends ChangeNotifier {
 
   /// The collection. Null until the first read completes; never null after.
   List<TreeItem>? get items => _items;
+
+  /// The user's branches, in their own order. Empty is the normal starting
+  /// state: nothing seeds a branch, so a new install has none.
+  List<Branch> get branches => _branches;
+
+  /// Which game ids hang on which branch id.
+  ///
+  /// Read in the same pass as the collection so the two cannot disagree. A view
+  /// that loaded them separately could render a branch count that did not match
+  /// the rows under it.
+  Map<int, List<int>> get placements => _placements;
 
   /// True while a read or a write is in flight.
   bool get isLoading => _isLoading;
@@ -54,11 +67,40 @@ class LudeckStore extends ChangeNotifier {
   /// Reads the whole collection.
   ///
   /// Safe to call repeatedly; every mutation ends with one.
-  Future<void> load() => _guard(() async {
-        final result = await _repo.loadDetailed();
-        _items = result.items;
-        _skipped = result.skipped;
-      });
+  Future<void> load() => _guard(_read);
+
+  /// The single read used by [load] and by every mutation.
+  ///
+  /// Branches and placements are read here, with the items, deliberately: a view
+  /// grouping rows by branch needs all three to describe the same instant.
+  Future<void> _read() async {
+    final result = await _repo.loadDetailed();
+    final branches = await _repo.branches();
+    final placements = await _repo.placements();
+    _items = result.items;
+    _skipped = result.skipped;
+    _branches = branches;
+    _placements = placements;
+  }
+
+  /// Creates a branch, then re-reads.
+  Future<void> createBranch(String name) =>
+      _write(() => _repo.createBranch(name));
+
+  Future<void> renameBranch(int id, String name) =>
+      _write(() => _repo.renameBranch(id, name));
+
+  /// Removes a branch. The games on it survive and become unplaced.
+  Future<void> deleteBranch(int id) => _write(() => _repo.deleteBranch(id));
+
+  Future<void> reorderBranches(List<int> idsInOrder) =>
+      _write(() => _repo.reorderBranches(idsInOrder));
+
+  Future<void> place(int igdbId, int branchId) =>
+      _write(() => _repo.place(igdbId, branchId));
+
+  Future<void> unplace(int igdbId, int branchId) =>
+      _write(() => _repo.unplace(igdbId, branchId));
 
   Future<void> setProgress(int igdbId, Progress value) =>
       _write(() => _repo.setProgress(igdbId, value));
@@ -84,6 +126,20 @@ class LudeckStore extends ChangeNotifier {
   /// rating.
   Future<void> upsert(TreeItem item) => _write(() => _repo.upsert(item));
 
+  /// Adds a shared game AND records where it came from, with ONE re-read.
+  ///
+  /// Exists because calling `upsert` then `addSource` costs two full reload
+  /// cycles per game, and the collection is briefly in a state where the game
+  /// exists with no source. Batching them is both faster and the honest unit of
+  /// work: a shared game and its provenance are one event.
+  ///
+  /// The source is still written when the game was already present. That is the
+  /// point: re-encountering a game is information, and the entry is left alone.
+  Future<void> addShared(TreeItem item, Source source) => _write(() async {
+        await _repo.upsert(item);
+        await _repo.addSource(source);
+      });
+
   /// Records where a game came from. One game can have several sources.
   Future<void> addSource(Source source) =>
       _write(() => _repo.addSource(source));
@@ -98,9 +154,7 @@ class LudeckStore extends ChangeNotifier {
   /// Runs a write, then re-reads, so the screen always shows what is stored.
   Future<void> _write(Future<void> Function() action) => _guard(() async {
         await action();
-        final result = await _repo.loadDetailed();
-        _items = result.items;
-        _skipped = result.skipped;
+        await _read();
       });
 
   /// The one place loading, error state and notification are handled.

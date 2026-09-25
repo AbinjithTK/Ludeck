@@ -39,7 +39,11 @@ deciding them.)
         for harvested games so a skip does not make rating unreachable.
         21 tests across `test/rating_sheet_test.dart` (pure sheet, no DB) and
         `test/rating_test.dart` (through the real screen and database).
-  - [ ] E2 list view -- not started
+  - [x] E2 list view -- **DONE 2026-09-25.** `collection_view.dart` now groups by
+        the user's branches when any exist (unplaced last, empty branches still
+        shown), falls back to status grouping when none do, and every section is
+        collapsible. Rows and headings carry full Semantics. 17 tests in
+        `test/branch_sections_test.dart`.
   - [ ] E3 branches screen -- not started (repository methods exist per
         Phase B; no screen)
   - [ ] E4 search and add -- not started; `CatalogService` does not exist
@@ -77,17 +81,17 @@ deciding them.)
 
 ## Next (highest priority first)
 
-1. **Phase E2 (branch sections + Semantics)** -- stage 4. NOT a new screen any more:
-   `collection_view.dart` is already the list. What it lacks is grouping by the
-   user's branches rather than by status, collapsibility, and per-row Semantics
-   using the plain label.
-4. Phase E3 (branches screen) -- stage 5. Repository methods already exist.
-5. Phase E4 (search and add) -- stage 6. `services/catalog_service.dart` exists
+1. **Phase E3 (branches screen)** -- stage 5. Create, rename, reorder, delete.
+   Repository AND store methods now all exist (`createBranch`, `renameBranch`,
+   `deleteBranch`, `reorderBranches`, `place`, `unplace`), so this is a screen
+   over an API that is already tested. Delete must state plainly that the games
+   are kept.
+2. Phase E4 (search and add) -- stage 6. `services/catalog_service.dart` exists
    (`CatalogSource` + `FixtureCatalog`), so this has a starting point.
-6. Phase F3 (SSRF-hardened fetcher) -- stage 7. Offline-testable, no blocker.
-7. Phase F4/F5 (extractors) -- stage 8. YouTube tier needs a human-created API
+3. Phase F3 (SSRF-hardened fetcher) -- stage 7. Offline-testable, no blocker.
+4. Phase F4/F5 (extractors) -- stage 8. YouTube tier needs a human-created API
    key; Twitch and Steam tiers do not.
-8. Backend polish: systematic transaction/cascade audit -- stage 9.
+5. Backend polish: systematic transaction/cascade audit -- stage 9.
 
 ## Design items deferred from stage 1 (open, not bugs)
 
@@ -102,30 +106,101 @@ deliberately left out of the layout stage rather than folded in as scope creep:
   judgment call worth making deliberately once the branch grouping of Phase E2
   lands, since that changes the sectioning anyway.
 
-## Design items seen during stage 3 (open)
+## Design items seen during stage 3
 
-Observed on the device while verifying rate-on-harvest. None is a bug in that
-feature, so none was folded into the stage:
+Observed on the device while verifying rate-on-harvest.
 
-- **A rating REPLACES the status word on a row's right edge.** So Hades reads
-  "Finished" while a rated Hollow Knight reads stars, and the right-hand column
-  carries two different kinds of information depending on the row. Completion is
-  still readable from the filled check mark on the left, so nothing is lost, but
-  the column is inconsistent. This is pre-existing `_RatingOrStatus` behaviour in
-  `collection_view.dart`, not something E1 introduced. Worth deciding in Phase E2
-  when the row is revisited for Semantics anyway.
-- **A rating survives a game leaving `finished`.** Nothing clears it, and the row
-  would then show stars where its progress word belongs, on a game that is not
-  harvested. Reachable by harvesting, rating, then setting the game back to
-  playing. Either clear the rating on that transition or stop showing a rating on
-  an unharvested row; the second is likely correct, since the rating is a real
-  record of a past harvest and deleting it silently would be worse.
-- **The status sheet for a harvested game is taller than the screen.** It now
+- **CLOSED in stage 4. A rating REPLACED the status word on a row's right edge.**
+  So Hades read "Finished" while a rated Hollow Knight read stars, and the
+  right-hand column carried two different kinds of information depending on the
+  row. Status is now always present and the pips sit beneath it.
+- **CLOSED in stage 4. A rating survived a game leaving `finished`** and would
+  then show stars where its progress word belongs. The rating still survives the
+  transition, deliberately -- it is a true record of a past harvest and deleting it
+  silently would be worse -- but it is no longer SHOWN or announced on a game that
+  is not harvested.
+- **OPEN. The status sheet for a harvested game is taller than the screen.** It
   carries three sections, and the rating row sits below the fold with no
   affordance suggesting there is more to scroll to. Tolerable, but it is the kind
   of thing that makes a feature look missing.
 
 ## Cycle log
+
+### 2026-09-25 10:28 -- stage 4 of the "remaining features" plan (Phase E2)
+
+Branch sections and the accessible path.
+
+**The decision worth arguing about: branch grouping has a fallback, and it is not
+a shortcut.** Nothing seeds a branch, so a new install has none, and grouping by
+branch then produces a single unnamed heap of the entire collection -- strictly
+less information than the status grouping it replaced. So `CollectionView` groups
+by branch when branches exist and by status when they do not. Branches earn the
+sectioning once the user has made some. A test asserts both paths.
+
+Grouping details, each a deliberate call: branches appear in the user's own order
+(reordering them reorders the sections, tested); an EMPTY branch is still shown,
+because the user made it deliberately and hiding it would look like a deletion;
+unplaced games get a section, last, because that is where a freshly shared game
+waits to be filed rather than the headline of the collection; and a placement
+pointing at a shelved game is skipped so a heading's count always equals the rows
+under it.
+
+Collapse state is view state and lives in the widget, not the store. Collapsing a
+section is not a fact about the collection. Section keys are stable ids rather
+than labels, so a reload -- or renaming a branch -- cannot silently reopen a
+collapsed section; there is a test for that.
+
+Accessibility, which is the real point of this phase since a canvas is invisible
+to a screen reader:
+
+- A row announces one sentence carrying everything it conveys, including what is
+  only visual: `"Hades, Finished, about 23 hours, on PC, rated 4 out of 5"`. Built
+  from the plain labels, never the metaphor word -- "Ripe" read aloud without the
+  picture means nothing.
+- `excludeSemantics: true` on the row, because otherwise the inner Text widgets
+  are announced again after the label, so the title and status are read twice and
+  the metadata arrives as "2017 . 26 h . PC", which does not parse aloud.
+- Headings are a header AND a button AND carry `hasExpandedState` / `isExpanded`.
+  The chevron communicates state to sighted users only.
+- "1 game" not "1 games".
+
+**Both stage 3 design findings are now closed**, since this stage revisited the
+row anyway. The rating no longer REPLACES the status word: status is always
+present and the pips sit beneath it, so the right-hand column carries one kind of
+information on every row. And a rating is only shown on a harvested game, which
+fixes stars appearing on a game merely "Playing" after a harvest was undone. The
+rating itself still survives that transition, deliberately: it is a true record of
+a past harvest and deleting it silently would be worse.
+
+A real bug this stage introduced and fixed: adding branches+placements to the
+store's read made EVERY write three queries instead of one, and `_applyIntake` was
+doing two full write-and-reload cycles per game (upsert, then addSource). That
+pushed the share test's fixed 20ms wait past the second write, and it failed
+looking exactly like a feature that does not record sources. Fixed at the cause
+with `store.addShared`, one write and one reload -- which is also the honest unit
+of work, since a shared game and its provenance are one event, and the old path
+briefly left the collection holding a game with no source. The share test's delay
+went to 40ms as well, because any fixed delay there is fragile.
+
+Verified: 274 tests green (was 250), analyzer clean, `check.ps1` 12/12, and the
+suite run THREE times to confirm the race was gone rather than merely retimed.
+
+**Verified on the device in both modes.** The status fallback first, then -- since
+there is no branch-creating UI until stage 5 -- three branches were written
+straight into the emulator's database (two populated, one empty on purpose).
+Confirmed: branch order honoured, the empty branch shown with count 0, "Not on a
+branch 6" last, counts matching rows, and a real tap collapsing one section while
+its siblings stayed open. Empty logcat.
+
+NOTE for stage 5: the emulator's fixture now HAS three branches, deliberately left
+in place so the branches screen has something real to rename, reorder and delete.
+This is the one device-state change not made through the UI.
+
+A Kiro Crew policy blocked one command as a false positive: the git-publish floor
+matched `adb push` combined with a `${...}-journal` brace expansion. No git
+operation was involved. Its stated objection is that shell expansion makes the
+push target unverifiable, so the command was reissued with fully literal paths,
+which removes the expansion rather than working around the check.
 
 ### 2026-09-25 10:09 -- stage 3 of the "remaining features" plan (Phase E1)
 

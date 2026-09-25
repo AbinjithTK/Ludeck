@@ -7,6 +7,17 @@ const int secondsPerHour = 3600;
 ///
 /// igdbId is THE identity. Never match a game on its title: IGDB search returns
 /// DLC and remasters above base games, and titles get edited.
+/// A branch of the tree: the user's own grouping of games.
+///
+/// A record rather than a class because it carries no behaviour and no
+/// invariants, and the repository already returns exactly this shape. Named here
+/// so the repository, the store and the views do not each repeat it, which is how
+/// one of them ends up with a field the others do not have.
+///
+/// Branches are NOT derived from platforms. Arbitrary, unlimited categorisation
+/// is what gives each tree its own shape.
+typedef Branch = ({int id, String name, int sortOrder});
+
 class Game {
   const Game({
     required this.igdbId,
