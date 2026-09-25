@@ -24,6 +24,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/enums.dart';
 import '../../data/models.dart';
+import '../../domain/title_match.dart';
 import '../../services/catalog_service.dart';
 import '../../services/http_catalog.dart';
 import '../../state/ludeck_store.dart';
@@ -125,20 +126,35 @@ class _AddScreenState extends State<AddScreen> {
   /// Spotted, not owned: searching for a game is not buying it, and the two axes
   /// stay independent. The user changes ownership from the status sheet when they
   /// actually have it.
+  ///
+  /// The duplicate check matches on TITLE as well as id, and that is not
+  /// belt-and-braces -- it is required. Two catalogue sources give the same game
+  /// two different ids: the bundled asset derives a synthetic negative id from the
+  /// title, while the live catalogue has the real one. Matching on id alone, the
+  /// same game added from each source becomes two rows that look identical in the
+  /// collection and cannot be told apart by the user.
+  ///
+  /// When a match exists the write is SKIPPED rather than performed. Upserting a
+  /// different id would create the second row rather than update the first, so
+  /// "already there" has to mean "do nothing" and not merely a different snackbar.
   Future<void> _add(Game game) async {
     final store = context.read<LudeckStore>();
-    final already =
-        (store.items ?? const []).any((i) => i.game.igdbId == game.igdbId);
+    final key = catalogDedupKey(game.title);
+    final already = (store.items ?? const []).any(
+      (i) => i.game.igdbId == game.igdbId || catalogDedupKey(i.game.title) == key,
+    );
 
-    await store.upsert(TreeItem(
-      game: game,
-      entry: Entry(
-        igdbId: game.igdbId,
-        ownership: Ownership.spotted,
-        progress: Progress.untouched,
-      ),
-      copies: const [],
-    ));
+    if (!already) {
+      await store.upsert(TreeItem(
+        game: game,
+        entry: Entry(
+          igdbId: game.igdbId,
+          ownership: Ownership.spotted,
+          progress: Progress.untouched,
+        ),
+        copies: const [],
+      ));
+    }
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(

@@ -10,6 +10,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ludeck/services/bundled_catalog.dart';
 import 'package:ludeck/services/catalog_service.dart';
 import 'package:ludeck/services/http_catalog.dart';
 
@@ -60,12 +61,17 @@ const String _searchBody = '''
 
 void main() {
   group('the swap is one line', () {
-    test('resolveCatalog returns the fixture while no base url is set', () {
-      // This is what makes the feature demonstrable before the proxy exists, and
-      // it is the ONLY place the decision is made, so a screen never has to know.
+    test('resolveCatalog returns the bundled catalogue while no base url is set',
+        () {
+      // This assertion CHANGED, deliberately. It used to expect FixtureCatalog,
+      // and that was the bug: the shipped app resolved to ten hardcoded rows, so
+      // its search box could not find Grand Theft Auto V. Returning the bundled
+      // asset means search works with no proxy, no key and no network.
       expect(catalogBaseUrl, isEmpty,
           reason: 'when this is filled in, the assertion below changes meaning');
-      expect(resolveCatalog(), isA<FixtureCatalog>());
+      expect(resolveCatalog(), isA<BundledCatalog>());
+      // And specifically NOT the fixture, which is now for tests only.
+      expect(resolveCatalog(), isNot(isA<FixtureCatalog>()));
     });
   });
 

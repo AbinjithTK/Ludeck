@@ -22,40 +22,22 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../data/models.dart';
+import 'bundled_catalog.dart';
 import 'catalog_service.dart';
+import 'layered_catalog.dart';
 
 /// Why a catalogue lookup failed.
 ///
-/// A taxonomy rather than one error, because the screen says something different
-/// for each: offline is worth a retry, a malformed response is not the user's
-/// problem to fix, and "not configured" is a state the app is deliberately in
-/// today rather than a fault.
-enum CatalogFailure {
-  /// No route to the host. Retryable.
-  offline,
-
-  /// The proxy answered, but not with something parseable.
-  malformed,
-
-  /// The proxy refused. Its own error body is never echoed to the user.
-  rejected,
-
-  /// The proxy is not deployed yet, so there is nothing to ask.
-  notConfigured,
-}
-
-class CatalogException implements Exception {
-  const CatalogException(this.failure, [this.detail]);
-
-  final CatalogFailure failure;
-
-  /// For logs only. Never rendered: an upstream error body can carry a query, a
-  /// key fragment, or an internal host name.
-  final String? detail;
-
-  @override
-  String toString() => 'CatalogException($failure)';
-}
+/// [CatalogFailure] and [CatalogException] used to be declared here. They moved to
+/// `catalog_service.dart`, beside the interface, because every source can fail and
+/// a caller naming the reason should not have to import the networking layer to do
+/// it. Re-exported so no existing import had to change.
+///
+/// The taxonomy still matters for the same reason it always did: the screen says
+/// something different for each. Offline is worth a retry, a malformed response is
+/// not the user's problem to fix, and "not configured" is a state the app is
+/// deliberately in rather than a fault.
+export 'catalog_service.dart' show CatalogFailure, CatalogException;
 
 /// One POST, so the catalogue can be tested without a network.
 ///
@@ -285,15 +267,23 @@ const String catalogAnonKey = '';
 
 /// The catalogue the app actually runs on.
 ///
-/// Returns the fixture while `catalogBaseUrl` is empty, so the feature is
-/// demonstrable before the proxy is deployed, and the real source the moment it
-/// is not. A screen that asked for the network directly would have to be edited
-/// twice; this way the swap happens in one place.
+/// The bundled asset is ALWAYS present, and that is the important change. This
+/// function used to return the ten-row fixture whenever `catalogBaseUrl` was
+/// empty, which meant the shipped app had a search box that could not find Grand
+/// Theft Auto V -- a broken feature wearing the costume of a pending integration.
+///
+/// With the proxy configured the live source goes in front and the bundle becomes
+/// the offline fallback. Filling in `catalogBaseUrl` is still the entire swap, and
+/// now it upgrades search instead of switching it on.
 CatalogSource resolveCatalog({CatalogTransport? transport}) {
-  if (catalogBaseUrl.isEmpty) return FixtureCatalog();
-  return HttpCatalog(
-    baseUrl: Uri.parse(catalogBaseUrl),
-    anonKey: catalogAnonKey.isEmpty ? null : catalogAnonKey,
-    transport: transport ?? HttpCatalogTransport(),
+  final bundled = BundledCatalog();
+  if (catalogBaseUrl.isEmpty) return bundled;
+  return LayeredCatalog(
+    primary: HttpCatalog(
+      baseUrl: Uri.parse(catalogBaseUrl),
+      anonKey: catalogAnonKey.isEmpty ? null : catalogAnonKey,
+      transport: transport ?? HttpCatalogTransport(),
+    ),
+    fallback: bundled,
   );
 }

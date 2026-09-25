@@ -1,0 +1,2890 @@
+{
+  "version": 1,
+  "note": "Hand-authored starter catalogue that ships inside the app. NOT IGDB data, and deliberately not pretending to be: no ids, no cover URLs, no publisher fields. Hours are approximate main-story lengths and are omitted entirely for games with no meaningful main story, because a fake number on an endless game is worse than no number. When the catalogue proxy is deployed this becomes the offline fallback layer rather than the only source.",
+  "games": [
+    {
+      "title": "Grand Theft Auto III",
+      "year": 2001,
+      "hours": 15
+    },
+    {
+      "title": "Grand Theft Auto: Vice City",
+      "year": 2002,
+      "hours": 17
+    },
+    {
+      "title": "Grand Theft Auto: San Andreas",
+      "year": 2004,
+      "hours": 31
+    },
+    {
+      "title": "Grand Theft Auto IV",
+      "year": 2008,
+      "hours": 28
+    },
+    {
+      "title": "Grand Theft Auto V",
+      "year": 2013,
+      "hours": 31
+    },
+    {
+      "title": "Red Dead Redemption",
+      "year": 2010,
+      "hours": 20
+    },
+    {
+      "title": "Red Dead Redemption 2",
+      "year": 2018,
+      "hours": 50
+    },
+    {
+      "title": "L.A. Noire",
+      "year": 2011,
+      "hours": 22
+    },
+    {
+      "title": "Bully",
+      "year": 2006,
+      "hours": 18
+    },
+    {
+      "title": "Max Payne",
+      "year": 2001,
+      "hours": 9
+    },
+    {
+      "title": "Max Payne 3",
+      "year": 2012,
+      "hours": 11
+    },
+    {
+      "title": "The Elder Scrolls III: Morrowind",
+      "year": 2002,
+      "hours": 45
+    },
+    {
+      "title": "The Elder Scrolls IV: Oblivion",
+      "year": 2006,
+      "hours": 28
+    },
+    {
+      "title": "The Elder Scrolls V: Skyrim",
+      "year": 2011,
+      "hours": 34
+    },
+    {
+      "title": "The Elder Scrolls Online",
+      "year": 2014
+    },
+    {
+      "title": "Fallout 3",
+      "year": 2008,
+      "hours": 23
+    },
+    {
+      "title": "Fallout: New Vegas",
+      "year": 2010,
+      "hours": 28
+    },
+    {
+      "title": "Fallout 4",
+      "year": 2015,
+      "hours": 27
+    },
+    {
+      "title": "Fallout 76",
+      "year": 2018
+    },
+    {
+      "title": "Starfield",
+      "year": 2023,
+      "hours": 40
+    },
+    {
+      "title": "The Witcher",
+      "year": 2007,
+      "hours": 32
+    },
+    {
+      "title": "The Witcher 2: Assassins of Kings",
+      "year": 2011,
+      "hours": 24
+    },
+    {
+      "title": "The Witcher 3: Wild Hunt",
+      "year": 2015,
+      "hours": 52
+    },
+    {
+      "title": "Cyberpunk 2077",
+      "year": 2020,
+      "hours": 25
+    },
+    {
+      "title": "Mass Effect",
+      "year": 2007,
+      "hours": 17
+    },
+    {
+      "title": "Mass Effect 2",
+      "year": 2010,
+      "hours": 25
+    },
+    {
+      "title": "Mass Effect 3",
+      "year": 2012,
+      "hours": 24
+    },
+    {
+      "title": "Mass Effect: Andromeda",
+      "year": 2017,
+      "hours": 28
+    },
+    {
+      "title": "Dragon Age: Origins",
+      "year": 2009,
+      "hours": 40
+    },
+    {
+      "title": "Dragon Age II",
+      "year": 2011,
+      "hours": 28
+    },
+    {
+      "title": "Dragon Age: Inquisition",
+      "year": 2014,
+      "hours": 48
+    },
+    {
+      "title": "Dragon Age: The Veilguard",
+      "year": 2024,
+      "hours": 35
+    },
+    {
+      "title": "Baldur's Gate II: Shadows of Amn",
+      "year": 2000,
+      "hours": 60
+    },
+    {
+      "title": "Baldur's Gate 3",
+      "year": 2023,
+      "hours": 75
+    },
+    {
+      "title": "Divinity: Original Sin 2",
+      "year": 2017,
+      "hours": 60
+    },
+    {
+      "title": "Disco Elysium",
+      "year": 2019,
+      "hours": 22
+    },
+    {
+      "title": "Planescape: Torment",
+      "year": 1999,
+      "hours": 30
+    },
+    {
+      "title": "Pillars of Eternity",
+      "year": 2015,
+      "hours": 35
+    },
+    {
+      "title": "Vampire: The Masquerade - Bloodlines",
+      "year": 2004,
+      "hours": 35
+    },
+    {
+      "title": "Kingdom Come: Deliverance",
+      "year": 2018,
+      "hours": 45
+    },
+    {
+      "title": "Kingdom Come: Deliverance II",
+      "year": 2025,
+      "hours": 50
+    },
+    {
+      "title": "Mount & Blade II: Bannerlord",
+      "year": 2022
+    },
+    {
+      "title": "Demon's Souls",
+      "year": 2009,
+      "hours": 30
+    },
+    {
+      "title": "Dark Souls",
+      "year": 2011,
+      "hours": 42
+    },
+    {
+      "title": "Dark Souls II",
+      "year": 2014,
+      "hours": 45
+    },
+    {
+      "title": "Dark Souls III",
+      "year": 2016,
+      "hours": 32
+    },
+    {
+      "title": "Bloodborne",
+      "year": 2015,
+      "hours": 35
+    },
+    {
+      "title": "Sekiro: Shadows Die Twice",
+      "year": 2019,
+      "hours": 30
+    },
+    {
+      "title": "Elden Ring",
+      "year": 2022,
+      "hours": 58
+    },
+    {
+      "title": "Elden Ring Nightreign",
+      "year": 2025,
+      "hours": 20
+    },
+    {
+      "title": "Nioh",
+      "year": 2017,
+      "hours": 40
+    },
+    {
+      "title": "Lies of P",
+      "year": 2023,
+      "hours": 28
+    },
+    {
+      "title": "Hollow Knight",
+      "year": 2017,
+      "hours": 26
+    },
+    {
+      "title": "Hollow Knight: Silksong",
+      "year": 2025,
+      "hours": 40
+    },
+    {
+      "title": "Celeste",
+      "year": 2018,
+      "hours": 8
+    },
+    {
+      "title": "Ori and the Blind Forest",
+      "year": 2015,
+      "hours": 8
+    },
+    {
+      "title": "Ori and the Will of the Wisps",
+      "year": 2020,
+      "hours": 11
+    },
+    {
+      "title": "Cuphead",
+      "year": 2017,
+      "hours": 10
+    },
+    {
+      "title": "Dead Cells",
+      "year": 2018
+    },
+    {
+      "title": "Hades",
+      "year": 2020,
+      "hours": 23
+    },
+    {
+      "title": "Hades II",
+      "year": 2024,
+      "hours": 25
+    },
+    {
+      "title": "Blasphemous",
+      "year": 2019,
+      "hours": 17
+    },
+    {
+      "title": "Blasphemous 2",
+      "year": 2023,
+      "hours": 15
+    },
+    {
+      "title": "Nine Sols",
+      "year": 2024,
+      "hours": 20
+    },
+    {
+      "title": "Ender Lilies: Quietus of the Knights",
+      "year": 2021,
+      "hours": 15
+    },
+    {
+      "title": "Axiom Verge",
+      "year": 2015,
+      "hours": 12
+    },
+    {
+      "title": "Guacamelee!",
+      "year": 2013,
+      "hours": 8
+    },
+    {
+      "title": "Animal Well",
+      "year": 2024,
+      "hours": 8
+    },
+    {
+      "title": "Shovel Knight",
+      "year": 2014,
+      "hours": 9
+    },
+    {
+      "title": "Crypt of the NecroDancer",
+      "year": 2015,
+      "hours": 10
+    },
+    {
+      "title": "Risk of Rain 2",
+      "year": 2020,
+      "hours": 15
+    },
+    {
+      "title": "Enter the Gungeon",
+      "year": 2016,
+      "hours": 20
+    },
+    {
+      "title": "Spelunky 2",
+      "year": 2020,
+      "hours": 15
+    },
+    {
+      "title": "Rogue Legacy 2",
+      "year": 2022,
+      "hours": 20
+    },
+    {
+      "title": "Noita",
+      "year": 2020
+    },
+    {
+      "title": "Vampire Survivors",
+      "year": 2022
+    },
+    {
+      "title": "Balatro",
+      "year": 2024
+    },
+    {
+      "title": "Slay the Spire",
+      "year": 2019
+    },
+    {
+      "title": "Inscryption",
+      "year": 2021,
+      "hours": 14
+    },
+    {
+      "title": "Monster Train",
+      "year": 2020
+    },
+    {
+      "title": "Loop Hero",
+      "year": 2021,
+      "hours": 15
+    },
+    {
+      "title": "Darkest Dungeon",
+      "year": 2016,
+      "hours": 50
+    },
+    {
+      "title": "Darkest Dungeon II",
+      "year": 2023,
+      "hours": 30
+    },
+    {
+      "title": "Into the Breach",
+      "year": 2018,
+      "hours": 12
+    },
+    {
+      "title": "FTL: Faster Than Light",
+      "year": 2012,
+      "hours": 12
+    },
+    {
+      "title": "Cult of the Lamb",
+      "year": 2022,
+      "hours": 13
+    },
+    {
+      "title": "Portal",
+      "year": 2007,
+      "hours": 3
+    },
+    {
+      "title": "Portal 2",
+      "year": 2011,
+      "hours": 9
+    },
+    {
+      "title": "Half-Life",
+      "year": 1998,
+      "hours": 12
+    },
+    {
+      "title": "Half-Life 2",
+      "year": 2004,
+      "hours": 13
+    },
+    {
+      "title": "Half-Life: Alyx",
+      "year": 2020,
+      "hours": 11
+    },
+    {
+      "title": "Team Fortress 2",
+      "year": 2007
+    },
+    {
+      "title": "Left 4 Dead 2",
+      "year": 2009,
+      "hours": 10
+    },
+    {
+      "title": "Counter-Strike: Global Offensive",
+      "year": 2012
+    },
+    {
+      "title": "Counter-Strike 2",
+      "year": 2023
+    },
+    {
+      "title": "Dota 2",
+      "year": 2013
+    },
+    {
+      "title": "Deadlock",
+      "year": 2024
+    },
+    {
+      "title": "Halo: Combat Evolved",
+      "year": 2001,
+      "hours": 10
+    },
+    {
+      "title": "Halo 2",
+      "year": 2004,
+      "hours": 9
+    },
+    {
+      "title": "Halo 3",
+      "year": 2007,
+      "hours": 9
+    },
+    {
+      "title": "Halo: Reach",
+      "year": 2010,
+      "hours": 10
+    },
+    {
+      "title": "Halo Infinite",
+      "year": 2021,
+      "hours": 10
+    },
+    {
+      "title": "Doom",
+      "year": 1993,
+      "hours": 11
+    },
+    {
+      "title": "Doom (2016)",
+      "year": 2016,
+      "hours": 12
+    },
+    {
+      "title": "Doom Eternal",
+      "year": 2020,
+      "hours": 15
+    },
+    {
+      "title": "Doom: The Dark Ages",
+      "year": 2025,
+      "hours": 15
+    },
+    {
+      "title": "Quake",
+      "year": 1996,
+      "hours": 6
+    },
+    {
+      "title": "Wolfenstein: The New Order",
+      "year": 2014,
+      "hours": 11
+    },
+    {
+      "title": "BioShock",
+      "year": 2007,
+      "hours": 12
+    },
+    {
+      "title": "BioShock 2",
+      "year": 2010,
+      "hours": 11
+    },
+    {
+      "title": "BioShock Infinite",
+      "year": 2013,
+      "hours": 12
+    },
+    {
+      "title": "Dishonored",
+      "year": 2012,
+      "hours": 12
+    },
+    {
+      "title": "Dishonored 2",
+      "year": 2016,
+      "hours": 14
+    },
+    {
+      "title": "Deathloop",
+      "year": 2021,
+      "hours": 13
+    },
+    {
+      "title": "Prey",
+      "year": 2017,
+      "hours": 17
+    },
+    {
+      "title": "Deus Ex",
+      "year": 2000,
+      "hours": 23
+    },
+    {
+      "title": "Deus Ex: Human Revolution",
+      "year": 2011,
+      "hours": 20
+    },
+    {
+      "title": "Deus Ex: Mankind Divided",
+      "year": 2016,
+      "hours": 18
+    },
+    {
+      "title": "Metro 2033",
+      "year": 2010,
+      "hours": 10
+    },
+    {
+      "title": "Metro: Last Light",
+      "year": 2013,
+      "hours": 10
+    },
+    {
+      "title": "Metro Exodus",
+      "year": 2019,
+      "hours": 15
+    },
+    {
+      "title": "Far Cry 3",
+      "year": 2012,
+      "hours": 16
+    },
+    {
+      "title": "Far Cry 4",
+      "year": 2014,
+      "hours": 16
+    },
+    {
+      "title": "Far Cry 5",
+      "year": 2018,
+      "hours": 17
+    },
+    {
+      "title": "Far Cry 6",
+      "year": 2021,
+      "hours": 22
+    },
+    {
+      "title": "Titanfall 2",
+      "year": 2016,
+      "hours": 7
+    },
+    {
+      "title": "Ultrakill",
+      "year": 2020,
+      "hours": 12
+    },
+    {
+      "title": "Dusk",
+      "year": 2018,
+      "hours": 7
+    },
+    {
+      "title": "Neon White",
+      "year": 2022,
+      "hours": 9
+    },
+    {
+      "title": "Mirror's Edge",
+      "year": 2008,
+      "hours": 7
+    },
+    {
+      "title": "Call of Duty 4: Modern Warfare",
+      "year": 2007,
+      "hours": 6
+    },
+    {
+      "title": "Call of Duty: Modern Warfare 2",
+      "year": 2009,
+      "hours": 6
+    },
+    {
+      "title": "Call of Duty: Black Ops",
+      "year": 2010,
+      "hours": 7
+    },
+    {
+      "title": "Call of Duty: Black Ops II",
+      "year": 2012,
+      "hours": 7
+    },
+    {
+      "title": "Call of Duty: Modern Warfare",
+      "year": 2019,
+      "hours": 6
+    },
+    {
+      "title": "Call of Duty: Warzone",
+      "year": 2020
+    },
+    {
+      "title": "Call of Duty: Black Ops 6",
+      "year": 2024,
+      "hours": 7
+    },
+    {
+      "title": "Call of Duty: Black Ops 7",
+      "year": 2025,
+      "hours": 7
+    },
+    {
+      "title": "Battlefield 3",
+      "year": 2011,
+      "hours": 7
+    },
+    {
+      "title": "Battlefield 1",
+      "year": 2016,
+      "hours": 7
+    },
+    {
+      "title": "Battlefield V",
+      "year": 2018,
+      "hours": 7
+    },
+    {
+      "title": "Battlefield 2042",
+      "year": 2021
+    },
+    {
+      "title": "Battlefield 6",
+      "year": 2025,
+      "hours": 8
+    },
+    {
+      "title": "Rainbow Six Siege",
+      "year": 2015
+    },
+    {
+      "title": "Overwatch 2",
+      "year": 2022
+    },
+    {
+      "title": "Apex Legends",
+      "year": 2019
+    },
+    {
+      "title": "Valorant",
+      "year": 2020
+    },
+    {
+      "title": "Fortnite",
+      "year": 2017
+    },
+    {
+      "title": "PUBG: Battlegrounds",
+      "year": 2017
+    },
+    {
+      "title": "Marvel Rivals",
+      "year": 2024
+    },
+    {
+      "title": "The Finals",
+      "year": 2023
+    },
+    {
+      "title": "Helldivers 2",
+      "year": 2024
+    },
+    {
+      "title": "Deep Rock Galactic",
+      "year": 2020
+    },
+    {
+      "title": "Sea of Thieves",
+      "year": 2018
+    },
+    {
+      "title": "Destiny 2",
+      "year": 2017
+    },
+    {
+      "title": "Warframe",
+      "year": 2013
+    },
+    {
+      "title": "Rocket League",
+      "year": 2015
+    },
+    {
+      "title": "Metal Gear Solid",
+      "year": 1998,
+      "hours": 12
+    },
+    {
+      "title": "Metal Gear Solid 2: Sons of Liberty",
+      "year": 2001,
+      "hours": 14
+    },
+    {
+      "title": "Metal Gear Solid 3: Snake Eater",
+      "year": 2004,
+      "hours": 17
+    },
+    {
+      "title": "Metal Gear Solid 4: Guns of the Patriots",
+      "year": 2008,
+      "hours": 18
+    },
+    {
+      "title": "Metal Gear Solid V: The Phantom Pain",
+      "year": 2015,
+      "hours": 46
+    },
+    {
+      "title": "Hitman: Blood Money",
+      "year": 2006,
+      "hours": 12
+    },
+    {
+      "title": "Hitman: World of Assassination",
+      "year": 2021,
+      "hours": 25
+    },
+    {
+      "title": "Tom Clancy's Splinter Cell: Chaos Theory",
+      "year": 2005,
+      "hours": 11
+    },
+    {
+      "title": "Batman: Arkham Asylum",
+      "year": 2009,
+      "hours": 12
+    },
+    {
+      "title": "Batman: Arkham City",
+      "year": 2011,
+      "hours": 15
+    },
+    {
+      "title": "Batman: Arkham Knight",
+      "year": 2015,
+      "hours": 16
+    },
+    {
+      "title": "Middle-earth: Shadow of Mordor",
+      "year": 2014,
+      "hours": 16
+    },
+    {
+      "title": "Middle-earth: Shadow of War",
+      "year": 2017,
+      "hours": 24
+    },
+    {
+      "title": "Assassin's Creed II",
+      "year": 2009,
+      "hours": 20
+    },
+    {
+      "title": "Assassin's Creed IV: Black Flag",
+      "year": 2013,
+      "hours": 24
+    },
+    {
+      "title": "Assassin's Creed Origins",
+      "year": 2017,
+      "hours": 30
+    },
+    {
+      "title": "Assassin's Creed Odyssey",
+      "year": 2018,
+      "hours": 44
+    },
+    {
+      "title": "Assassin's Creed Valhalla",
+      "year": 2020,
+      "hours": 60
+    },
+    {
+      "title": "Assassin's Creed Mirage",
+      "year": 2023,
+      "hours": 23
+    },
+    {
+      "title": "Assassin's Creed Shadows",
+      "year": 2025,
+      "hours": 40
+    },
+    {
+      "title": "Tomb Raider",
+      "year": 2013,
+      "hours": 11
+    },
+    {
+      "title": "Rise of the Tomb Raider",
+      "year": 2015,
+      "hours": 13
+    },
+    {
+      "title": "Shadow of the Tomb Raider",
+      "year": 2018,
+      "hours": 13
+    },
+    {
+      "title": "Uncharted 2: Among Thieves",
+      "year": 2009,
+      "hours": 10
+    },
+    {
+      "title": "Uncharted 4: A Thief's End",
+      "year": 2016,
+      "hours": 15
+    },
+    {
+      "title": "The Last of Us",
+      "year": 2013,
+      "hours": 15
+    },
+    {
+      "title": "The Last of Us Part II",
+      "year": 2020,
+      "hours": 24
+    },
+    {
+      "title": "God of War",
+      "year": 2005,
+      "hours": 10
+    },
+    {
+      "title": "God of War (2018)",
+      "year": 2018,
+      "hours": 21
+    },
+    {
+      "title": "God of War Ragnarok",
+      "year": 2022,
+      "hours": 26
+    },
+    {
+      "title": "Horizon Zero Dawn",
+      "year": 2017,
+      "hours": 23
+    },
+    {
+      "title": "Horizon Forbidden West",
+      "year": 2022,
+      "hours": 30
+    },
+    {
+      "title": "Ghost of Tsushima",
+      "year": 2020,
+      "hours": 26
+    },
+    {
+      "title": "Ghost of Yotei",
+      "year": 2025,
+      "hours": 30
+    },
+    {
+      "title": "Marvel's Spider-Man",
+      "year": 2018,
+      "hours": 17
+    },
+    {
+      "title": "Marvel's Spider-Man: Miles Morales",
+      "year": 2020,
+      "hours": 7
+    },
+    {
+      "title": "Marvel's Spider-Man 2",
+      "year": 2023,
+      "hours": 18
+    },
+    {
+      "title": "Death Stranding",
+      "year": 2019,
+      "hours": 40
+    },
+    {
+      "title": "Death Stranding 2: On the Beach",
+      "year": 2025,
+      "hours": 40
+    },
+    {
+      "title": "Days Gone",
+      "year": 2019,
+      "hours": 30
+    },
+    {
+      "title": "Infamous Second Son",
+      "year": 2014,
+      "hours": 11
+    },
+    {
+      "title": "Returnal",
+      "year": 2021,
+      "hours": 19
+    },
+    {
+      "title": "Astro Bot",
+      "year": 2024,
+      "hours": 12
+    },
+    {
+      "title": "Astro's Playroom",
+      "year": 2020,
+      "hours": 4
+    },
+    {
+      "title": "Ratchet & Clank: Rift Apart",
+      "year": 2021,
+      "hours": 11
+    },
+    {
+      "title": "Resident Evil 2",
+      "year": 2019,
+      "hours": 9
+    },
+    {
+      "title": "Resident Evil 4",
+      "year": 2023,
+      "hours": 16
+    },
+    {
+      "title": "Resident Evil 7: Biohazard",
+      "year": 2017,
+      "hours": 9
+    },
+    {
+      "title": "Resident Evil Village",
+      "year": 2021,
+      "hours": 10
+    },
+    {
+      "title": "Silent Hill 2",
+      "year": 2024,
+      "hours": 16
+    },
+    {
+      "title": "Dead Space",
+      "year": 2008,
+      "hours": 12
+    },
+    {
+      "title": "Alien: Isolation",
+      "year": 2014,
+      "hours": 19
+    },
+    {
+      "title": "Outlast",
+      "year": 2013,
+      "hours": 5
+    },
+    {
+      "title": "Amnesia: The Dark Descent",
+      "year": 2010,
+      "hours": 8
+    },
+    {
+      "title": "Phasmophobia",
+      "year": 2020
+    },
+    {
+      "title": "Lethal Company",
+      "year": 2023
+    },
+    {
+      "title": "Dying Light",
+      "year": 2015,
+      "hours": 20
+    },
+    {
+      "title": "Dying Light 2 Stay Human",
+      "year": 2022,
+      "hours": 22
+    },
+    {
+      "title": "Dead Island 2",
+      "year": 2023,
+      "hours": 17
+    },
+    {
+      "title": "World War Z",
+      "year": 2019,
+      "hours": 8
+    },
+    {
+      "title": "Devil May Cry 5",
+      "year": 2019,
+      "hours": 15
+    },
+    {
+      "title": "Bayonetta",
+      "year": 2009,
+      "hours": 13
+    },
+    {
+      "title": "Nier: Automata",
+      "year": 2017,
+      "hours": 21
+    },
+    {
+      "title": "Nier Replicant",
+      "year": 2021,
+      "hours": 22
+    },
+    {
+      "title": "Sifu",
+      "year": 2022,
+      "hours": 10
+    },
+    {
+      "title": "Ghostwire: Tokyo",
+      "year": 2022,
+      "hours": 14
+    },
+    {
+      "title": "Hi-Fi Rush",
+      "year": 2023,
+      "hours": 12
+    },
+    {
+      "title": "Control",
+      "year": 2019,
+      "hours": 12
+    },
+    {
+      "title": "Alan Wake",
+      "year": 2010,
+      "hours": 11
+    },
+    {
+      "title": "Alan Wake 2",
+      "year": 2023,
+      "hours": 17
+    },
+    {
+      "title": "Quantum Break",
+      "year": 2016,
+      "hours": 10
+    },
+    {
+      "title": "Final Fantasy VI",
+      "year": 1994,
+      "hours": 35
+    },
+    {
+      "title": "Final Fantasy VII",
+      "year": 1997,
+      "hours": 37
+    },
+    {
+      "title": "Final Fantasy VIII",
+      "year": 1999,
+      "hours": 42
+    },
+    {
+      "title": "Final Fantasy IX",
+      "year": 2000,
+      "hours": 40
+    },
+    {
+      "title": "Final Fantasy X",
+      "year": 2001,
+      "hours": 48
+    },
+    {
+      "title": "Final Fantasy XII",
+      "year": 2006,
+      "hours": 60
+    },
+    {
+      "title": "Final Fantasy XIII",
+      "year": 2009,
+      "hours": 49
+    },
+    {
+      "title": "Final Fantasy XIV",
+      "year": 2013
+    },
+    {
+      "title": "Final Fantasy XV",
+      "year": 2016,
+      "hours": 28
+    },
+    {
+      "title": "Final Fantasy XVI",
+      "year": 2023,
+      "hours": 35
+    },
+    {
+      "title": "Final Fantasy VII Remake",
+      "year": 2020,
+      "hours": 33
+    },
+    {
+      "title": "Final Fantasy VII Rebirth",
+      "year": 2024,
+      "hours": 40
+    },
+    {
+      "title": "Chrono Trigger",
+      "year": 1995,
+      "hours": 22
+    },
+    {
+      "title": "Persona 3 Reload",
+      "year": 2024,
+      "hours": 45
+    },
+    {
+      "title": "Persona 4 Golden",
+      "year": 2008,
+      "hours": 70
+    },
+    {
+      "title": "Persona 5 Royal",
+      "year": 2019,
+      "hours": 100
+    },
+    {
+      "title": "Metaphor: ReFantazio",
+      "year": 2024,
+      "hours": 80
+    },
+    {
+      "title": "Clair Obscur: Expedition 33",
+      "year": 2025,
+      "hours": 35
+    },
+    {
+      "title": "Yakuza 0",
+      "year": 2015,
+      "hours": 45
+    },
+    {
+      "title": "Yakuza: Like a Dragon",
+      "year": 2020,
+      "hours": 45
+    },
+    {
+      "title": "Like a Dragon: Infinite Wealth",
+      "year": 2024,
+      "hours": 45
+    },
+    {
+      "title": "Judgment",
+      "year": 2018,
+      "hours": 30
+    },
+    {
+      "title": "Xenoblade Chronicles",
+      "year": 2010,
+      "hours": 60
+    },
+    {
+      "title": "Xenoblade Chronicles 2",
+      "year": 2017,
+      "hours": 65
+    },
+    {
+      "title": "Xenoblade Chronicles 3",
+      "year": 2022,
+      "hours": 60
+    },
+    {
+      "title": "Fire Emblem: Three Houses",
+      "year": 2019,
+      "hours": 50
+    },
+    {
+      "title": "Fire Emblem Engage",
+      "year": 2023,
+      "hours": 35
+    },
+    {
+      "title": "Monster Hunter: World",
+      "year": 2018,
+      "hours": 48
+    },
+    {
+      "title": "Monster Hunter Rise",
+      "year": 2021,
+      "hours": 35
+    },
+    {
+      "title": "Monster Hunter Wilds",
+      "year": 2025,
+      "hours": 40
+    },
+    {
+      "title": "The Legend of Zelda: A Link to the Past",
+      "year": 1991,
+      "hours": 15
+    },
+    {
+      "title": "The Legend of Zelda: Link's Awakening",
+      "year": 1993,
+      "hours": 12
+    },
+    {
+      "title": "The Legend of Zelda: Ocarina of Time",
+      "year": 1998,
+      "hours": 26
+    },
+    {
+      "title": "The Legend of Zelda: Majora's Mask",
+      "year": 2000,
+      "hours": 22
+    },
+    {
+      "title": "The Legend of Zelda: The Wind Waker",
+      "year": 2002,
+      "hours": 26
+    },
+    {
+      "title": "The Legend of Zelda: Twilight Princess",
+      "year": 2006,
+      "hours": 34
+    },
+    {
+      "title": "The Legend of Zelda: Skyward Sword",
+      "year": 2011,
+      "hours": 36
+    },
+    {
+      "title": "The Legend of Zelda: Breath of the Wild",
+      "year": 2017,
+      "hours": 50
+    },
+    {
+      "title": "The Legend of Zelda: Tears of the Kingdom",
+      "year": 2023,
+      "hours": 60
+    },
+    {
+      "title": "The Legend of Zelda: Echoes of Wisdom",
+      "year": 2024,
+      "hours": 20
+    },
+    {
+      "title": "Super Mario Bros.",
+      "year": 1985,
+      "hours": 3
+    },
+    {
+      "title": "Super Mario World",
+      "year": 1990,
+      "hours": 11
+    },
+    {
+      "title": "Super Mario 64",
+      "year": 1996,
+      "hours": 14
+    },
+    {
+      "title": "Super Mario Sunshine",
+      "year": 2002,
+      "hours": 17
+    },
+    {
+      "title": "New Super Mario Bros.",
+      "year": 2006,
+      "hours": 10
+    },
+    {
+      "title": "Super Mario Galaxy",
+      "year": 2007,
+      "hours": 15
+    },
+    {
+      "title": "Super Mario Galaxy 2",
+      "year": 2010,
+      "hours": 13
+    },
+    {
+      "title": "Super Mario Odyssey",
+      "year": 2017,
+      "hours": 17
+    },
+    {
+      "title": "Super Mario Bros. Wonder",
+      "year": 2023,
+      "hours": 12
+    },
+    {
+      "title": "Super Mario RPG",
+      "year": 2023,
+      "hours": 17
+    },
+    {
+      "title": "Paper Mario: The Thousand-Year Door",
+      "year": 2004,
+      "hours": 30
+    },
+    {
+      "title": "Mario Kart 8 Deluxe",
+      "year": 2017
+    },
+    {
+      "title": "Mario Kart World",
+      "year": 2025
+    },
+    {
+      "title": "Super Smash Bros. Ultimate",
+      "year": 2018
+    },
+    {
+      "title": "Luigi's Mansion 3",
+      "year": 2019,
+      "hours": 13
+    },
+    {
+      "title": "Super Metroid",
+      "year": 1994,
+      "hours": 9
+    },
+    {
+      "title": "Metroid Prime",
+      "year": 2002,
+      "hours": 15
+    },
+    {
+      "title": "Metroid Dread",
+      "year": 2021,
+      "hours": 9
+    },
+    {
+      "title": "Donkey Kong Country",
+      "year": 1994,
+      "hours": 7
+    },
+    {
+      "title": "Donkey Kong Bananza",
+      "year": 2025,
+      "hours": 15
+    },
+    {
+      "title": "Kirby and the Forgotten Land",
+      "year": 2022,
+      "hours": 12
+    },
+    {
+      "title": "Pikmin 4",
+      "year": 2023,
+      "hours": 25
+    },
+    {
+      "title": "Splatoon 3",
+      "year": 2022
+    },
+    {
+      "title": "Animal Crossing: New Horizons",
+      "year": 2020
+    },
+    {
+      "title": "Wii Sports",
+      "year": 2006
+    },
+    {
+      "title": "Ring Fit Adventure",
+      "year": 2019
+    },
+    {
+      "title": "Pokemon Red and Blue",
+      "year": 1996,
+      "hours": 26
+    },
+    {
+      "title": "Pokemon Gold and Silver",
+      "year": 1999,
+      "hours": 27
+    },
+    {
+      "title": "Pokemon Ruby and Sapphire",
+      "year": 2002,
+      "hours": 30
+    },
+    {
+      "title": "Pokemon Black and White",
+      "year": 2010,
+      "hours": 32
+    },
+    {
+      "title": "Pokemon X and Y",
+      "year": 2013,
+      "hours": 29
+    },
+    {
+      "title": "Pokemon Sword and Shield",
+      "year": 2019,
+      "hours": 26
+    },
+    {
+      "title": "Pokemon Legends: Arceus",
+      "year": 2022,
+      "hours": 27
+    },
+    {
+      "title": "Pokemon Scarlet and Violet",
+      "year": 2022,
+      "hours": 32
+    },
+    {
+      "title": "Pokemon Legends: Z-A",
+      "year": 2025,
+      "hours": 30
+    },
+    {
+      "title": "Pokemon Go",
+      "year": 2016
+    },
+    {
+      "title": "Sonic Mania",
+      "year": 2017,
+      "hours": 6
+    },
+    {
+      "title": "Sonic Frontiers",
+      "year": 2022,
+      "hours": 22
+    },
+    {
+      "title": "Crash Bandicoot N. Sane Trilogy",
+      "year": 2017,
+      "hours": 13
+    },
+    {
+      "title": "Spyro Reignited Trilogy",
+      "year": 2018,
+      "hours": 23
+    },
+    {
+      "title": "Rayman Legends",
+      "year": 2013,
+      "hours": 12
+    },
+    {
+      "title": "Street Fighter II",
+      "year": 1991
+    },
+    {
+      "title": "Street Fighter 6",
+      "year": 2023
+    },
+    {
+      "title": "Tekken 7",
+      "year": 2015
+    },
+    {
+      "title": "Tekken 8",
+      "year": 2024
+    },
+    {
+      "title": "Mortal Kombat 11",
+      "year": 2019
+    },
+    {
+      "title": "Mortal Kombat 1",
+      "year": 2023
+    },
+    {
+      "title": "Guilty Gear Strive",
+      "year": 2021
+    },
+    {
+      "title": "Dragon Ball FighterZ",
+      "year": 2018
+    },
+    {
+      "title": "Injustice 2",
+      "year": 2017
+    },
+    {
+      "title": "Star Wars Jedi: Fallen Order",
+      "year": 2019,
+      "hours": 18
+    },
+    {
+      "title": "Star Wars Jedi: Survivor",
+      "year": 2023,
+      "hours": 25
+    },
+    {
+      "title": "Star Wars: Knights of the Old Republic",
+      "year": 2003,
+      "hours": 30
+    },
+    {
+      "title": "Star Wars: Knights of the Old Republic II",
+      "year": 2004,
+      "hours": 32
+    },
+    {
+      "title": "Star Wars Battlefront II",
+      "year": 2017
+    },
+    {
+      "title": "Star Wars Outlaws",
+      "year": 2024,
+      "hours": 25
+    },
+    {
+      "title": "Lego Star Wars: The Skywalker Saga",
+      "year": 2022,
+      "hours": 20
+    },
+    {
+      "title": "Indiana Jones and the Great Circle",
+      "year": 2024,
+      "hours": 20
+    },
+    {
+      "title": "Borderlands 2",
+      "year": 2012,
+      "hours": 30
+    },
+    {
+      "title": "Borderlands 3",
+      "year": 2019,
+      "hours": 30
+    },
+    {
+      "title": "Borderlands 4",
+      "year": 2025,
+      "hours": 30
+    },
+    {
+      "title": "Diablo II",
+      "year": 2000,
+      "hours": 20
+    },
+    {
+      "title": "Diablo III",
+      "year": 2012,
+      "hours": 20
+    },
+    {
+      "title": "Diablo IV",
+      "year": 2023,
+      "hours": 30
+    },
+    {
+      "title": "Path of Exile",
+      "year": 2013
+    },
+    {
+      "title": "Path of Exile 2",
+      "year": 2024,
+      "hours": 30
+    },
+    {
+      "title": "World of Warcraft",
+      "year": 2004
+    },
+    {
+      "title": "Guild Wars 2",
+      "year": 2012
+    },
+    {
+      "title": "RuneScape",
+      "year": 2001
+    },
+    {
+      "title": "Minecraft",
+      "year": 2011
+    },
+    {
+      "title": "Terraria",
+      "year": 2011,
+      "hours": 50
+    },
+    {
+      "title": "Stardew Valley",
+      "year": 2016,
+      "hours": 52
+    },
+    {
+      "title": "Graveyard Keeper",
+      "year": 2018,
+      "hours": 30
+    },
+    {
+      "title": "Slime Rancher",
+      "year": 2017,
+      "hours": 12
+    },
+    {
+      "title": "Spiritfarer",
+      "year": 2020,
+      "hours": 25
+    },
+    {
+      "title": "Valheim",
+      "year": 2021,
+      "hours": 60
+    },
+    {
+      "title": "Palworld",
+      "year": 2024,
+      "hours": 30
+    },
+    {
+      "title": "Enshrouded",
+      "year": 2024
+    },
+    {
+      "title": "Subnautica",
+      "year": 2018,
+      "hours": 30
+    },
+    {
+      "title": "No Man's Sky",
+      "year": 2016,
+      "hours": 30
+    },
+    {
+      "title": "Astroneer",
+      "year": 2019
+    },
+    {
+      "title": "Raft",
+      "year": 2022
+    },
+    {
+      "title": "Rust",
+      "year": 2018
+    },
+    {
+      "title": "DayZ",
+      "year": 2018
+    },
+    {
+      "title": "ARK: Survival Evolved",
+      "year": 2017
+    },
+    {
+      "title": "7 Days to Die",
+      "year": 2013
+    },
+    {
+      "title": "Don't Starve",
+      "year": 2013
+    },
+    {
+      "title": "Grounded",
+      "year": 2022,
+      "hours": 30
+    },
+    {
+      "title": "Factorio",
+      "year": 2020
+    },
+    {
+      "title": "Satisfactory",
+      "year": 2024
+    },
+    {
+      "title": "RimWorld",
+      "year": 2018
+    },
+    {
+      "title": "Oxygen Not Included",
+      "year": 2019
+    },
+    {
+      "title": "Dwarf Fortress",
+      "year": 2022
+    },
+    {
+      "title": "Dyson Sphere Program",
+      "year": 2021
+    },
+    {
+      "title": "Kerbal Space Program",
+      "year": 2015
+    },
+    {
+      "title": "Prison Architect",
+      "year": 2015
+    },
+    {
+      "title": "Frostpunk",
+      "year": 2018,
+      "hours": 20
+    },
+    {
+      "title": "Frostpunk 2",
+      "year": 2024,
+      "hours": 25
+    },
+    {
+      "title": "This War of Mine",
+      "year": 2014,
+      "hours": 12
+    },
+    {
+      "title": "Banished",
+      "year": 2014
+    },
+    {
+      "title": "Civilization V",
+      "year": 2010,
+      "hours": 60
+    },
+    {
+      "title": "Civilization VI",
+      "year": 2016,
+      "hours": 60
+    },
+    {
+      "title": "Civilization VII",
+      "year": 2025,
+      "hours": 60
+    },
+    {
+      "title": "Age of Empires II",
+      "year": 1999,
+      "hours": 30
+    },
+    {
+      "title": "Age of Empires IV",
+      "year": 2021,
+      "hours": 25
+    },
+    {
+      "title": "StarCraft II",
+      "year": 2010,
+      "hours": 20
+    },
+    {
+      "title": "Company of Heroes",
+      "year": 2006,
+      "hours": 15
+    },
+    {
+      "title": "Total War: Shogun 2",
+      "year": 2011
+    },
+    {
+      "title": "Total War: Three Kingdoms",
+      "year": 2019
+    },
+    {
+      "title": "Total War: Warhammer III",
+      "year": 2022
+    },
+    {
+      "title": "XCOM: Enemy Unknown",
+      "year": 2012,
+      "hours": 30
+    },
+    {
+      "title": "XCOM 2",
+      "year": 2016,
+      "hours": 40
+    },
+    {
+      "title": "Crusader Kings III",
+      "year": 2020
+    },
+    {
+      "title": "Stellaris",
+      "year": 2016
+    },
+    {
+      "title": "Europa Universalis IV",
+      "year": 2013
+    },
+    {
+      "title": "Hearts of Iron IV",
+      "year": 2016
+    },
+    {
+      "title": "Victoria 3",
+      "year": 2022
+    },
+    {
+      "title": "Cities: Skylines",
+      "year": 2015
+    },
+    {
+      "title": "Cities: Skylines II",
+      "year": 2023
+    },
+    {
+      "title": "SimCity 4",
+      "year": 2003
+    },
+    {
+      "title": "The Sims 2",
+      "year": 2004
+    },
+    {
+      "title": "The Sims 3",
+      "year": 2009
+    },
+    {
+      "title": "The Sims 4",
+      "year": 2014
+    },
+    {
+      "title": "Planet Coaster",
+      "year": 2016
+    },
+    {
+      "title": "Planet Zoo",
+      "year": 2019
+    },
+    {
+      "title": "Two Point Hospital",
+      "year": 2018
+    },
+    {
+      "title": "Theme Hospital",
+      "year": 1997,
+      "hours": 15
+    },
+    {
+      "title": "Football Manager 2024",
+      "year": 2023
+    },
+    {
+      "title": "EA Sports FC 25",
+      "year": 2024
+    },
+    {
+      "title": "NBA 2K25",
+      "year": 2024
+    },
+    {
+      "title": "Madden NFL 25",
+      "year": 2024
+    },
+    {
+      "title": "Gran Turismo 7",
+      "year": 2022
+    },
+    {
+      "title": "Forza Horizon 4",
+      "year": 2018
+    },
+    {
+      "title": "Forza Horizon 5",
+      "year": 2021
+    },
+    {
+      "title": "Forza Motorsport",
+      "year": 2023
+    },
+    {
+      "title": "Need for Speed Heat",
+      "year": 2019,
+      "hours": 17
+    },
+    {
+      "title": "Need for Speed Unbound",
+      "year": 2022,
+      "hours": 18
+    },
+    {
+      "title": "Burnout Paradise",
+      "year": 2008,
+      "hours": 14
+    },
+    {
+      "title": "Dirt Rally 2.0",
+      "year": 2019
+    },
+    {
+      "title": "Assetto Corsa",
+      "year": 2014
+    },
+    {
+      "title": "F1 24",
+      "year": 2024
+    },
+    {
+      "title": "Tony Hawk's Pro Skater 1 + 2",
+      "year": 2020,
+      "hours": 6
+    },
+    {
+      "title": "Skate 3",
+      "year": 2010
+    },
+    {
+      "title": "Beat Saber",
+      "year": 2019
+    },
+    {
+      "title": "Guitar Hero III: Legends of Rock",
+      "year": 2007
+    },
+    {
+      "title": "Tetris Effect",
+      "year": 2018,
+      "hours": 8
+    },
+    {
+      "title": "Tetris",
+      "year": 1984
+    },
+    {
+      "title": "Baba Is You",
+      "year": 2019,
+      "hours": 15
+    },
+    {
+      "title": "The Witness",
+      "year": 2016,
+      "hours": 22
+    },
+    {
+      "title": "The Talos Principle",
+      "year": 2014,
+      "hours": 20
+    },
+    {
+      "title": "Braid",
+      "year": 2008,
+      "hours": 5
+    },
+    {
+      "title": "Fez",
+      "year": 2012,
+      "hours": 7
+    },
+    {
+      "title": "Antichamber",
+      "year": 2013,
+      "hours": 6
+    },
+    {
+      "title": "Superliminal",
+      "year": 2019,
+      "hours": 3
+    },
+    {
+      "title": "Viewfinder",
+      "year": 2023,
+      "hours": 5
+    },
+    {
+      "title": "Manifold Garden",
+      "year": 2019,
+      "hours": 6
+    },
+    {
+      "title": "Cocoon",
+      "year": 2023,
+      "hours": 5
+    },
+    {
+      "title": "The Stanley Parable",
+      "year": 2013,
+      "hours": 2
+    },
+    {
+      "title": "Return of the Obra Dinn",
+      "year": 2018,
+      "hours": 9
+    },
+    {
+      "title": "Papers, Please",
+      "year": 2013,
+      "hours": 6
+    },
+    {
+      "title": "Her Story",
+      "year": 2015,
+      "hours": 3
+    },
+    {
+      "title": "Immortality",
+      "year": 2022,
+      "hours": 7
+    },
+    {
+      "title": "Chants of Sennaar",
+      "year": 2023,
+      "hours": 10
+    },
+    {
+      "title": "Blue Prince",
+      "year": 2025,
+      "hours": 30
+    },
+    {
+      "title": "Pentiment",
+      "year": 2022,
+      "hours": 17
+    },
+    {
+      "title": "Outer Wilds",
+      "year": 2019,
+      "hours": 14
+    },
+    {
+      "title": "Tunic",
+      "year": 2022,
+      "hours": 11
+    },
+    {
+      "title": "Inside",
+      "year": 2016,
+      "hours": 4
+    },
+    {
+      "title": "Limbo",
+      "year": 2010,
+      "hours": 3
+    },
+    {
+      "title": "Little Nightmares",
+      "year": 2017,
+      "hours": 4
+    },
+    {
+      "title": "Journey",
+      "year": 2012,
+      "hours": 2
+    },
+    {
+      "title": "Abzu",
+      "year": 2016,
+      "hours": 3
+    },
+    {
+      "title": "Gris",
+      "year": 2018,
+      "hours": 4
+    },
+    {
+      "title": "Sable",
+      "year": 2021,
+      "hours": 12
+    },
+    {
+      "title": "Jusant",
+      "year": 2023,
+      "hours": 5
+    },
+    {
+      "title": "A Short Hike",
+      "year": 2019,
+      "hours": 2
+    },
+    {
+      "title": "Unpacking",
+      "year": 2021,
+      "hours": 4
+    },
+    {
+      "title": "Untitled Goose Game",
+      "year": 2019,
+      "hours": 3
+    },
+    {
+      "title": "Stray",
+      "year": 2022,
+      "hours": 6
+    },
+    {
+      "title": "Kena: Bridge of Spirits",
+      "year": 2021,
+      "hours": 13
+    },
+    {
+      "title": "Firewatch",
+      "year": 2016,
+      "hours": 4
+    },
+    {
+      "title": "What Remains of Edith Finch",
+      "year": 2017,
+      "hours": 2
+    },
+    {
+      "title": "Gone Home",
+      "year": 2013,
+      "hours": 2
+    },
+    {
+      "title": "Oxenfree",
+      "year": 2016,
+      "hours": 5
+    },
+    {
+      "title": "Night in the Woods",
+      "year": 2017,
+      "hours": 9
+    },
+    {
+      "title": "Kentucky Route Zero",
+      "year": 2013,
+      "hours": 10
+    },
+    {
+      "title": "Life is Strange",
+      "year": 2015,
+      "hours": 15
+    },
+    {
+      "title": "Life is Strange: True Colors",
+      "year": 2021,
+      "hours": 10
+    },
+    {
+      "title": "Detroit: Become Human",
+      "year": 2018,
+      "hours": 11
+    },
+    {
+      "title": "Heavy Rain",
+      "year": 2010,
+      "hours": 10
+    },
+    {
+      "title": "Until Dawn",
+      "year": 2015,
+      "hours": 9
+    },
+    {
+      "title": "The Quarry",
+      "year": 2022,
+      "hours": 10
+    },
+    {
+      "title": "The Walking Dead",
+      "year": 2012,
+      "hours": 10
+    },
+    {
+      "title": "Dave the Diver",
+      "year": 2023,
+      "hours": 20
+    },
+    {
+      "title": "It Takes Two",
+      "year": 2021,
+      "hours": 13
+    },
+    {
+      "title": "A Way Out",
+      "year": 2018,
+      "hours": 6
+    },
+    {
+      "title": "Split Fiction",
+      "year": 2025,
+      "hours": 13
+    },
+    {
+      "title": "Unravel",
+      "year": 2016,
+      "hours": 6
+    },
+    {
+      "title": "Overcooked 2",
+      "year": 2018,
+      "hours": 8
+    },
+    {
+      "title": "Among Us",
+      "year": 2018
+    },
+    {
+      "title": "Fall Guys",
+      "year": 2020
+    },
+    {
+      "title": "Roblox",
+      "year": 2006
+    },
+    {
+      "title": "Genshin Impact",
+      "year": 2020
+    },
+    {
+      "title": "Honkai: Star Rail",
+      "year": 2023
+    },
+    {
+      "title": "Zenless Zone Zero",
+      "year": 2024
+    },
+    {
+      "title": "Wuthering Waves",
+      "year": 2024
+    },
+    {
+      "title": "Arknights",
+      "year": 2019
+    },
+    {
+      "title": "Fate/Grand Order",
+      "year": 2015
+    },
+    {
+      "title": "Hearthstone",
+      "year": 2014
+    },
+    {
+      "title": "Marvel Snap",
+      "year": 2022
+    },
+    {
+      "title": "Legends of Runeterra",
+      "year": 2020
+    },
+    {
+      "title": "League of Legends",
+      "year": 2009
+    },
+    {
+      "title": "Clash of Clans",
+      "year": 2012
+    },
+    {
+      "title": "Clash Royale",
+      "year": 2016
+    },
+    {
+      "title": "Brawl Stars",
+      "year": 2018
+    },
+    {
+      "title": "Candy Crush Saga",
+      "year": 2012
+    },
+    {
+      "title": "Subway Surfers",
+      "year": 2012
+    },
+    {
+      "title": "Angry Birds",
+      "year": 2009
+    },
+    {
+      "title": "Plants vs. Zombies",
+      "year": 2009,
+      "hours": 10
+    },
+    {
+      "title": "Cut the Rope",
+      "year": 2010
+    },
+    {
+      "title": "Temple Run",
+      "year": 2011
+    },
+    {
+      "title": "Flappy Bird",
+      "year": 2013
+    },
+    {
+      "title": "Monument Valley",
+      "year": 2014,
+      "hours": 2
+    },
+    {
+      "title": "Alto's Odyssey",
+      "year": 2018
+    },
+    {
+      "title": "Mobile Legends: Bang Bang",
+      "year": 2016
+    },
+    {
+      "title": "Garena Free Fire",
+      "year": 2017
+    },
+    {
+      "title": "Elite Dangerous",
+      "year": 2014
+    },
+    {
+      "title": "Watch Dogs 2",
+      "year": 2016,
+      "hours": 20
+    },
+    {
+      "title": "Watch Dogs: Legion",
+      "year": 2020,
+      "hours": 22
+    },
+    {
+      "title": "Just Cause 3",
+      "year": 2015,
+      "hours": 18
+    },
+    {
+      "title": "Saints Row IV",
+      "year": 2013,
+      "hours": 15
+    },
+    {
+      "title": "Sleeping Dogs",
+      "year": 2012,
+      "hours": 16
+    },
+    {
+      "title": "Mafia II",
+      "year": 2010,
+      "hours": 12
+    },
+    {
+      "title": "Mafia: Definitive Edition",
+      "year": 2020,
+      "hours": 12
+    },
+    {
+      "title": "Mafia: The Old Country",
+      "year": 2025,
+      "hours": 15
+    },
+    {
+      "title": "The Legend of Heroes: Trails in the Sky",
+      "year": 2004,
+      "hours": 45
+    },
+    {
+      "title": "Octopath Traveler",
+      "year": 2018,
+      "hours": 58
+    },
+    {
+      "title": "Bravely Default",
+      "year": 2012,
+      "hours": 50
+    },
+    {
+      "title": "Undertale",
+      "year": 2015,
+      "hours": 7
+    },
+    {
+      "title": "Deltarune",
+      "year": 2018,
+      "hours": 20
+    },
+    {
+      "title": "Omori",
+      "year": 2020,
+      "hours": 20
+    },
+    {
+      "title": "Lisa: The Painful",
+      "year": 2014,
+      "hours": 12
+    },
+    {
+      "title": "Earthbound",
+      "year": 1994,
+      "hours": 26
+    },
+    {
+      "title": "Secret of Mana",
+      "year": 1993,
+      "hours": 20
+    },
+    {
+      "title": "Ikenfell",
+      "year": 2020,
+      "hours": 15
+    },
+    {
+      "title": "Sea of Stars",
+      "year": 2023,
+      "hours": 30
+    },
+    {
+      "title": "Chained Echoes",
+      "year": 2022,
+      "hours": 40
+    },
+    {
+      "title": "Cassette Beasts",
+      "year": 2023,
+      "hours": 30
+    },
+    {
+      "title": "Coromon",
+      "year": 2022,
+      "hours": 25
+    },
+    {
+      "title": "Ni no Kuni: Wrath of the White Witch",
+      "year": 2011,
+      "hours": 40
+    },
+    {
+      "title": "Dragon Quest XI",
+      "year": 2017,
+      "hours": 66
+    },
+    {
+      "title": "Dragon Quest VIII",
+      "year": 2004,
+      "hours": 62
+    },
+    {
+      "title": "Tales of Arise",
+      "year": 2021,
+      "hours": 40
+    },
+    {
+      "title": "Granblue Fantasy: Relink",
+      "year": 2024,
+      "hours": 25
+    },
+    {
+      "title": "Trails through Daybreak",
+      "year": 2021,
+      "hours": 50
+    },
+    {
+      "title": "Atomic Heart",
+      "year": 2023,
+      "hours": 20
+    },
+    {
+      "title": "The Outer Worlds",
+      "year": 2019,
+      "hours": 22
+    },
+    {
+      "title": "Avowed",
+      "year": 2025,
+      "hours": 25
+    },
+    {
+      "title": "Remnant II",
+      "year": 2023,
+      "hours": 20
+    },
+    {
+      "title": "Wukong",
+      "year": 2024,
+      "hours": 40
+    },
+    {
+      "title": "Stellar Blade",
+      "year": 2024,
+      "hours": 25
+    },
+    {
+      "title": "Rise of the Ronin",
+      "year": 2024,
+      "hours": 30
+    },
+    {
+      "title": "Dragon's Dogma 2",
+      "year": 2024,
+      "hours": 35
+    },
+    {
+      "title": "Dragon's Dogma: Dark Arisen",
+      "year": 2012,
+      "hours": 35
+    },
+    {
+      "title": "Nioh 2",
+      "year": 2020,
+      "hours": 45
+    },
+    {
+      "title": "Wo Long: Fallen Dynasty",
+      "year": 2023,
+      "hours": 25
+    },
+    {
+      "title": "Steelrising",
+      "year": 2022,
+      "hours": 20
+    },
+    {
+      "title": "The Surge",
+      "year": 2017,
+      "hours": 18
+    },
+    {
+      "title": "Salt and Sanctuary",
+      "year": 2016,
+      "hours": 18
+    },
+    {
+      "title": "Death's Door",
+      "year": 2021,
+      "hours": 9
+    },
+    {
+      "title": "Tinykin",
+      "year": 2022,
+      "hours": 8
+    },
+    {
+      "title": "Pseudoregalia",
+      "year": 2023,
+      "hours": 4
+    },
+    {
+      "title": "Gato Roboto",
+      "year": 2019,
+      "hours": 3
+    },
+    {
+      "title": "Islets",
+      "year": 2022,
+      "hours": 8
+    },
+    {
+      "title": "Prince of Persia: The Lost Crown",
+      "year": 2024,
+      "hours": 20
+    },
+    {
+      "title": "The Messenger",
+      "year": 2018,
+      "hours": 13
+    },
+    {
+      "title": "Katana Zero",
+      "year": 2019,
+      "hours": 4
+    },
+    {
+      "title": "Hotline Miami",
+      "year": 2012,
+      "hours": 5
+    },
+    {
+      "title": "Superhot",
+      "year": 2016,
+      "hours": 3
+    },
+    {
+      "title": "Ape Out",
+      "year": 2019,
+      "hours": 2
+    },
+    {
+      "title": "Downwell",
+      "year": 2015,
+      "hours": 3
+    },
+    {
+      "title": "Pizza Tower",
+      "year": 2023,
+      "hours": 10
+    },
+    {
+      "title": "Peglin",
+      "year": 2022
+    },
+    {
+      "title": "Luck be a Landlord",
+      "year": 2021
+    },
+    {
+      "title": "Dicey Dungeons",
+      "year": 2019,
+      "hours": 12
+    },
+    {
+      "title": "Griftlands",
+      "year": 2021,
+      "hours": 20
+    },
+    {
+      "title": "Wildfrost",
+      "year": 2023,
+      "hours": 15
+    },
+    {
+      "title": "Backpack Battles",
+      "year": 2024
+    },
+    {
+      "title": "Megabonk",
+      "year": 2025
+    },
+    {
+      "title": "Schedule I",
+      "year": 2025
+    },
+    {
+      "title": "R.E.P.O.",
+      "year": 2025
+    },
+    {
+      "title": "Throne and Liberty",
+      "year": 2024
+    },
+    {
+      "title": "Once Human",
+      "year": 2024
+    },
+    {
+      "title": "Dune: Awakening",
+      "year": 2025
+    },
+    {
+      "title": "Arc Raiders",
+      "year": 2025
+    },
+    {
+      "title": "Escape from Tarkov",
+      "year": 2017
+    },
+    {
+      "title": "Hunt: Showdown",
+      "year": 2019
+    },
+    {
+      "title": "Gray Zone Warfare",
+      "year": 2024
+    },
+    {
+      "title": "Ready or Not",
+      "year": 2023,
+      "hours": 15
+    },
+    {
+      "title": "Squad",
+      "year": 2020
+    },
+    {
+      "title": "Arma 3",
+      "year": 2013
+    },
+    {
+      "title": "War Thunder",
+      "year": 2013
+    },
+    {
+      "title": "World of Tanks",
+      "year": 2010
+    },
+    {
+      "title": "Microsoft Flight Simulator",
+      "year": 2020
+    },
+    {
+      "title": "Euro Truck Simulator 2",
+      "year": 2012
+    },
+    {
+      "title": "American Truck Simulator",
+      "year": 2016
+    },
+    {
+      "title": "Farming Simulator 22",
+      "year": 2021
+    },
+    {
+      "title": "PowerWash Simulator",
+      "year": 2022,
+      "hours": 14
+    },
+    {
+      "title": "House Flipper",
+      "year": 2018,
+      "hours": 15
+    },
+    {
+      "title": "Supermarket Simulator",
+      "year": 2024
+    },
+    {
+      "title": "Content Warning",
+      "year": 2024
+    },
+    {
+      "title": "Buckshot Roulette",
+      "year": 2024,
+      "hours": 2
+    },
+    {
+      "title": "Mouthwashing",
+      "year": 2024,
+      "hours": 3
+    },
+    {
+      "title": "Crow Country",
+      "year": 2024,
+      "hours": 6
+    },
+    {
+      "title": "Lorelei and the Laser Eyes",
+      "year": 2024,
+      "hours": 15
+    },
+    {
+      "title": "1000xResist",
+      "year": 2024,
+      "hours": 15
+    },
+    {
+      "title": "Botany Manor",
+      "year": 2024,
+      "hours": 5
+    },
+    {
+      "title": "Thank Goodness You're Here",
+      "year": 2024,
+      "hours": 4
+    },
+    {
+      "title": "UFO 50",
+      "year": 2024,
+      "hours": 30
+    },
+    {
+      "title": "Caves of Qud",
+      "year": 2024
+    },
+    {
+      "title": "Shapez 2",
+      "year": 2024
+    },
+    {
+      "title": "Manor Lords",
+      "year": 2024
+    },
+    {
+      "title": "Ara: History Untold",
+      "year": 2024
+    },
+    {
+      "title": "Age of Mythology: Retold",
+      "year": 2024,
+      "hours": 25
+    },
+    {
+      "title": "Tactical Breach Wizards",
+      "year": 2024,
+      "hours": 12
+    },
+    {
+      "title": "Unicorn Overlord",
+      "year": 2024,
+      "hours": 50
+    },
+    {
+      "title": "Eiyuden Chronicle: Hundred Heroes",
+      "year": 2024,
+      "hours": 40
+    },
+    {
+      "title": "Visions of Mana",
+      "year": 2024,
+      "hours": 25
+    },
+    {
+      "title": "Romancing SaGa 2",
+      "year": 2024,
+      "hours": 30
+    },
+    {
+      "title": "Silent Hill f",
+      "year": 2025,
+      "hours": 18
+    },
+    {
+      "title": "Digimon Story: Time Stranger",
+      "year": 2025,
+      "hours": 40
+    },
+    {
+      "title": "Little Nightmares III",
+      "year": 2025,
+      "hours": 6
+    },
+    {
+      "title": "Ninja Gaiden 4",
+      "year": 2025,
+      "hours": 12
+    },
+    {
+      "title": "Hyrule Warriors: Age of Imprisonment",
+      "year": 2025,
+      "hours": 25
+    },
+    {
+      "title": "Metroid Prime 4: Beyond",
+      "year": 2025,
+      "hours": 20
+    },
+    {
+      "title": "Kirby Air Riders",
+      "year": 2025
+    },
+    {
+      "title": "Resident Evil Requiem",
+      "year": 2026,
+      "hours": 12
+    },
+    {
+      "title": "Grand Theft Auto VI",
+      "year": 2026,
+      "hours": 40
+    },
+    {
+      "title": "Subnautica 2",
+      "year": 2026
+    },
+    {
+      "title": "Hytale",
+      "year": 2026
+    },
+    {
+      "title": "Deltarune Chapter 3",
+      "year": 2025,
+      "hours": 8
+    }
+  ]
+}

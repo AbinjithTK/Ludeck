@@ -66,6 +66,7 @@ flutter:
   assets:
     - assets/fruit.riv
     - assets/tree.riv
+    - assets/catalog/games.json
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -1,0 +1,135 @@
+// The catalogue that ships inside the app.
+//
+// `assets/catalog/games.json` is a hand-authored starter set of widely-known
+// games. It is not IGDB data and does not pretend to be: no ids, no cover art, no
+// publisher. What it buys is the thing the app did not have -- searching for a
+// real game and finding it, with no key, no proxy and no network.
+//
+// It is a FLOOR, not a ceiling. When the proxy is deployed, `LayeredCatalog` puts
+// the live source in front and this one answers whatever the live source could
+// not, including every lookup made on a plane.
+
+import 'dart:convert';
+
+import 'package:flutter/services.dart' show AssetBundle, rootBundle;
+
+import '../data/models.dart';
+import '../domain/title_match.dart';
+import 'catalog_service.dart';
+
+const String kCatalogAssetPath = 'assets/catalog/games.json';
+
+class BundledCatalog implements CatalogSource {
+  /// [bundle] is injected so a test can supply its own asset without depending on
+  /// the real file's contents -- a test that asserts "gta v finds Grand Theft Auto
+  /// V" should fail when the MATCHING breaks, not when the asset is re-curated.
+  BundledCatalog({AssetBundle? bundle, String assetPath = kCatalogAssetPath})
+      : _bundle = bundle,
+        _assetPath = assetPath;
+
+  final AssetBundle? _bundle;
+  final String _assetPath;
+
+  /// Cached as a Future, not a value, so concurrent first searches share ONE
+  /// asset read and one parse. Two keystrokes arriving before the first read
+  /// finished would otherwise each decode six hundred rows.
+  Future<List<_Entry>>? _entries;
+
+  Future<List<_Entry>> _load() {
+    return _entries ??= _read();
+  }
+
+  Future<List<_Entry>> _read() async {
+    final String raw;
+    try {
+      raw = await (_bundle ?? rootBundle).loadString(_assetPath);
+    } catch (e) {
+      // A missing asset is a build mistake, not a runtime condition, but it must
+      // not take the screen down with an unhandled error.
+      throw CatalogException(CatalogFailure.notConfigured, 'asset unreadable: $e');
+    }
+
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(raw);
+    } on FormatException catch (e) {
+      throw CatalogException(CatalogFailure.malformed, e.message);
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw const CatalogException(
+          CatalogFailure.malformed, 'expected a JSON object');
+    }
+    final games = decoded['games'];
+    if (games is! List) {
+      throw const CatalogException(
+          CatalogFailure.malformed, 'expected a games array');
+    }
+
+    final out = <_Entry>[];
+    final seenIds = <int, String>{};
+    for (final row in games) {
+      if (row is! Map<String, dynamic>) continue;
+      final title = row['title'];
+      if (title is! String || title.trim().isEmpty) continue;
+
+      final year = row['year'];
+      final hours = row['hours'];
+      final id = bundledIdFor(title);
+
+      // A synthetic id collision would silently merge two different games into
+      // one row. Vanishingly unlikely across six hundred titles and not
+      // impossible, so it is detected rather than assumed away: the later title
+      // is dropped and the earlier one kept, which is at least deterministic.
+      final clash = seenIds[id];
+      if (clash != null) continue;
+      seenIds[id] = title;
+
+      out.add(_Entry(
+        Game(
+          igdbId: id,
+          title: title,
+          releaseYear: year is int ? year : null,
+          // Stored as SECONDS because that is the unit the whole app uses, and
+          // converting at the edge means nothing downstream has to know this
+          // source counted in hours.
+          timeToBeatSeconds: hours is int && hours > 0 ? hours * 3600 : null,
+        ),
+        TitleKeys(title),
+      ));
+    }
+    return out;
+  }
+
+  /// Ids that collided and were dropped, for the audit test. Empty in practice.
+  Future<int> get entryCount async => (await _load()).length;
+
+  @override
+  Future<List<Game>> search(String query) async {
+    final entries = await _load();
+    return rankByKeys(
+      entries.map((e) => (value: e.game, keys: e.keys)),
+      query,
+    );
+  }
+
+  @override
+  Future<Game?> byId(int igdbId) async {
+    for (final e in await _load()) {
+      if (e.game.igdbId == igdbId) return e.game;
+    }
+    return null;
+  }
+
+  /// The bundled asset holds no external ids by design -- it carries no
+  /// third-party identifiers of any kind. Honestly empty rather than a guess the
+  /// live catalogue would later have to contradict.
+  @override
+  Future<Game?> byExternalId({String? twitchGameId, String? steamAppId}) async =>
+      null;
+}
+
+class _Entry {
+  const _Entry(this.game, this.keys);
+  final Game game;
+  final TitleKeys keys;
+}

@@ -17,7 +17,6 @@ import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/models.dart';
 import 'package:ludeck/data/repository.dart';
 import 'package:ludeck/services/catalog_service.dart';
-import 'package:ludeck/services/http_catalog.dart';
 import 'package:ludeck/state/ludeck_store.dart';
 import 'package:ludeck/ui/add/add_screen.dart';
 
