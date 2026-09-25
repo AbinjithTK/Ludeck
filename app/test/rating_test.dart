@@ -39,7 +39,16 @@ void main() {
 
     Future<void> pump(WidgetTester tester) async {
       tester.view.devicePixelRatio = 1.0;
-      tester.view.physicalSize = const Size(412, 915);
+      // Tall on purpose. The home screen is now a roadmap: a vertical path with
+      // one node per game, which is far taller than the list it replaced, and on
+      // a 915pt surface the last few of the ten seeded games are never built. A
+      // finder then matches nothing and `longPress` throws "Bad state: No
+      // element", which reads as a broken rating flow and is a viewport.
+      //
+      // This test is about the harvest TRIGGER, not about layout -- collection_
+      // layout_test owns the geometry -- so the honest fix is a surface big
+      // enough to hold the road rather than scroll choreography in every case.
+      tester.view.physicalSize = const Size(412, 2000);
       addTearDown(tester.view.reset);
 
       await tester.runAsync(() async {

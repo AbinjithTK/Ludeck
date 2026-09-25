@@ -73,10 +73,10 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
       );
       await tester.pumpAndSettle();
-      if (find.byKey(const Key('collection-list')).evaluate().isNotEmpty) break;
+      if (find.byKey(const Key('roadmap-list')).evaluate().isNotEmpty) break;
     }
     expect(
-      find.byKey(const Key('collection-list')),
+      find.byKey(const Key('roadmap-list')),
       findsOneWidget,
       reason: 'the collection never loaded, so nothing below can be measured',
     );
@@ -86,7 +86,7 @@ void main() {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final list = tester.getRect(find.byKey(const Key('collection-list')));
+    final list = tester.getRect(find.byKey(const Key('roadmap-list')));
 
     // The list's own viewport must begin at or below the header's painted
     // bottom. This is structural now -- they are siblings in a Column -- and the
@@ -107,7 +107,7 @@ void main() {
     await pump(tester, textScale: 2.0);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final list = tester.getRect(find.byKey(const Key('collection-list')));
+    final list = tester.getRect(find.byKey(const Key('roadmap-list')));
 
     expect(list.top, greaterThanOrEqualTo(header.bottom));
   });
@@ -116,37 +116,48 @@ void main() {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
+    final viewport = tester.getRect(find.byKey(const Key('roadmap-list')));
 
-    // Every visible row title must be painted below the header. Measured per
-    // row rather than trusting the padding, because a row could still intrude
+    // Every visible node title must be painted below the header. Measured per
+    // node rather than trusting the padding, because one could still intrude
     // through a negative margin or an unexpected transform.
     final titles = find.descendant(
-      of: find.byKey(const Key('collection-list')),
+      of: find.byKey(const Key('roadmap-list')),
       matching: find.byType(Text),
     );
     expect(titles, findsWidgets);
 
+    var judged = 0;
     for (var i = 0; i < titles.evaluate().length; i++) {
       final rect = tester.getRect(titles.at(i));
-      // Rows scrolled out of view can report offscreen rects; only judge what
-      // is actually on screen.
-      if (rect.bottom < 0) continue;
+      // Only judge what is actually INSIDE the list's own viewport.
+      //
+      // The list is reversed now, and a reversed viewport keeps off-screen items
+      // built in its cache extent ABOVE the visible area -- so a node the user
+      // cannot see legitimately reports a rect overlapping the header, and the
+      // old `rect.bottom < 0` guard was not enough to exclude it. Clipping to the
+      // viewport keeps the assertion about what is on screen, which is what it
+      // was always meant to check.
+      if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) continue;
+      judged++;
       expect(
         rect.top,
         greaterThanOrEqualTo(header.bottom),
-        reason: 'a row is painted over the header',
+        reason: 'a node is painted over the header',
       );
     }
+    expect(judged, greaterThan(0),
+        reason: 'nothing was inside the viewport, so this proved nothing');
   });
 
   testWidgets('the last row clears the add control', (tester) async {
     await pump(tester);
 
     final list = tester.widget<ListView>(
-        find.byKey(const Key('collection-list')));
+        find.byKey(const Key('roadmap-list')));
     final padding = list.padding! as EdgeInsets;
     final addMenu = tester.getRect(find.byType(AddMenu));
-    final viewport = tester.getRect(find.byKey(const Key('collection-list')));
+    final viewport = tester.getRect(find.byKey(const Key('roadmap-list')));
 
     // The reserved bottom band must reach at least as high as the add control's
     // top, or the final row sits behind the button that covers it.
@@ -163,7 +174,7 @@ void main() {
     await pump(tester);
 
     final list = tester.widget<ListView>(
-        find.byKey(const Key('collection-list')));
+        find.byKey(const Key('roadmap-list')));
     final padding = list.padding! as EdgeInsets;
 
     // Padding alone only fixes where the list comes to REST. The scrim is what
@@ -171,7 +182,7 @@ void main() {
     // band -- a scrim shorter than the inset leaves a strip where a row is
     // visible half-behind the control.
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    final viewport = tester.getRect(find.byKey(const Key('collection-list')));
+    final viewport = tester.getRect(find.byKey(const Key('roadmap-list')));
 
     expect(scrim.height, moreOrLessEquals(padding.bottom, epsilon: 0.5));
     expect(scrim.bottom, moreOrLessEquals(viewport.bottom, epsilon: 0.5));
@@ -213,7 +224,7 @@ void main() {
     await pump(tester, size: const Size(412, 420));
 
     final scrollable = find.descendant(
-      of: find.byKey(const Key('collection-list')),
+      of: find.byKey(const Key('roadmap-list')),
       matching: find.byType(Scrollable),
     );
     final position = tester.state<ScrollableState>(scrollable).position;
@@ -223,11 +234,17 @@ void main() {
 
     final before = position.pixels;
 
-    // Drag upward starting INSIDE the bottom band, which is where the scrim is
+    // Drag DOWNWARD starting INSIDE the bottom band, which is where the scrim is
     // painted. If the scrim were hit-testable this would move nothing and the
     // bottom of the screen would be dead to touch.
+    //
+    // Downward, not upward, because the road is a REVERSED list: it rests at
+    // offset 0 showing the bottom of the path, so an upward drag is already at
+    // the start and clamps to 0 -- which looks exactly like a scrim eating the
+    // gesture. The direction that advances a reversed viewport is the one that
+    // proves the pointer got through.
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    await tester.dragFrom(scrim.center, const Offset(0, -120));
+    await tester.dragFrom(scrim.center, const Offset(0, 120));
     await tester.pumpAndSettle();
 
     expect(

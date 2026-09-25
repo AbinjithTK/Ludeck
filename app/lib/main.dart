@@ -18,7 +18,8 @@ import 'ui/chrome_metrics.dart';
 import 'ui/harvest/rating_sheet.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
-import 'ui/collection/collection_view.dart';
+import 'ui/gamified/primitives.dart';
+import 'ui/map/roadmap_view.dart';
 
 Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
@@ -581,7 +582,9 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       // supposed to prevent it assumed a single-line header. A header that can
       // wrap cannot be cleared by any fixed number, so the fix is structural.
       // When the tree returns it goes back into a Stack beneath this column.
-      body: Column(
+      body: CosmosBackdrop(
+        sky: Sky.deep,
+        child: Column(
         // Stretch, not the default centre. A Column centres its children on the
         // cross axis, which shrink-wraps the header to its text width and centres
         // the block -- the header is specified top-LEFT.
@@ -601,7 +604,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                CollectionView(
+                RoadmapView(
                   items: items,
                   branches: store.branches,
                   placements: store.placements,
@@ -659,6 +662,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             ),
           ),
         ],
+        ),
       ),
     );
   }

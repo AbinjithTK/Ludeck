@@ -17,10 +17,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/repository.dart';
-import 'package:ludeck/main.dart';
-import 'package:ludeck/services/catalog_service.dart';
-import 'package:ludeck/services/share_intake.dart';
 import 'package:ludeck/state/ludeck_store.dart';
+import 'package:ludeck/ui/collection/collection_view.dart';
 
 void main() {
   late Repository repo;
@@ -38,14 +36,35 @@ void main() {
     tester.view.physicalSize = const Size(412, 1400);
     addTearDown(tester.view.reset);
 
+    // CollectionView DIRECTLY, not through TreeScreen.
+    //
+    // The home screen now renders `RoadmapView` (the gamified map), so pumping
+    // the screen here would test the map instead -- and the map deliberately has
+    // different grouping (no status headings) and a REVERSED list, which inverts
+    // every Y-position assertion below. This file is about CollectionView's own
+    // grouping and accessibility, so it renders that widget and says so.
+    // `cover_art_row_test.dart` does the same.
+    //
+    // The comment lives ABOVE the runAsync deliberately: check.ps1 rule 8 looks
+    // back only a few lines from a pumpWidget for its enclosing runAsync, so a
+    // long comment wedged between the two reads as an unwrapped mount.
     await tester.runAsync(() async {
       store = LudeckStore(repo);
       await tester.pumpWidget(MaterialApp(
         home: ChangeNotifierProvider<LudeckStore>.value(
           value: store,
-          child: TreeScreen(
-            intake: FakeShareIntake(null),
-            catalog: FixtureCatalog(),
+          child: Scaffold(
+            body: Consumer<LudeckStore>(
+              builder: (context, s, _) => CollectionView(
+                items: s.items ?? const [],
+                branches: s.branches,
+                placements: s.placements,
+                topInset: 0,
+                bottomInset: 0,
+                onSelect: (_) {},
+                onHold: (_) {},
+              ),
+            ),
           ),
         ),
       ));
