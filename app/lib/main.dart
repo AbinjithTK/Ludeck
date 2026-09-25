@@ -16,6 +16,7 @@ import 'ui/add/add_screen.dart';
 import 'ui/branches/branch_screen.dart';
 import 'ui/chrome_metrics.dart';
 import 'ui/harvest/rating_sheet.dart';
+import 'ui/profile/profile_screen.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
 import 'ui/shell/tree_header.dart';
@@ -390,6 +391,14 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Opens the profile. Same no-argument pattern as `_openBranches`: the screen
+  /// reads the store, so nothing has to be threaded through the route.
+  void _openProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+    );
+  }
+
   /// Explains a nonzero skipped count when the user taps the notice.
   ///
   /// States what happened, that nothing else was touched, and gives one
@@ -624,6 +633,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             skipped: store.skipped,
             onSkippedTap: _showSkippedNotice,
             onBranchesTap: _openBranches,
+            onProfileTap: _openProfile,
           ),
 
           // The content layer, with the add control floating over it. Only this

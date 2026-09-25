@@ -221,4 +221,81 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+
+  group('a tappable orb is tappable across its whole sphere', () {
+    // This shipped broken and a missed tap on a device is what found it, which is
+    // the wrong way round. `Container.alignment` wraps the child in an Align and
+    // hands it LOOSE constraints, so the InkWell collapsed onto the glyph it
+    // contained -- a level digit, about 20x28 -- while the sphere it appeared to
+    // fill was 62. Measuring the hit region is the only way this stays fixed.
+    const diameter = 62.0;
+
+    testWidgets('the ink response fills the sphere, not just its glyph',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: GlowOrb(
+              diameter: diameter,
+              onTap: () {},
+              child: const Text('2'),
+            ),
+          ),
+        ),
+      ));
+
+      final ink = tester.getSize(find.byType(InkWell));
+
+      // The border is drawn INSIDE the box, so the child is inset by its width
+      // on each side. Asserting `== diameter` was wrong by exactly that, which
+      // is why this asserts the requirement instead of a number: the hit region
+      // is the sphere less its border, and comfortably past the 44pt minimum
+      // touch target.
+      expect(ink.width, greaterThanOrEqualTo(diameter - 2));
+      expect(ink.height, greaterThanOrEqualTo(diameter - 2));
+      expect(ink.shortestSide, greaterThanOrEqualTo(44));
+
+      // And far larger than the glyph it contains, which is what it had collapsed
+      // onto.
+      final glyph = tester.getSize(find.text('2'));
+      expect(ink.width, greaterThan(glyph.width * 2));
+    });
+
+    testWidgets('a tap near the sphere edge registers', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: GlowOrb(
+              diameter: diameter,
+              onTap: () => taps++,
+              child: const Text('2'),
+            ),
+          ),
+        ),
+      ));
+
+      // Inside the sphere but well outside the glyph -- the exact region the
+      // broken version ignored.
+      final centre = tester.getCenter(find.byType(InkWell));
+      await tester.tapAt(centre + const Offset(diameter / 2 - 4, 0));
+      await tester.pumpAndSettle();
+
+      expect(taps, 1);
+    });
+
+    testWidgets('an orb with no onTap builds no InkWell', (tester) async {
+      // Map nodes and decorative planets must not show a stray ripple.
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: GlowOrb(diameter: diameter, child: const Text('2')),
+          ),
+        ),
+      ));
+
+      expect(find.byType(InkWell), findsNothing);
+      expect(find.text('2'), findsOneWidget);
+    });
+  });
 }

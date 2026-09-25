@@ -107,6 +107,7 @@ class GlowOrb extends StatelessWidget {
     this.image,
     this.child,
     this.glow = 1.0,
+    this.onTap,
   });
 
   final double diameter;
@@ -119,6 +120,10 @@ class GlowOrb extends StatelessWidget {
 
   /// Bloom strength, 0 to 1. Zero still draws the sphere, with no halo.
   final double glow;
+
+  /// Makes the SPHERE tappable. Null leaves the orb inert, which is what a map
+  /// node or a decorative planet wants.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -169,8 +174,29 @@ class GlowOrb extends StatelessWidget {
                   : DecorationImage(image: image!, fit: BoxFit.cover),
               border: Border.all(color: Tokens.cosmos.panelEdge),
             ),
-            alignment: Alignment.center,
-            child: child,
+            // NO `alignment:` here. `Container.alignment` wraps the child in an
+            // Align, which hands it LOOSE constraints -- so the InkWell below
+            // shrank to the size of the glyph it contained (a level digit is about
+            // 20x28) instead of filling the sphere, and a tap on the orb missed.
+            // Centring is done inside each branch instead, where it cannot shrink
+            // the tap target.
+            //
+            // The tap target is the SPHERE, never the halo. The halo is already
+            // IgnorePointer'd above for the same reason: it extends nearly half a
+            // diameter past the visible edge, so a tap region covering it would
+            // fire on empty sky.
+            child: onTap == null
+                ? Center(child: child)
+                : Material(
+                    type: MaterialType.transparency,
+                    shape: const CircleBorder(),
+                    clipBehavior: Clip.antiAlias,
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: onTap,
+                      child: Center(child: child),
+                    ),
+                  ),
           ),
         ],
       ),

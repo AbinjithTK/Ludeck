@@ -29,6 +29,7 @@ class TreeHeader extends StatelessWidget {
     required this.skipped,
     required this.onSkippedTap,
     required this.onBranchesTap,
+    required this.onProfileTap,
   });
 
   /// Games on the tree.
@@ -45,6 +46,9 @@ class TreeHeader extends StatelessWidget {
 
   final VoidCallback onSkippedTap;
   final VoidCallback onBranchesTap;
+
+  /// Opens the profile. The orb is the affordance.
+  final VoidCallback onProfileTap;
 
   /// The headline. Counts what EXISTS, never what is outstanding -- a count that
   /// can only go up is the whole difference between this and a backlog.
@@ -116,14 +120,22 @@ class TreeHeader extends StatelessWidget {
                 ),
                 SizedBox(width: Tokens.space.sm),
 
-                // The orb. Small relative to the token's full size, because this
-                // is a header: `Tokens.size.orb` is the profile-screen diameter.
+                // The orb, and the way into the profile.
+                //
+                // It was the largest element in the header carrying the least
+                // explanation -- a glowing circle holding a bare number, with
+                // "Level N" already written in words beside it. Making it the
+                // profile entry point gives the biggest thing on the screen a job,
+                // and the profile is where the tree portrait that belongs in an
+                // avatar slot actually lives.
                 Semantics(
-                  label: 'Level ${ladder.level}',
+                  label: 'Level ${ladder.level}. Open your profile',
+                  button: true,
                   excludeSemantics: true,
                   child: GlowOrb(
                     diameter: Tokens.size.orb * 0.42,
                     glow: 0.7,
+                    onTap: onProfileTap,
                     child: Text(
                       '${ladder.level}',
                       style: TextStyle(
