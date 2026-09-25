@@ -86,10 +86,15 @@ deciding them.)
         start and `onNewIntent`. Warm share is covered by the lifecycle-resume
         test, not a widget rebuild.
   - [ ] F8 verification -- not started (depends on F3-F7)
-- [ ] Backend polish: transaction/cascade audit -- not started as a
-      systematic pass (individual tables have been tested ad hoc, e.g. the
-      `sources` table's `ON DELETE CASCADE` from Phase F1, but no full
-      audit across every table has been done)
+- [x] Backend polish: transaction/cascade audit -- **DONE 2026-09-25.**
+      `test/integrity_audit_test.dart`, 17 tests. Foreign-key enforcement
+      asserted on three open paths including a REOPEN (the setting is
+      per-connection, not stored in the file); every one of the five declared
+      relations checked for presence AND `CASCADE` by reading the engine rather
+      than the DDL text; an orphan-creation test per relation; a delete test per
+      parent; atomicity of the multi-row writes; and a realistic workload that
+      re-runs `PRAGMA foreign_key_check` after every step.
+      Negative-tested by flipping the pragma to OFF: five tests go red.
 
 ## Next (highest priority first)
 
@@ -134,6 +139,70 @@ Observed on the device while verifying rate-on-harvest.
   of thing that makes a feature look missing.
 
 ## Cycle log
+
+### 2026-09-25 11:32 -- stage 9, the backend integrity audit
+
+Systematic pass over foreign keys, cascades and transactions:
+`test/integrity_audit_test.dart`, 17 tests.
+
+**The finding that justifies the whole stage.** SQLite defaults foreign keys OFF
+and the setting is PER CONNECTION, not stored in the file. `database.dart` did set
+`PRAGMA foreign_keys = ON` in `onConfigure`, and that was correct -- but NOTHING
+verified it. Every `ON DELETE CASCADE` in the schema was one deleted line away
+from becoming decoration, and the failure would have been completely silent:
+writes keep succeeding and orphan rows accumulate. Enforcement is now asserted on
+three open paths including a REOPEN, since a first-open-only test would miss
+exactly the case where a second connection forgets.
+
+Negative-tested by flipping the pragma to OFF: five tests go red, including two
+orphan-creation tests. Before this file existed, flipping it would have broken
+nothing visible.
+
+**Three audit findings, all acted on:**
+
+`deleteBranch` deletes placements by hand AND the schema cascades them, which
+means it would keep working with enforcement off -- masking a broken pragma. The
+redundancy is kept deliberately (it is a hedge against a future connection that
+forgets `onConfigure`) and the comment already said so; what was missing was a
+test that checks the CASCADE independently of it, which now exists.
+
+**Nothing in the app ever deleted a `games` row**, because `shelved` replaces
+delete by design. So all four cascades pointing at `games` were latent and had
+never been exercised once. Added `Repository.purgeGame`, an honest hard delete
+reachable only from code, which deletes ONLY the games row and relies on the
+cascades -- so the test exercises the real mechanism rather than a hand-rolled
+imitation. It is explicitly not the delete the UI offers.
+
+Enforcement being per-connection also means a database written by a build from
+BEFORE `onConfigure` existed can already hold orphans, and turning the pragma on
+later does not retroactively clean them. `Repository.foreignKeyViolations()` wraps
+`PRAGMA foreign_key_check` so that is checkable; the workload test re-runs it after
+every mutation.
+
+Also added `tableNames()` and `foreignKeysOf()`, which read the ENGINE rather than
+the DDL string. That distinction matters: a cascade clause written in `_ddl` but
+missing from `_migrations` would apply on a fresh install and not on an upgraded
+one, and only an engine read sees the difference. The `sources` table arrived in
+the v2 migration, so it is the one most exposed to that, and it has its own
+assertion on the migrated path.
+
+A table-set assertion fails if a new table appears with no entry in the audit's
+relation list, so the next schema addition has to make a delete-behaviour decision
+rather than discover one months later.
+
+Verified: 343 tests green (was 326), analyzer clean, `check.ps1` 13/13.
+
+Scope note, stated rather than glossed: `openLudeckDatabase()` -- the real app
+entry point -- needs `path_provider` platform channels a unit test does not have,
+so it is covered only through `openLudeckDatabaseAt`, which it delegates to. That
+split already existed for the migration tests and is why it exists.
+
+**STILL NOT DONE: stage 8 (extractors, F4 and F5).** The plan status has now
+reported it complete once without it being started. What actually remains is the
+oEmbed tier, the generic Open Graph / JSON-LD reader over `safeFetchPage`, and the
+YouTube tier behind an API key only Abin can create; F4's exact tier (Twitch clip
+and Steam appid) is already written and fixture-tested in
+`HttpCatalog.byExternalId`.
 
 ### 2026-09-25 11:20 -- stages 5, 6 and 7, and a correction to the plan status
 

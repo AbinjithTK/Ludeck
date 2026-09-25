@@ -40,6 +40,86 @@ class Repository {
   /// name, and nothing stops a paste from producing one.
   static const int maxNameLength = 120;
 
+  // ---------------------------------------------------------------------------
+  // Integrity. Read-only, and worth having for a reason that is easy to miss.
+  // ---------------------------------------------------------------------------
+
+  /// Whether foreign keys are enforced on THIS connection.
+  ///
+  /// SQLite defaults them OFF and the setting is per-connection, not stored in
+  /// the file. `database.dart` turns them on in `onConfigure`, and every
+  /// `ON DELETE CASCADE` in the schema is decoration if that line is ever
+  /// removed. Nothing would fail loudly: writes would keep working and orphan
+  /// rows would accumulate silently. So it is asserted rather than assumed.
+  Future<bool> foreignKeysEnforced() async {
+    final rows = await _db.rawQuery('PRAGMA foreign_keys');
+    if (rows.isEmpty) return false;
+    final value = rows.first.values.first;
+    return value == 1 || value == '1';
+  }
+
+  /// Rows that point at a parent which does not exist.
+  ///
+  /// `PRAGMA foreign_key_check` finds violations that enforcement would have
+  /// prevented, which is exactly the case that matters here: enforcement is
+  /// per-connection, so a database written by a build BEFORE `onConfigure`
+  /// existed can already contain orphans, and turning the pragma on later does
+  /// not retroactively clean them. Cheap on a collection this size.
+  ///
+  /// Returns one description per violating row, empty when the database is
+  /// consistent.
+  Future<List<String>> foreignKeyViolations() async {
+    final rows = await _db.rawQuery('PRAGMA foreign_key_check');
+    return rows
+        .map((r) => '${r['table']} rowid=${r['rowid']} -> ${r['parent']}')
+        .toList();
+  }
+
+  /// Every table the schema declares, as SQLite actually holds it.
+  ///
+  /// Used by the audit test to notice a table added to the DDL without a
+  /// corresponding cascade decision, rather than discovering it when a delete
+  /// leaves rows behind.
+  Future<Set<String>> tableNames() async {
+    final rows = await _db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table' "
+      "AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'android_%'",
+    );
+    return rows.map((r) => r['name'] as String).toSet();
+  }
+
+  /// The foreign keys SQLite reports for one table, as (column, parent, onDelete).
+  ///
+  /// Reads the engine rather than the DDL string, so a clause that was written
+  /// but not applied -- a migration that created the table before the clause was
+  /// added, say -- is visible.
+  Future<List<({String column, String parent, String onDelete})>> foreignKeysOf(
+      String table) async {
+    final rows = await _db.rawQuery('PRAGMA foreign_key_list($table)');
+    return rows
+        .map((r) => (
+              column: r['from'] as String,
+              parent: r['table'] as String,
+              onDelete: (r['on_delete'] as String?) ?? '',
+            ))
+        .toList();
+  }
+
+  /// Deletes a game and everything hanging off it.
+  ///
+  /// Exists for ONE reason and it is not a feature: the schema declares four
+  /// `ON DELETE CASCADE` relations pointing at `games`, and nothing in the app
+  /// ever deleted a game, so all four were latent and untested. A cascade nobody
+  /// exercises is a cascade nobody knows is broken.
+  ///
+  /// This is NOT the delete the UI offers. `shelved` replaces delete for the
+  /// user, deliberately, and nothing the user recorded is destroyed by it. This
+  /// is the honest hard delete, reachable only from code, and it relies on the
+  /// cascades rather than deleting children by hand so that the test exercises
+  /// the real mechanism.
+  Future<void> purgeGame(int igdbId) =>
+      _db.delete('games', where: 'igdb_id = ?', whereArgs: [igdbId]);
+
   static void _validateTitle(String title) {
     if (title.trim().isEmpty) {
       throw ArgumentError.value(title, 'title', 'must not be blank');
