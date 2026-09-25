@@ -30,7 +30,17 @@ class TreeHeader extends StatelessWidget {
     required this.onSkippedTap,
     required this.onBranchesTap,
     required this.onProfileTap,
+    this.maxHeight,
   });
+
+  /// The tallest this header may be. Null means unbounded.
+  ///
+  /// Supplied by the screen laying the header out, because that is the only widget
+  /// that reliably knows the height available -- reading it from `MediaQuery` here
+  /// gave zero in every test that injects a `MediaQueryData` without a size, and
+  /// collapsed the header to nothing. Beyond the ceiling the content scrolls, so
+  /// no line is ever unreachable.
+  final double? maxHeight;
 
   /// Games on the tree.
   final int total;
@@ -65,17 +75,70 @@ class TreeHeader extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final ladder = levelFor(harvested);
 
+    // The header may never take more than the ceiling its parent gives it, and
+    // scrolls inside that ceiling.
+    //
+    // Being an ordinary Column sibling above the content stops the header
+    // COVERING the tree, which is what the previous fix was for. It does not stop
+    // the header from being taller than the screen: the tree sits in an Expanded,
+    // so a header that wants more than the full height simply gets it, Expanded
+    // collapses to nothing, and the Column overflows.
+    //
+    // That was not hypothetical. At the 2x system text size the header measured
+    // 791pt of a 915pt phone -- 86%, with about 125pt left for the tree -- and it
+    // took only a few points more before `header.bottom` passed `tree.top` and the
+    // layout genuinely overlapped. Dropping the chip row and capping the headline
+    // both help and neither is a bound, because the level sentence can always wrap
+    // one more time.
+    //
+    // The ceiling comes from the PARENT, not from `MediaQuery.sizeOf` here. A
+    // first attempt read the height off MediaQuery and shipped a header of zero
+    // height in every test that injects a `MediaQueryData` without a size -- which
+    // is most of them, and the symptom was the tree rendering at y=0 with the
+    // header collapsed on top of it. The only widget that reliably knows how tall
+    // the screen is, is the one laying this out.
+    //
+    // Null means unbounded, which is correct for a test pumping the header alone.
+    final bounded = maxHeight == null
+        ? _content(context, text, ladder)
+        : ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight!),
+            child: SingleChildScrollView(
+              child: _content(context, text, ladder),
+            ),
+          );
+
+    // The key is on the header's FOOTPRINT, not on the column inside the scroll
+    // view. A layout test measuring the inner column read the column's full
+    // height, which once the content scrolls is larger than the space the header
+    // actually occupies -- so it reported a 6pt overlap with the tree that did not
+    // exist on screen. What a caller wants to know is how much room the header
+    // takes, which is this box.
     return SafeArea(
+      key: const Key('screen-header'),
       bottom: false,
-      child: Padding(
+      child: bounded,
+    );
+  }
+
+  Widget _content(
+    BuildContext context,
+    TextTheme text,
+    ({int level, double progress, int harvestedIntoLevel, int neededForNext})
+        ladder,
+  ) {
+    return Padding(
+        // Tighter than it was. The header was MEASURED at 266pt of a 915pt phone
+        // -- 29%, essentially the third the brief complained about -- on a screen
+        // whose entire subject is the tree below it. test/nav_shell_test.dart
+        // holds the budget so it cannot drift back up.
         padding: EdgeInsets.fromLTRB(
           Tokens.space.md,
-          Tokens.space.sm,
+          Tokens.space.xs,
           Tokens.space.md,
-          Tokens.space.sm,
+          Tokens.space.xs,
         ),
         child: Column(
-          key: const Key('screen-header'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -87,7 +150,21 @@ class TreeHeader extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(_headline, style: text.displaySmall),
+                      // The headline's scale is CAPPED at 1.5.
+                      //
+                      // Uncapped, at the 2x system setting, the header measured
+                      // 85% of the screen and the tree had nothing left -- a
+                      // header that large is not an accessible header, it is a
+                      // screen with the content pushed off it. This one line is
+                      // capped rather than the whole header because its content is
+                      // the one thing here that is fully duplicated elsewhere: the
+                      // same counts are in the level line below and in the spoken
+                      // labels, so nobody loses information. Everything else in
+                      // the header still scales without limit.
+                      MediaQuery.withClampedTextScaling(
+                        maxScaleFactor: 1.5,
+                        child: Text(_headline, style: text.displaySmall),
+                      ),
                       SizedBox(height: Tokens.space.xxs),
                       Text(
                         // What the level MEANS, in words, so the number is not a
@@ -100,6 +177,16 @@ class TreeHeader extends StatelessWidget {
                                 '${ladder.neededForNext == 1 ? 'harvest' : 'harvests'} '
                                 'to ${ladder.level + 1}',
                         style: text.labelSmall,
+                      ),
+                      SizedBox(height: Tokens.space.xxs),
+                      Semantics(
+                        label: ladder.neededForNext == 0
+                            ? 'Level ${ladder.level}, the top of the ladder'
+                            : 'Level ${ladder.level}, '
+                                '${(ladder.progress * 100).round()} percent to '
+                                'level ${ladder.level + 1}',
+                        excludeSemantics: true,
+                        child: PillProgress(value: ladder.progress),
                       ),
                       if (skipped > 0) ...[
                         SizedBox(height: Tokens.space.xs),
@@ -133,7 +220,7 @@ class TreeHeader extends StatelessWidget {
                   button: true,
                   excludeSemantics: true,
                   child: GlowOrb(
-                    diameter: Tokens.size.orb * 0.42,
+                    diameter: Tokens.size.orb * 0.34,
                     glow: 0.7,
                     onTap: onProfileTap,
                     child: Text(
@@ -166,32 +253,15 @@ class TreeHeader extends StatelessWidget {
               ],
             ),
 
-            SizedBox(height: Tokens.space.xs),
+            // The level bar used to be a full-width child HERE, with a spacer
+            // above it. It now lives inside the text column in the row above,
+            // directly under the level line it describes -- which is both a
+            // shorter header and a better pairing, since a bar sitting a gap away
+            // from the sentence explaining it reads as a separate thing.
 
-            Semantics(
-              label: ladder.neededForNext == 0
-                  ? 'Level ${ladder.level}, the top of the ladder'
-                  : 'Level ${ladder.level}, '
-                      '${(ladder.progress * 100).round()} percent to level '
-                      '${ladder.level + 1}',
-              excludeSemantics: true,
-              child: PillProgress(value: ladder.progress),
-            ),
-
-            SizedBox(height: Tokens.space.sm),
-
-            // Horizontally scrolling, which is also what the Tolan reference
-            // does -- its bottom row runs off the screen edge rather than
-            // squeezing its cards. Protects the large-text-scale case too.
-            // The chip row is the header's SECONDARY information, and it is the
-            // first thing to go when type gets large.
-            //
-            // Without this the header grows with the text-size setting until the
-            // content area has nothing left -- at 2x it reached one pixel and the
-            // add menu overflowed. Dropping the chips is honest rather than
-            // lossy: every count in them is already in the level line and in the
-            // Semantics labels above, so a screen-reader user loses nothing and a
-            // large-type user gets a header that still fits on the screen.
+            // ONE spacer, not two. There used to be a `space.sm` here and another
+            // inside the branch below, so the gap above the chips was double every
+            // other gap in the header for no reason.
             if (MediaQuery.textScalerOf(context).scale(Tokens.type.caption) <
                 Tokens.type.caption * 1.4) ...[
               SizedBox(height: Tokens.space.sm),
@@ -222,7 +292,6 @@ class TreeHeader extends StatelessWidget {
             ],
           ],
         ),
-      ),
     );
   }
 }

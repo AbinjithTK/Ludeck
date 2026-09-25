@@ -17,11 +17,14 @@ import 'ui/intake/confirm_sheet.dart';
 import 'ui/add/add_screen.dart';
 import 'ui/branches/branch_screen.dart';
 import 'ui/chrome_metrics.dart';
+import 'ui/friends/friends_screen.dart';
 import 'ui/harvest/rating_sheet.dart';
+import 'ui/library/library_screen.dart';
 import 'ui/onboarding/onboarding_screen.dart';
 import 'ui/profile/profile_screen.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
+import 'ui/shell/nav_pill.dart';
 import 'ui/shell/tree_header.dart';
 import 'ui/gamified/primitives.dart';
 import 'ui/tree/procedural_tree_view.dart';
@@ -200,6 +203,22 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// The collection, the skipped count, the loading flag and the error all belong
   /// to `LudeckStore`, which is read from the provider. A screen holding both a
   /// Repository and a store would be two sources of truth for the same rows.
+
+  /// Which place the navigation pill is showing.
+  ///
+  /// Tree, Library and Friends are PLACES and switch inline, so the pill stays on
+  /// screen and moving between them is one tap in either direction. `You` is not
+  /// here: the profile is an existing pushed detail with its own back arrow, and
+  /// re-architecting it to live inside the shell is not what this stage is for.
+  NavDestination _place = NavDestination.tree;
+
+  void _goTo(NavDestination d) {
+    if (d == NavDestination.you) {
+      _openProfile();
+      return;
+    }
+    setState(() => _place = d);
+  }
 
   @override
   void initState() {
@@ -727,7 +746,28 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     // computed top inset was wrong on a device.
     final chrome = ChromeMetrics.of(context);
 
-    return Scaffold(
+    // Everything not on the tree is a different PLACE, reached from the pill.
+    // Library and Friends are full screens in their own right; they are hosted
+    // here rather than pushed so the pill stays visible and moving between the
+    // three is one tap each way.
+    if (_place == NavDestination.library) {
+      return _withPill(
+        LibraryScreen(
+          onSelect: _openStatusSheet,
+          coverCache: widget.coverCache,
+        ),
+        toPlace: _unfiledCount(items, store),
+      );
+    }
+    if (_place == NavDestination.friends) {
+      return _withPill(
+        const FriendsScreen(),
+        toPlace: _unfiledCount(items, store),
+      );
+    }
+
+    return _withPill(
+      Scaffold(
       // The header is a real layout sibling ABOVE the content, not an overlay
       // floating over it.
       //
@@ -740,7 +780,8 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       // When the tree returns it goes back into a Stack beneath this column.
       body: CosmosBackdrop(
         sky: Sky.deep,
-        child: Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) => Column(
         // Stretch, not the default centre. A Column centres its children on the
         // cross axis, which shrink-wraps the header to its text width and centres
         // the block -- the header is specified top-LEFT.
@@ -755,6 +796,11 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             onSkippedTap: _showSkippedNotice,
             onBranchesTap: _openBranches,
             onProfileTap: _openProfile,
+            // 45% of the real available height. A LayoutBuilder rather than
+            // MediaQuery so the number is the space this Column actually has,
+            // which is also what makes it correct inside a test that injects a
+            // MediaQuery with no size.
+            maxHeight: constraints.maxHeight * 0.45,
           ),
 
           // The content layer, with the add control floating over it. Only this
@@ -790,16 +836,21 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                 // the screen dead to touch.
                 _Scrim(extent: chrome.bottom),
 
-                // Bottom left, per the reference. The add action is the one
-                // thing a new person has to find, so it sits where a thumb
-                // already rests.
+                // Bottom RIGHT, and lifted clear of the navigation pill.
+                //
+                // It used to sit bottom-left "where a thumb already rests", which
+                // was right when the bottom of the screen was empty. The pill now
+                // spans that width, so left or right no longer decides thumb
+                // reach -- clearing the pill does. Right keeps it off the Tree
+                // label, which is the destination a user is most likely to aim at
+                // while adding.
                 SafeArea(
                   child: Align(
-                    alignment: Alignment.bottomLeft,
+                    alignment: Alignment.bottomRight,
                     child: Padding(
                       padding: EdgeInsets.only(
-                        left: Tokens.space.md,
-                        bottom: Tokens.space.md,
+                        right: Tokens.space.md,
+                        bottom: NavPill.heightFor(context) + Tokens.space.md,
                       ),
                       child: AddMenu(onAction: _onAdd),
                     ),
@@ -810,9 +861,47 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
           ),
         ],
         ),
+        ),
       ),
+    ),
+      toPlace: _unfiledCount(items, store),
     );
   }
+
+  /// How many games are not filed onto a named branch.
+  ///
+  /// Counted from the store rather than from the built tree, because the pill is
+  /// drawn outside `ProceduralTreeView` and asking the view for a number would
+  /// mean building the tree a second time. Buds count: a recommendation can be
+  /// filed like anything else now.
+  int _unfiledCount(List<TreeItem> items, LudeckStore store) {
+    final filed = <int>{
+      for (final ids in store.placements.values) ...ids,
+    };
+    return items
+        .where((i) => !i.entry.shelved && !filed.contains(i.game.igdbId))
+        .length;
+  }
+
+  /// Puts the navigation pill under whatever place is showing.
+  ///
+  /// A Stack with the pill at the bottom rather than a `bottomNavigationBar`,
+  /// because the pill is translucent and has to let the sky through: the
+  /// `bottomNavigationBar` slot reserves opaque height OUTSIDE the body, which is
+  /// exactly the permanent reserved band the tab-bar option was rejected for.
+  Widget _withPill(Widget place, {required int toPlace}) => Stack(
+        children: [
+          Positioned.fill(child: place),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: NavPill(
+              current: _place,
+              onSelect: _goTo,
+              toPlace: toPlace,
+            ),
+          ),
+        ],
+      );
 }
 
 /// Shown only when the FIRST read failed, so there is no collection to render.

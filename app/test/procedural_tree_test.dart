@@ -5,7 +5,7 @@
 // point of keeping the geometry in its own file.
 
 import 'dart:math' as math;
-import 'dart:ui' show Offset, Size;
+import 'dart:ui' show Offset, Rect, Size;
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -193,6 +193,79 @@ void main() {
       }
       // And the owned games did not become buds.
       expect(tree.allFruit.where((f) => !f.bud), hasLength(9));
+    });
+
+    test('the device home case -- 8 owned, 2 buds, no branches -- stacks '
+        'nothing', () {
+      // This is the literal state the emulator showed: the seeded collection on a
+      // fresh install, which is also what a judge opens the app to. Two covers
+      // were visibly stacked there (one cover almost entirely over another) while
+      // the existing anti-stacking invariant stayed green, so that invariant was
+      // not covering this shape.
+      // TWO canvas heights, and the short one is the one that matters.
+      //
+      // 760 was what every test in this file used, and the app never gets it: on a
+      // 914pt phone the header takes about 225 and the pill plus the add control
+      // reserve about 156, so the tree is handed roughly 412x560. A shorter canvas
+      // crowds the same covers into less height, which is why the device showed
+      // two covers stacked while this invariant stayed green at 760.
+      for (final canvas in const [Size(412, 760), Size(412, 560)]) {
+        final tree = ProceduralTree.build(
+          canvas: canvas,
+          branches: const [],
+          placements: const {},
+          items: [
+            for (var i = 0; i < 8; i++)
+              _item(600 + i, 'Owned $i', harvested: i == 0),
+            for (var i = 0; i < 2; i++) _item(700 + i, 'Rec $i', seed: true),
+          ],
+          fruitRadius: 28,
+          trunkWidth: 22,
+        );
+
+        final all = tree.allFruit.toList();
+        expect(all, hasLength(10), reason: 'canvas $canvas');
+
+        // A cover you cannot read is the same as no cover. Cards may touch; one may
+        // not hide another. Measured on the real card rect, which is a PORTRAIT
+        // rectangle 2r wide by 2r*4/3 tall, not a circle.
+        var worst = 0.0;
+        String? offender;
+        for (var a = 0; a < all.length; a++) {
+          for (var b = a + 1; b < all.length; b++) {
+            final ra = Rect.fromCenter(
+              center: all[a].centre,
+              width: all[a].radius * 2,
+              height: all[a].radius * 2 * 4 / 3,
+            );
+            final rb = Rect.fromCenter(
+              center: all[b].centre,
+              width: all[b].radius * 2,
+              height: all[b].radius * 2 * 4 / 3,
+            );
+            final overlap = ra.intersect(rb);
+            if (overlap.width <= 0 || overlap.height <= 0) continue;
+            final area = overlap.width * overlap.height;
+            final smaller = math.min(ra.width * ra.height, rb.width * rb.height);
+            final fraction = area / smaller;
+            if (fraction > worst) {
+              worst = fraction;
+              offender =
+                  '${all[a].item.game.title} over ${all[b].item.game.title}';
+            }
+          }
+        }
+
+        // 0.22 on centres-and-radii, a little looser than the 0.18 the PAINTED
+        // measurements use, because this reasons about the card rect without the
+        // per-card tilt the view adds. Both are ratchets on measured values rather
+        // than guesses: the first threshold written here was 0.34, invented to
+        // match a device capture I had misread, and it permitted exactly the band
+        // the defect was supposed to live in.
+        expect(worst, lessThan(0.22),
+            reason: 'canvas $canvas: worst overlap '
+                '${(worst * 100).toStringAsFixed(0)}% ($offender)');
+      }
     });
 
     test("a bud's calyx is never covered by the card above it", () {

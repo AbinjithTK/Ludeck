@@ -29,6 +29,8 @@
 // fake time, so mounting outside runAsync holds the database lock and the run
 // hangs instead of failing. See docs/CONSTRAINTS.md and check.ps1 rule 8.
 
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -183,6 +185,48 @@ void main() {
     // short leaves a strip where a cover is visible half-behind the button.
     expect(scrim.top, lessThanOrEqualTo(addMenu.top));
     expect(scrim.bottom, moreOrLessEquals(tree.bottom, epsilon: 0.5));
+  });
+
+  testWidgets('no cover is hidden behind another, with the real chrome present',
+      (tester) async {
+    // THE measurement that reflects what ships. `procedural_tree_view_test.dart`
+    // takes the same reading with the tree pumped alone and sees about 10%
+    // overlap; here the header and the navigation pill are both in the layout, so
+    // the tree gets the canvas it actually gets on a phone. A device capture
+    // showed two covers substantially stacked while the tree-alone measurement
+    // stayed green, and the difference between those two harnesses is the whole
+    // reason this test exists in this file rather than that one.
+    await pump(tester, size: const Size(412, 915));
+
+    final rects = covers(tester);
+    expect(rects.length, greaterThan(4));
+
+    var worst = 0.0;
+    for (var a = 0; a < rects.length; a++) {
+      for (var b = a + 1; b < rects.length; b++) {
+        final o = rects[a].intersect(rects[b]);
+        if (o.width <= 0 || o.height <= 0) continue;
+        final smaller = math.min(
+          rects[a].width * rects[a].height,
+          rects[b].width * rects[b].height,
+        );
+        final fraction = (o.width * o.height) / smaller;
+        if (fraction > worst) worst = fraction;
+      }
+    }
+
+    // 0.18, a ratchet just above the 10% actually measured here -- not the 0.34 I
+    // first guessed at. The guess mattered: I read a device capture as "two covers
+    // substantially stacked", built three separate instruments to reproduce it, and
+    // all three said about 10%. Re-measuring the capture by hand agreed with them:
+    // the worst pair overlaps by roughly a fifth of a card's WIDTH, which is a
+    // tenth of its area. The arithmetic was right and the eye was wrong, so the
+    // number here is now pinned to what is real rather than to what a screenshot
+    // looked like.
+    expect(worst, lessThan(0.18),
+        reason: 'worst painted overlap ${(worst * 100).toStringAsFixed(0)}% '
+            'with the shell present -- a cover you cannot read is the same as '
+            'no cover');
   });
 
   testWidgets('the header text is left aligned, not centred', (tester) async {

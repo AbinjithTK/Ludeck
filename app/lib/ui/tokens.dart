@@ -280,6 +280,16 @@ class _Size {
   /// would stop matching the button it covers.
   final double control = 52;
 
+  /// The floating navigation pill's height.
+  ///
+  /// 56 carries an icon and its word in two lines and still clears the 48dp
+  /// minimum touch target, which a bar of four destinations has to: with four
+  /// Expanded children on a 412pt phone each one is about 95pt wide, so height is
+  /// the only dimension that can fail the target. A shorter pill would mean
+  /// dropping the labels, and `NavPill` documents why the labels are not
+  /// optional.
+  final double navPill = 56;
+
   /// A fruit's diameter on the canvas at zoom 1.
   ///
   /// 56, raised from 44 after looking at a device capture. A fruit is a real

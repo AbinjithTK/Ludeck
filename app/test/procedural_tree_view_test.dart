@@ -155,6 +155,49 @@ void main() {
           reason: 'a bud below the ground line is back in the old soil strip');
     });
 
+    testWidgets('no cover is hidden behind another, measured on the PAINTED '
+        'rects at the height the app actually has', (tester) async {
+      // The engine's own anti-stacking invariant reasons about centres and radii.
+      // This one measures what is actually on screen: `getRect` walks ancestor
+      // transforms, so it includes the per-card tilt, which the engine cannot know
+      // about. The device showed two covers stacked while the engine test was
+      // green, and this is the instrument that can tell those two cases apart.
+      await _pumpTree(
+        tester,
+        items: [
+          for (var i = 0; i < 8; i++) _item(600 + i, 'Owned $i'),
+          for (var i = 0; i < 2; i++) _item(700 + i, 'Rec $i', seed: true),
+        ],
+      );
+
+      final nodes = find.byType(GameNode);
+      expect(nodes, findsNWidgets(10));
+      final rects = [
+        for (var i = 0; i < 10; i++) tester.getRect(nodes.at(i)),
+      ];
+
+      var worst = 0.0;
+      for (var a = 0; a < rects.length; a++) {
+        for (var b = a + 1; b < rects.length; b++) {
+          final o = rects[a].intersect(rects[b]);
+          if (o.width <= 0 || o.height <= 0) continue;
+          final smaller = math.min(
+            rects[a].width * rects[a].height,
+            rects[b].width * rects[b].height,
+          );
+          worst = math.max(worst, (o.width * o.height) / smaller);
+        }
+      }
+
+      // 0.18, a ratchet just above the ~10% measured, in both this harness and the
+      // one in `collection_layout_test.dart` that includes the real header and
+      // pill. Both agree, which is what settled a device capture I had misread as
+      // much worse.
+      expect(worst, lessThan(0.18),
+          reason: 'worst painted overlap ${(worst * 100).toStringAsFixed(0)}% '
+              '-- a cover you cannot read is the same as no cover');
+    });
+
     testWidgets('no title is painted under a fruit', (tester) async {
       // A tree with eight captions on it is a contact sheet. The title lives in
       // the spoken label and in the status sheet, not on the canvas.
