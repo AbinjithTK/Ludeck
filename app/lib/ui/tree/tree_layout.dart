@@ -4,6 +4,20 @@ import 'dart:ui' show Offset, Size;
 import '../../data/enums.dart';
 import '../../data/models.dart';
 
+// SUPERSEDED by procedural_tree.dart. Do not extend this file, and do not build
+// a new surface on it.
+//
+// This engine keys a branch on the PLATFORM a game is owned on, which predates
+// user-named branches. Keeping it alive is why the app drew two different trees
+// at once: the profile portrait grew platform limbs while the home screen grew
+// the user's own branches. Its limbs are also straight segments with a linear
+// taper, which is why that portrait read as a flat grey diagram.
+//
+// It is still here only because `TreeScene` consumes it and three test files
+// reference it; deleting it now would break the profile screen with nothing to
+// replace it. It goes when TreeScene is repointed at ProceduralTree in the
+// rendering stage, and this comment is the marker for that deletion.
+
 /// Pure geometry for the tree. No widgets, no canvas, no Flutter bindings, so
 /// every rule below is unit-testable on the VM without a device.
 ///
