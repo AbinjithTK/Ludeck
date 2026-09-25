@@ -19,6 +19,7 @@ import '../../data/enums.dart';
 import '../../services/social/social_backend.dart';
 import '../gamified/primitives.dart';
 import '../tokens.dart';
+import '../visit/visit_screen.dart';
 
 /// The card plus its actions. Reachable whether or not the tree ended up
 /// public -- a private save still confirms and still offers "copy link" is
@@ -82,13 +83,28 @@ class _ShareCardScreenState extends State<ShareCardScreen> {
                   _ShareCard(games: widget.games, level: widget.level),
                   SizedBox(height: Tokens.space.md),
                   if (_hasLink)
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _copyLink,
-                        icon: const Icon(Icons.link),
-                        label: const Text('Copy link'),
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: _copyLink,
+                          icon: const Icon(Icons.link),
+                          label: const Text('Copy link'),
+                        ),
+                        SizedBox(height: Tokens.space.sm),
+                        // How a visitor's own "Plant" loop is reachable today,
+                        // before search/deep-link intake exists: opening this
+                        // exact link the way a friend would.
+                        TextButton(
+                          onPressed: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  VisitScreen(handle: widget.handle),
+                            ),
+                          ),
+                          child: const Text('See what a visitor sees'),
+                        ),
+                      ],
                     )
                   else
                     SoftCard(
