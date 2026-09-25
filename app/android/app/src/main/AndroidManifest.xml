@@ -45,6 +45,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Flutter GPU is off by default and flutter_scene renders through it,
+             so without this the scene never draws on Android. While developing,
+             `flutter run --enable-flutter-gpu` does the same for a run; this
+             meta-data is what makes a built APK work. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableFlutterGPU"
+            android:value="true" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
