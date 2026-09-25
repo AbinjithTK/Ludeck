@@ -24,9 +24,12 @@ deciding them.)
 - [x] Phase A -- business logic, pure Dart
 - [x] Phase B -- repository (createBranch, renameBranch, deleteBranch,
       reorderBranches, place, unplace, unplacedGameIds all exist)
-- [ ] Phase C -- state layer. NOT STARTED. `main.dart` still holds `load`,
-      `setProgress`, `setOwnership` directly; no `provider` dependency in
-      `pubspec.yaml`; no `LudeckStore` class anywhere in `lib/`.
+- [x] Phase C -- state layer. **DONE 2026-09-25.** `provider ^6.1.5+1` added,
+      `lib/state/ludeck_store.dart` owns the collection, the skipped count, the
+      loading flag and the error. `TreeScreen` no longer takes a `Repository` at
+      all -- a screen holding both a repo and a store would be two sources of
+      truth -- so the store is provided above `MaterialApp` and the screen reads
+      it with `context.watch`. 15 tests in `test/state/ludeck_store_test.dart`.
 - [x] Phase D -- entitlement (`entitlement_service.dart`, paywall screen,
       both tested)
 - [ ] Phase E -- Gaming-criterion screens
@@ -69,11 +72,9 @@ deciding them.)
 
 ## Next (highest priority first)
 
-1. **Phase C (state layer)** -- stage 2 of the current plan. `main.dart` still
-   holds `load`, `setProgress`, `setOwnership` directly and there is no
-   `provider` dependency. Blocks E1-E4 being wired cleanly.
-2. Phase E1 (rate on harvest) -- stage 3. Smallest missing screen.
-3. Phase E2 (branch sections + Semantics) -- stage 4. NOT a new screen any more:
+1. **Phase E1 (rate on harvest)** -- stage 3. Smallest missing screen, and the
+   store already exposes `setRating` with the 1-to-5 guard tested.
+2. Phase E2 (branch sections + Semantics) -- stage 4. NOT a new screen any more:
    `collection_view.dart` is already the list. What it lacks is grouping by the
    user's branches rather than by status, collapsibility, and per-row Semantics
    using the plain label.
@@ -99,6 +100,60 @@ deliberately left out of the layout stage rather than folded in as scope creep:
   lands, since that changes the sectioning anyway.
 
 ## Cycle log
+
+### 2026-09-25 09:54 -- stage 2 of the "remaining features" plan (Phase C)
+
+Built the state layer. `provider ^6.1.5+1`, `lib/state/ludeck_store.dart`, and
+`main.dart`'s `_load` / `_setProgress` / `_setOwnership` deleted rather than
+wrapped.
+
+One decision beyond the brief, and it is the one worth arguing about: **`TreeScreen`
+no longer takes a `Repository`.** The brief said move the three methods into the
+store, which would have left the screen holding a repo it still used for the share
+intake writes -- two sources of truth for the same rows, and nothing stopping a
+future edit from reaching past the store. So `repo` came off the constructor
+entirely, the store is provided above `MaterialApp`, and the screen reads it with
+`context.watch`. Cost: both widget-test harnesses now wrap in
+`ChangeNotifierProvider`. That churn is the point -- a test that could construct
+the screen with a bare repo was documenting the wrong architecture.
+
+The store's contract, all three rules from TASKS.md Phase C honoured:
+`items` stays nullable (null = first read not finished, NOT an empty collection);
+every mutation writes, re-reads, then notifies, so the screen can never show a
+value the database does not have; no SQL and no entitlement SDK in the file.
+
+Two things added that the brief did not ask for and that the code needed:
+
+- **`_LoadFailure`.** The brief said errors must surface on `error` rather than
+  throwing into the widget tree, which the store does. But if the FIRST read
+  fails, `items` is null and the old code painted a blank screen -- indistinguishable
+  from an empty collection, so the user would be told their library is empty when
+  it merely failed to load. That is a worse lie than an error page. Later failures
+  deliberately do NOT come here: the collection is already on screen and replacing
+  it over one failed write would throw away readable data.
+- **Dispose guard.** A write can complete after the screen is gone (a share
+  applied across a lifecycle change is the real case) and notifying a disposed
+  `ChangeNotifier` throws. There is a test for it.
+
+Also: `_drainShare` moved from `initState` to a post-frame callback, because it
+now needs the provider, which is not reachable from `initState`.
+
+Verified: 235 tests green (was 220), `flutter analyze` clean, `check.ps1` 12/12.
+
+**Verified on the device, not just in tests**, because the one failure mode the
+tests could not catch is a provider read from a popped sheet's context throwing
+"deactivated widget's ancestor". Long-pressed Hollow Knight via `adb input swipe`,
+tapped Harvested, and watched the row move groups, the mark fill, and the subline
+go "1 harvested" to "2 harvested", with an empty logcat. Then reverted it through
+the same UI so the fixture matches the stage 1 baseline.
+
+Two wrong assumptions I made writing the tests, both caught by the analyzer:
+`Ownership.sold` does not exist (it is `released`) and `SourceKind.link` does not
+exist (it is `web`).
+
+No new design critique: this stage changed no pixels, and the device screenshot is
+byte-for-byte the same layout as stage 1's. The two deferred design items below
+are still open.
 
 ### 2026-09-25 09:43 -- stage 1 of the "remaining features" plan
 

@@ -19,11 +19,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/repository.dart';
 import 'package:ludeck/main.dart';
 import 'package:ludeck/services/catalog_service.dart';
 import 'package:ludeck/services/share_intake.dart';
+import 'package:ludeck/state/ludeck_store.dart';
 
 void main() {
   late Repository repo;
@@ -58,10 +60,12 @@ void main() {
   Future<void> pumpWithShare(WidgetTester tester, String? shared) async {
     await tester.runAsync(() async {
       await tester.pumpWidget(MaterialApp(
-        home: TreeScreen(
-          repo: repo,
-          intake: FakeShareIntake(shared),
-          catalog: FixtureCatalog(),
+        home: ChangeNotifierProvider<LudeckStore>(
+          create: (_) => LudeckStore(repo)..load(),
+          child: TreeScreen(
+            intake: FakeShareIntake(shared),
+            catalog: FixtureCatalog(),
+          ),
         ),
       ));
     });
@@ -189,10 +193,12 @@ void main() {
     final intake = FakeShareIntake('play Hades');
     await tester.runAsync(() async {
       await tester.pumpWidget(MaterialApp(
-        home: TreeScreen(
-          repo: repo,
-          intake: intake,
-          catalog: FixtureCatalog(),
+        home: ChangeNotifierProvider<LudeckStore>(
+          create: (_) => LudeckStore(repo)..load(),
+          child: TreeScreen(
+            intake: intake,
+            catalog: FixtureCatalog(),
+          ),
         ),
       ));
     });

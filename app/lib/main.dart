@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'data/enums.dart';
 import 'data/models.dart';
@@ -6,6 +7,7 @@ import 'data/repository.dart';
 import 'services/catalog_service.dart';
 import 'services/share_intake.dart';
 import 'services/share_resolver.dart';
+import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
 import 'ui/chrome_metrics.dart';
 import 'ui/tokens.dart';
@@ -27,7 +29,12 @@ class LudeckApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = Tokens.type;
-    return MaterialApp(
+    // The store is created here, above MaterialApp, so it outlives any route
+    // and a sheet pushed on top of the screen reads the same state the screen
+    // does.
+    return ChangeNotifierProvider<LudeckStore>(
+      create: (_) => LudeckStore(repo)..load(),
+      child: MaterialApp(
       title: 'Ludeck',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -68,7 +75,8 @@ class LudeckApp extends StatelessWidget {
           ),
         ),
       ),
-      home: TreeScreen(repo: repo),
+      home: TreeScreen(),
+      ),
     );
   }
 }
@@ -76,12 +84,9 @@ class LudeckApp extends StatelessWidget {
 class TreeScreen extends StatefulWidget {
   const TreeScreen({
     super.key,
-    required this.repo,
     this.intake = const PlatformShareIntake(),
     this.catalog,
   });
-
-  final Repository repo;
 
   /// Where shared text arrives from. Injectable so a test can hand one in
   /// without an Android activity behind it.
@@ -96,15 +101,11 @@ class TreeScreen extends StatefulWidget {
 }
 
 class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
-  /// Null means the first read has not come back yet. It is not the same as an
-  /// empty collection, and the two must not render the same way.
-  List<TreeItem>? _items;
+  /// Only view state lives here now. The collection, the skipped count, the
+  /// loading flag and the error all belong to `LudeckStore`, which is read from
+  /// the provider. A screen holding both a Repository and a store would be two
+  /// sources of truth for the same rows.
   Platform? _filter;
-
-  /// How many rows `loadDetailed` could not read on the last load. Zero unless
-  /// something is actually wrong. Never hidden: a row that vanishes from the
-  /// count without a word is how someone concludes the app lost their data.
-  int _skipped = 0;
 
   @override
   void initState() {
@@ -112,7 +113,10 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _catalog = widget.catalog ?? FixtureCatalog();
     _resolver = ShareResolver(catalog: _catalog);
-    _load().then((_) => _drainShare());
+    // The store is loaded where it is created, so there is nothing to load
+    // here. A share that arrived with a cold start is drained after the first
+    // frame, once the provider is reachable from this context.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _drainShare());
   }
 
   @override
@@ -164,6 +168,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// keeping.
   Future<void> _applyIntake(ShareResolution r, IntakeChoice choice) async {
     final now = DateTime.now();
+    final store = context.read<LudeckStore>();
 
     for (final candidate in choice.accepted) {
       final id = candidate.igdbId;
@@ -172,7 +177,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       final game = await _catalog.byId(id);
       if (game == null) continue;
 
-      await widget.repo.upsert(TreeItem(
+      await store.upsert(TreeItem(
         game: game,
         entry: Entry(
           igdbId: id,
@@ -185,7 +190,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         copies: const [],
       ));
 
-      await widget.repo.addSource(Source(
+      await store.addSource(Source(
         igdbId: id,
         url: candidate.link?.uri.toString(),
         kind: r.kind,
@@ -194,7 +199,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       ));
     }
 
-    await _load();
     if (!mounted) return;
 
     final n = choice.accepted.length;
@@ -209,15 +213,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
-  }
-
-  Future<void> _load() async {
-    final result = await widget.repo.loadDetailed();
-    if (!mounted) return;
-    setState(() {
-      _items = result.items;
-      _skipped = result.skipped;
-    });
   }
 
   /// The headline. It counts what exists, never what is outstanding.
@@ -263,19 +258,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Writes through, then re-reads. Optimistic local mutation was the old
-  /// behaviour and it is wrong now: the database is the truth, and a write that
-  /// silently failed would leave the screen lying about what was saved.
-  Future<void> _setProgress(TreeItem item, Progress p) async {
-    await widget.repo.setProgress(item.game.igdbId, p);
-    await _load();
-  }
-
-  Future<void> _setOwnership(TreeItem item, Ownership o) async {
-    await widget.repo.setOwnership(item.game.igdbId, o);
-    await _load();
-  }
-
   /// Explains a nonzero skipped count when the user taps the notice.
   ///
   /// States what happened, that nothing else was touched, and gives one
@@ -283,7 +265,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// cause: this is a rare failure mode with one honest description, and
   /// dressing it up as either a disaster or a shrug would both be lies.
   void _showSkippedNotice() {
-    final n = _skipped;
+    final n = context.read<LudeckStore>().skipped;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Tokens.palette.surface,
@@ -337,6 +319,10 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// Selling a game keeps its completion record, and the sheet has to show that
   /// is possible.
   void _openStatusSheet(TreeItem item) {
+    // Captured before the sheet is pushed. The sheet's own builder context is a
+    // different subtree, and reading the provider from it after the screen has
+    // rebuilt is how a "deactivated widget's ancestor" error appears.
+    final store = context.read<LudeckStore>();
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Tokens.palette.surface,
@@ -360,7 +346,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   selected: p == item.entry.progress,
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    _setProgress(item, p);
+                    store.setProgress(item.game.igdbId, p);
                   },
                 ),
               Divider(color: Tokens.palette.bg, height: Tokens.space.md),
@@ -372,7 +358,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   selected: o == item.entry.ownership,
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    _setOwnership(item, o);
+                    store.setOwnership(item.game.igdbId, o);
                   },
                 ),
               SizedBox(height: Tokens.space.md),
@@ -419,11 +405,20 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final items = _items;
+    final store = context.watch<LudeckStore>();
+    final items = store.items;
 
     // The first read. Deliberately quiet: no spinner, because the read is fast
-    // and a spinner that flashes is worse than a moment of nothing.
+    // and a spinner that flashes is worse than a moment of nothing. Null is not
+    // the same as an empty collection: empty renders the real "nothing planted
+    // yet" headline, this renders nothing at all.
     if (items == null) {
+      // Unless the very first read FAILED, in which case a blank screen would
+      // be indistinguishable from an empty collection and the user would have
+      // no idea anything went wrong.
+      if (store.error != null) {
+        return Scaffold(body: _LoadFailure(error: store.error!, store: store));
+      }
       return const Scaffold(body: SizedBox.shrink());
     }
 
@@ -452,7 +447,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
           _Header(
             headline: _headline(items),
             subline: _subline(items),
-            skipped: _skipped,
+            skipped: store.skipped,
             onSkippedTap: _showSkippedNotice,
           ),
 
@@ -516,6 +511,57 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Shown only when the FIRST read failed, so there is no collection to render.
+///
+/// A blank screen would be indistinguishable from an empty collection, and
+/// "your library is empty" is a much worse lie than "this did not load". Later
+/// failures do not come here: the collection is already on screen and replacing
+/// it with an error page would throw away readable data over one failed write.
+class _LoadFailure extends StatelessWidget {
+  const _LoadFailure({required this.error, required this.store});
+
+  final Object error;
+  final LudeckStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.all(Tokens.space.md),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Your collection did not load.',
+                style: Theme.of(context).textTheme.displaySmall),
+            SizedBox(height: Tokens.space.sm),
+            Text(
+              'Nothing was changed or deleted. This is a read that failed, so '
+              'trying again is safe.',
+              style: TextStyle(
+                  fontSize: Tokens.type.body, color: Tokens.palette.text),
+            ),
+            SizedBox(height: Tokens.space.md),
+            // The raw error, dim and secondary. Hiding it helps nobody: this is
+            // the one screen where a user reporting a problem needs something
+            // concrete to quote.
+            Text('$error',
+                style: TextStyle(
+                    fontSize: Tokens.type.caption,
+                    color: Tokens.palette.textDim)),
+            SizedBox(height: Tokens.space.lg),
+            TextButton(
+              onPressed: store.isLoading ? null : store.load,
+              child: Text(store.isLoading ? 'Trying...' : 'Try again',
+                  style: TextStyle(color: Tokens.palette.accent)),
+            ),
+          ],
+        ),
       ),
     );
   }

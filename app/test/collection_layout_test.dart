@@ -17,10 +17,12 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:ludeck/data/repository.dart';
 import 'package:ludeck/main.dart';
 import 'package:ludeck/services/catalog_service.dart';
 import 'package:ludeck/services/share_intake.dart';
+import 'package:ludeck/state/ludeck_store.dart';
 import 'package:ludeck/ui/shell/add_menu.dart';
 import 'package:ludeck/ui/tokens.dart';
 
@@ -48,10 +50,12 @@ void main() {
       await tester.pumpWidget(MaterialApp(
         home: MediaQuery(
           data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
-          child: TreeScreen(
-            repo: repo,
-            intake: FakeShareIntake(null),
-            catalog: FixtureCatalog(),
+          child: ChangeNotifierProvider<LudeckStore>(
+            create: (_) => LudeckStore(repo)..load(),
+            child: TreeScreen(
+              intake: FakeShareIntake(null),
+              catalog: FixtureCatalog(),
+            ),
           ),
         ),
       ));
