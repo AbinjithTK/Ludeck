@@ -53,7 +53,7 @@ From `docs/DECISIONS.md`, all load-bearing:
 ```powershell
 cd F:\Abin\Ludeck\app
 flutter analyze                 # must be clean
-flutter test                    # 507 tests, must be green
+flutter test                    # 538 tests, must be green (511 on main, pre-upgrade)
 cd F:\Abin\Ludeck
 powershell -File scripts\check.ps1   # 14 rules, must all pass
 ```
@@ -99,7 +99,7 @@ Package id is **`com.ludeck.ludeck`**.
 
 ## 3. Current state
 
-48 commits. 507 tests green. `check.ps1` 14/14. Analyzer clean. Everything is
+51 commits. 538 tests green on branch spike/flutter-scene-3d (511 on main). `check.ps1` 14/14. Analyzer clean. Everything is
 committed on `main`; the working tree is clean.
 
 ### Built and verified
@@ -356,39 +356,86 @@ look-around is a separate proposal, not an assumption.
 **Determinism must survive.** The seeded LCG stays. A 3D tree that reshuffles per
 launch is a screensaver, not the user's tree.
 
-### The gate — do this before committing the plan to 3D
+### The gate — RUN, AND CLEARED. Results below.
 
-Do it on a **branch**, not on `main`. Each step is a stop-or-go:
+Run on branch `spike/flutter-scene-3d`, 2026-09-25. Every step passed. The
+upgrade is on that branch, not on `main`.
 
-1. **Remove `rive` first.** It is already unused (§3.4). Drop the dependency, the
-   two `.riv` assets and `app/rive/`. Confirm 507 tests still green. This deletes
-   a native plugin from the upgrade surface for free.
-2. `flutter upgrade` to 3.47.1. Then **`flutter analyze` + all 507 tests**.
-   Expect breakage; fix it before going further.
-3. **Rebuild the APK, install, launch.** Confirm the app still works end to end
-   on the emulator.
-4. Re-check the two known host traps: the JDK pin
-   (`flutter config --jdk-dir=<Temurin 17>`) and the sqflite Windows native
-   asset used by the test suite.
-5. `flutter pub add flutter_scene`, `dart run flutter_scene:init`,
-   `dart run flutter_scene:skills`. Render the **README cube** on the emulator
-   with Flutter GPU enabled.
-6. Render **one `TubeGeometry` branch** from a real `TreeStem`.
-7. Embed **one `GameNode`** on a 3D surface and confirm it is tappable **and
-   announced by a screen reader**.
+| # | Step | Result |
+|---|---|---|
+| 1 | Drop `rive` | Done, `47b33d9`. 511 green before and after. `rive_native` gone from the Windows plugin registrant |
+| 2 | Upgrade Flutter | **3.38.9 → 3.47.5** (not 3.47.1: same minor, four patches of fixes, still satisfies the Windows release floor). **Zero errors**, 4 info-level deprecations, all fixed |
+| 3 | APK builds, installs, runs | Yes. 73.6 MB debug APK on Gradle 8.14 / AGP 8.11.1 / Kotlin 2.2.20 with **no toolchain change**. Tree renders with real cover art |
+| 4 | JDK pin + sqflite native asset | Both survived untouched. Temurin 17 pin intact |
+| 5 | Flutter GPU renders the cube | Yes, on Impeller (OpenGLES). Needs the `EnableFlutterGPU` manifest meta-data |
+| 6 | A real `TreeStem` as a branch mesh | Yes — **and this is where the plan was wrong**, see below |
+| 7 | `GameNode` embedded, tappable | **Tappable: proven.** `WidgetComponent({required Widget child, required Size size, ...})` takes a real widget, and a device tap through the scene incremented the counter. Screen-reader announcement is NOT yet proven — `SemanticsComponent` exists but was not exercised |
 
-Only after step 7 should the tree be ported. If step 2 or 3 fails badly, the
-honest fallback is: stay on `CustomPainter`, and spend the same effort on
-recursive branch forking (§7 Stage 3), which delivers most of the visual gain
-with none of the upgrade risk.
+**Total suite after the upgrade: 538 green, `check.ps1` 14/14.**
+
+#### Step 6 is the correction to this document
+
+§6 above said the port is "mostly adding a z axis". It is not.
+`TubeGeometry(path, radius:, stations:)` sweeps **one scalar radius**. A
+`TreeStem` carries `halfWidth` **per spine sample**, and that taper is the whole
+reason the painted tree stopped reading as a chess pawn. There is no per-station
+radius anywhere in the package's swept-geometry API — `PolylineGeometry` tapers
+but is a flat ribbon, not a tube — so a tapered stem must be built ring by ring
+through `GeometryBuilder`.
+
+That is now done and tested: `app/lib/ui/tree/tree_mesh.dart`, with 22
+invariants in `app/test/tree_mesh_test.dart`. It is deliberately **pure** — no
+`flutter_scene`, no `flutter_gpu`, no `dart:ui` drawing — so it runs headless
+with the rest of the suite. The GPU-facing `GeometryBuilder` adapter is the only
+part that lives beside the scene view.
+
+Two things it also settles:
+
+- `depth` (already populated and already tested on `TreeLimb`/`TreeFruit`)
+  becomes the z axis directly. No new field, no new invariant to invent.
+- Frames use rotation-minimizing transport. Negative-tested: a naive fixed
+  up-vector rolls **90° in one step** on a stem turning toward the camera, where
+  transport holds under 8°. Two earlier twist tests were **inert** — a planar arc
+  and an out-of-plane lean within the real depth span both pass either way — and
+  that is recorded in the test file rather than quietly dropped.
+
+#### Orientation traps, verified across four device builds
+
+Nothing logs when any of this is wrong; geometry silently mirrors or vanishes.
+
+| camera | widget node | widget visible? | world x |
+|---|---|---|---|
+| −z | none | yes | correct (x=+0.9 renders right) |
+| +z | none | **no** | mirrored |
+| +z | rotY 180° | yes | mirrored |
+| −z | rotY 180° | **no** | correct |
+
+- The camera belongs at **negative z** for world x to land on screen the way the
+  engine's canvas x does.
+- A `WidgetComponent` quad is **single-sided**: visibility flips with
+  (camera side XOR node rotation).
+- **Still open:** in *both* visible rows the widget's own texture reads mirrored,
+  so the reversal is intrinsic to the component's texture mapping and is not a
+  facing problem. Next step is a −1 x scale on the widget node, or whichever flip
+  the component exposes — **not** another camera-sign experiment, which is the
+  wrong axis and cost two builds.
+- A tap registered in row four while the widget was **invisible**, so pointer
+  raycasting is independent of back-face culling. Do not read a working tap as
+  proof the widget is on screen.
+
+#### One build trap worth naming
+
+`--enable-flutter-gpu` cannot be written inside an XML comment in
+`AndroidManifest.xml`: `--` is illegal there, and the manifest merger fails with
+a bare `Error parsing AndroidManifest.xml` that names no line.
 
 ### A possible bonus, worth checking
 
 Flutter 3.38.9 pins `meta 1.17.0`, which caps `analyzer`, which caps
-`build_runner`, which is why **code generation is currently impossible** in this
-project (no Drift, freezed, json_serializable or riverpod_generator — see
-`docs/CONSTRAINTS.md`). Upgrading to 3.47 may lift that cap. Check it while you
-are there; it would be a significant quality-of-life win.
+`build_runner`, which is why **code generation was impossible** in this project
+(no Drift, freezed, json_serializable or riverpod_generator — see
+`docs/CONSTRAINTS.md`). The upgrade to 3.47.5 may lift that cap. **Not yet
+re-checked** — it was out of the gate's scope.
 
 ---
 
@@ -578,7 +625,7 @@ anatomy in enough detail to design from.
 
 ## 9. Where to start
 
-1. Run the three commands in §2 and confirm 507 / 14 / clean. Never trust a
+1. Run the three commands in §2 and confirm 538 / 14 / clean. Never trust a
    status board over `git log` and a real run.
 2. Read `docs/DECISIONS.md` and `docs/CONSTRAINTS.md` in full.
 3. Run the capture loop in §2 and look at the three PNGs, so you know what the

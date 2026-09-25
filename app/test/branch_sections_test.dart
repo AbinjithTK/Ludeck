@@ -271,7 +271,7 @@ void main() {
       // the chevron communicates the state to sighted users only.
       expect(
         tester.getSemantics(find.text('Growing')),
-        containsSemantics(
+        isSemantics(
           label: 'Growing, 4 games',
           isHeader: true,
           isButton: true,
@@ -292,7 +292,7 @@ void main() {
 
       expect(
         tester.getSemantics(find.text('Growing')),
-        containsSemantics(hasExpandedState: true, isExpanded: false),
+        isSemantics(hasExpandedState: true, isExpanded: false),
       );
       handle.dispose();
     });
@@ -303,7 +303,7 @@ void main() {
 
       expect(
         tester.getSemantics(find.text('In hand')),
-        containsSemantics(label: 'In hand, 1 game'),
+        isSemantics(label: 'In hand, 1 game'),
       );
       handle.dispose();
     });

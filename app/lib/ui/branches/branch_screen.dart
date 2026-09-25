@@ -25,6 +25,22 @@ import '../../data/repository.dart';
 import '../../state/ludeck_store.dart';
 import '../tokens.dart';
 
+/// Move the id at [from] to [to], where [to] is a POST-removal index.
+///
+/// Pulled out of the widget because nothing in the suite drives a real drag --
+/// `branch_screen_test.dart` reorders by calling the store, and its own group is
+/// named "reorder without dragging". That left the drag path's index arithmetic
+/// unprotected, which mattered when `onReorder` (pre-removal index) was replaced
+/// by `onReorderItem` (post-removal index) in Flutter 3.41: the old callback
+/// needed a `to > from ? to - 1 : to` correction and the new one must NOT have
+/// one. This function is that arithmetic, on its own, so the difference is a
+/// test rather than a comment.
+List<int> reorderedIds(Iterable<int> ids, int from, int to) {
+  final out = ids.toList();
+  out.insert(to, out.removeAt(from));
+  return out;
+}
+
 class BranchScreen extends StatelessWidget {
   const BranchScreen({super.key});
 
@@ -111,14 +127,15 @@ class _BranchList extends StatelessWidget {
       // The handle is explicit rather than the whole row being draggable: a row
       // that starts dragging on a long press would collide with its own menu.
       buildDefaultDragHandles: false,
-      onReorder: (from, to) {
-        // ReorderableListView reports the destination as an insertion index in
-        // the PRE-removal list, so moving an item down overshoots by one.
-        final ids = branches.map((b) => b.id).toList();
-        final target = to > from ? to - 1 : to;
-        final id = ids.removeAt(from);
-        ids.insert(target, id);
-        store.reorderBranches(ids);
+      onReorderItem: (from, to) {
+        // `to` here is already a POST-removal index: the framework's
+        // _handleReorderItem does `if (newIndex > oldIndex) newIndex -= 1`
+        // before calling this callback, which the deprecated `onReorder` did
+        // NOT do. So there is deliberately no `to > from ? to - 1 : to`
+        // correction here -- keeping one would subtract twice and drop a
+        // branch dragged downward a slot too far. No test drives a real drag,
+        // so `reorderedIds` carries the arithmetic and is tested directly.
+        store.reorderBranches(reorderedIds(branches.map((b) => b.id), from, to));
       },
       itemBuilder: (context, index) {
         final branch = branches[index];
