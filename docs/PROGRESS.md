@@ -33,7 +33,12 @@ deciding them.)
 - [x] Phase D -- entitlement (`entitlement_service.dart`, paywall screen,
       both tested)
 - [ ] Phase E -- Gaming-criterion screens
-  - [ ] E1 rate on harvest -- not started
+  - [x] E1 rate on harvest -- **DONE 2026-09-25.**
+        `lib/ui/harvest/rating_sheet.dart`, fired on the TRANSITION into
+        finished from the status sheet, plus a user-initiated row in that sheet
+        for harvested games so a skip does not make rating unreachable.
+        21 tests across `test/rating_sheet_test.dart` (pure sheet, no DB) and
+        `test/rating_test.dart` (through the real screen and database).
   - [ ] E2 list view -- not started
   - [ ] E3 branches screen -- not started (repository methods exist per
         Phase B; no screen)
@@ -72,9 +77,7 @@ deciding them.)
 
 ## Next (highest priority first)
 
-1. **Phase E1 (rate on harvest)** -- stage 3. Smallest missing screen, and the
-   store already exposes `setRating` with the 1-to-5 guard tested.
-2. Phase E2 (branch sections + Semantics) -- stage 4. NOT a new screen any more:
+1. **Phase E2 (branch sections + Semantics)** -- stage 4. NOT a new screen any more:
    `collection_view.dart` is already the list. What it lacks is grouping by the
    user's branches rather than by status, collapsibility, and per-row Semantics
    using the plain label.
@@ -99,7 +102,87 @@ deliberately left out of the layout stage rather than folded in as scope creep:
   judgment call worth making deliberately once the branch grouping of Phase E2
   lands, since that changes the sectioning anyway.
 
+## Design items seen during stage 3 (open)
+
+Observed on the device while verifying rate-on-harvest. None is a bug in that
+feature, so none was folded into the stage:
+
+- **A rating REPLACES the status word on a row's right edge.** So Hades reads
+  "Finished" while a rated Hollow Knight reads stars, and the right-hand column
+  carries two different kinds of information depending on the row. Completion is
+  still readable from the filled check mark on the left, so nothing is lost, but
+  the column is inconsistent. This is pre-existing `_RatingOrStatus` behaviour in
+  `collection_view.dart`, not something E1 introduced. Worth deciding in Phase E2
+  when the row is revisited for Semantics anyway.
+- **A rating survives a game leaving `finished`.** Nothing clears it, and the row
+  would then show stars where its progress word belongs, on a game that is not
+  harvested. Reachable by harvesting, rating, then setting the game back to
+  playing. Either clear the rating on that transition or stop showing a rating on
+  an unharvested row; the second is likely correct, since the rating is a real
+  record of a past harvest and deleting it silently would be worse.
+- **The status sheet for a harvested game is taller than the screen.** It now
+  carries three sections, and the rating row sits below the fold with no
+  affordance suggesting there is more to scroll to. Tolerable, but it is the kind
+  of thing that makes a feature look missing.
+
 ## Cycle log
+
+### 2026-09-25 10:09 -- stage 3 of the "remaining features" plan (Phase E1)
+
+Rate on harvest. `lib/ui/harvest/rating_sheet.dart`, fired from the status
+sheet's progress callback via `_setProgressAndMaybeRate`.
+
+The trigger is the TRANSITION into finished, not the finished state. So
+re-selecting "finished" on an already-finished game asks nothing, and a game that
+already carries a rating is not asked again. A test covers each, and the
+transition guard was negative-tested: removing `!wasFinished` turns the
+"re-selecting finished asks nothing" test red, which matters because that test
+asserts `findsNothing` and would otherwise pass vacuously if the tap silently
+failed.
+
+**One addition beyond the brief, and it closes a real hole.** The brief says the
+sheet appears once and skipping is a normal outcome. Taken literally that makes a
+skipped rating permanently unreachable, and "rate" is one of the judged Gaming
+criteria, so the feature would have had no surface at all for anyone who
+dismissed it once. The status sheet now carries a "What did you think" row, shown
+ONLY for harvested games and only when the user opens that sheet themselves. No
+badge, no count, nothing appears unprompted, so it is not a nag.
+
+Design decision worth recording: `RatingChoice` exists instead of a bare `int?`
+because there are three outcomes, not two. A null return from the sheet means
+SKIP (write nothing); a `RatingChoice` carrying a null rating means CLEAR (write
+null). The first draft encoded clear as `0`, which the repository throws on since
+ratings are 1 to 5, and which made skip and remove indistinguishable at the call
+site.
+
+Verified: 250 tests green (was 235), `flutter analyze` clean, `check.ps1` 12/12.
+
+`check.ps1` rule 8 fired and was right to. Six of the new tests pump a bare
+`MaterialApp` with no database, but they sat in a file that imports
+`data/repository.dart`, which the rule matches at file level. Fixed structurally
+rather than with an exemption: the pure-sheet tests moved to
+`test/rating_sheet_test.dart`, which imports no repository at all.
+
+**Verified on the device across the whole flow:** harvested Hollow Knight, saw
+the sheet appear on the transition, tapped 4 stars, watched it persist and render
+as four filled pips against one outline on the row, then reopened the status
+sheet, found the rating row pre-filled at 4 with "Remove rating" offered, removed
+it, and set progress back so the fixture matches the stage 1 baseline exactly.
+Empty logcat throughout.
+
+Two async-test traps cost time and are worth knowing:
+
+- A tap that triggers a database write needs the tap in ONE `runAsync` and the
+  wait in a SEPARATE one. Pumping the fake clock inside `runAsync` does not give
+  a real sqflite future time to resolve, so the continuation never runs and the
+  sheet that should follow the write never appears. Five tests failed this way
+  and the symptom looked like a broken feature.
+- `find.text('Harvested')` matches BOTH the sheet option and the list's group
+  heading behind it, and `tap` refuses an ambiguous finder. Sheet finders must be
+  scoped with `find.descendant(of: find.byType(BottomSheet), ...)`.
+- Once a game is harvested the status sheet is taller than the screen, so a
+  control below the fold is found by the finder but the tap MISSES it, reported
+  only as a warning. `tester.ensureVisible` first.
 
 ### 2026-09-25 09:54 -- stage 2 of the "remaining features" plan (Phase C)
 

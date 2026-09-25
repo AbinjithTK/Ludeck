@@ -10,6 +10,7 @@ import 'services/share_resolver.dart';
 import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
 import 'ui/chrome_metrics.dart';
+import 'ui/harvest/rating_sheet.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
 import 'ui/collection/collection_view.dart';
@@ -258,6 +259,48 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     );
   }
 
+  /// Writes the progress, then asks for a rating IF this was a harvest.
+  ///
+  /// The trigger is the TRANSITION into finished, not the finished state. Three
+  /// consequences, each deliberate:
+  ///
+  /// - Re-selecting "finished" on an already-finished game asks nothing. The
+  ///   harvest already happened.
+  /// - A game that is already rated is not asked again. Skipping is a real
+  ///   answer and re-asking would make it a deferral.
+  /// - Nothing anywhere else opens this on its own. A rating belongs to the
+  ///   harvest, and a star control living permanently on a row would turn the
+  ///   collection into a scoring chore.
+  Future<void> _setProgressAndMaybeRate(
+    LudeckStore store,
+    TreeItem item,
+    Progress next,
+  ) async {
+    final wasFinished = item.entry.progress == Progress.finished;
+    await store.setProgress(item.game.igdbId, next);
+
+    final isHarvest = next == Progress.finished && !wasFinished;
+    if (!isHarvest || item.entry.rating != null) return;
+    // A failed write must not be followed by a question about it.
+    if (store.error != null || !mounted) return;
+
+    await _askForRating(store, item);
+  }
+
+  /// Opens the rating sheet and writes whatever comes back.
+  ///
+  /// A null result is a skip and writes nothing at all, which is different from
+  /// a choice carrying a null rating: that one clears an existing rating.
+  Future<void> _askForRating(LudeckStore store, TreeItem item) async {
+    final choice = await showRatingSheet(
+      context,
+      title: item.game.title,
+      initial: item.entry.rating,
+    );
+    if (choice == null || !mounted) return;
+    await store.setRating(item.game.igdbId, choice.rating);
+  }
+
   /// Explains a nonzero skipped count when the user taps the notice.
   ///
   /// States what happened, that nothing else was touched, and gives one
@@ -346,7 +389,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   selected: p == item.entry.progress,
                   onTap: () {
                     Navigator.of(sheetContext).pop();
-                    store.setProgress(item.game.igdbId, p);
+                    _setProgressAndMaybeRate(store, item, p);
                   },
                 ),
               Divider(color: Tokens.palette.bg, height: Tokens.space.md),
@@ -361,6 +404,44 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                     store.setOwnership(item.game.igdbId, o);
                   },
                 ),
+
+              // Only for a game that has actually been harvested, and only as
+              // something the user reaches for.
+              //
+              // The rating sheet asks once, on the harvest, and skipping it is a
+              // real answer. Without this row a skip would make the rating
+              // permanently unreachable, which is a functional hole rather than
+              // restraint. It is not a nag: no badge, no count, nothing appears
+              // unless the user opens this sheet themselves.
+              if (item.isHarvested) ...[
+                Divider(color: Tokens.palette.bg, height: Tokens.space.md),
+                _sheetHeading('What did you think'),
+                ListTile(
+                  dense: true,
+                  leading: Icon(
+                    item.entry.rating == null
+                        ? Icons.star_border
+                        : Icons.star,
+                    size: 14,
+                    color: item.entry.rating == null
+                        ? Tokens.palette.textDim
+                        : Tokens.palette.accent,
+                  ),
+                  title: Text(
+                    item.entry.rating == null
+                        ? 'Rate it'
+                        : 'Rated ${item.entry.rating} out of 5',
+                    style: TextStyle(
+                      fontSize: Tokens.type.body,
+                      color: Tokens.palette.text,
+                    ),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    _askForRating(store, item);
+                  },
+                ),
+              ],
               SizedBox(height: Tokens.space.md),
             ],
           ),
