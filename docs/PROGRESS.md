@@ -69,25 +69,88 @@ deciding them.)
 
 ## Next (highest priority first)
 
-1. **Phase F3 (SSRF-hardened fetcher)** -- needed before F4/F5 can call any real
-   network endpoint. Can be built and tested entirely offline against fixture
-   URLs; no external blocker.
-2. Phase C (state layer) -- currently the largest gap between "features
-   exist" and "app is coherently structured." Not urgent for demo purposes
-   but blocks doing E1-E4 cleanly, since those screens need a mutable store
-   to write against rather than reaching into the repository directly the
-   way `main.dart` does now.
-3. Phase E1 (rate on harvest) -- smallest of the missing E-screens, good
-   next screen-building item once Phase C exists to wire it against.
-4. Phase F4/F5 (extractors) -- F4's YouTube tier is blocked on a human
-   (API key); Twitch and Steam tiers are not blocked and can proceed.
-   F5 has no blocker.
-5. Phase E2-E4 -- in roughly that order (list view is most self-contained;
-   search-and-add uses `services/catalog_service.dart`, which DOES exist:
-   `CatalogSource` with `FixtureCatalog`. The seed note below saying it is
-   absent was wrong).
+1. **Phase C (state layer)** -- stage 2 of the current plan. `main.dart` still
+   holds `load`, `setProgress`, `setOwnership` directly and there is no
+   `provider` dependency. Blocks E1-E4 being wired cleanly.
+2. Phase E1 (rate on harvest) -- stage 3. Smallest missing screen.
+3. Phase E2 (branch sections + Semantics) -- stage 4. NOT a new screen any more:
+   `collection_view.dart` is already the list. What it lacks is grouping by the
+   user's branches rather than by status, collapsibility, and per-row Semantics
+   using the plain label.
+4. Phase E3 (branches screen) -- stage 5. Repository methods already exist.
+5. Phase E4 (search and add) -- stage 6. `services/catalog_service.dart` exists
+   (`CatalogSource` + `FixtureCatalog`), so this has a starting point.
+6. Phase F3 (SSRF-hardened fetcher) -- stage 7. Offline-testable, no blocker.
+7. Phase F4/F5 (extractors) -- stage 8. YouTube tier needs a human-created API
+   key; Twitch and Steam tiers do not.
+8. Backend polish: systematic transaction/cascade audit -- stage 9.
+
+## Design items deferred from stage 1 (open, not bugs)
+
+From the phone-proportions critique. Neither is a layout fault, so both were
+deliberately left out of the layout stage rather than folded in as scope creep:
+
+- **"2 seeds" names something hard to find.** The subline promises two seeds and
+  the Seeds group is ordered LAST, so on first open both are below the fold. The
+  header makes a claim the first screenful does not keep.
+- **Group ordering is by activity, not by what the user came to see.** "In hand"
+  first is defensible; whether harvested and seeds belong above the fold is a
+  judgment call worth making deliberately once the branch grouping of Phase E2
+  lands, since that changes the sectioning anyway.
 
 ## Cycle log
+
+### 2026-09-25 09:43 -- stage 1 of the "remaining features" plan
+
+Fixed the two live layout defects the emulator screenshot exposed, and the fix is
+not the one the stage brief assumed.
+
+The brief said "give the scrollable a top inset". It already had one; the inset
+was WRONG, not missing. `CollectionView` computed
+`padding.top + space.md + display * leadingDisplay + space.lg`, budgeting for one
+line of display type against a header that is two lines plus an optional notice.
+Correcting the sum by measuring both lines with a TextPainter was still 20px
+short, because the header can WRAP -- its height depends on font, text scale and
+width, so no number computed away from the layout is reliable.
+
+So the guess is gone rather than corrected. The header is now an ordinary layout
+sibling above the content (`Column` + `Expanded`), which makes a top overlap
+inexpressible. `ChromeMetrics` shrank to just `bottom`, where the value really is
+fixed (a 52px control, a known gap). The skipped-games notice now flows after the
+subline instead of sitting at a hardcoded `md + xl + lg` offset that could land on
+a wrapped headline.
+
+Bottom band: padding only governs where the list comes to rest, so a `_Scrim`
+sized from the same `ChromeMetrics.bottom` fades rows out under the add control
+while dragging. `IgnorePointer` on it is load bearing.
+
+Regression I introduced and caught on the device: moving the header into a
+`Column` CENTRED it, because Column centres on the cross axis and the block
+shrink-wrapped to its text width. Fixed with `CrossAxisAlignment.stretch` and
+locked with a test on the header's left edge.
+
+New: `test/collection_layout_test.dart`, 7 tests -- viewport below header, header
+survives 2x text scale, no row overlaps at rest, last row clears the control,
+scrim matches the padded band, header left-aligned, scrim passes pointers
+through. Negative-tested by zeroing `bottomInset`: two assertions went red, green
+again after revert. Also added `Tokens.size.control`, removing the bare 52 that
+was duplicated between `add_menu.dart` and the chrome.
+
+Verified: 220 tests green (was 213), `flutter analyze` clean, `check.ps1` 12/12,
+and confirmed on emulator-5554 with two screenshots (before and after the
+alignment fix) rather than asserted from code.
+
+Design critique against GOAL.md Section 4: the header/list relationship now
+passes. Two items from the earlier phone-proportions critique remain OPEN and are
+NOT layout bugs, so they were deliberately not folded into this stage: "2 seeds"
+names something hard to find, and the seeds group sits last so the two seeds are
+below the fold on first open. Logged under Next.
+
+Traps recorded in CONSTRAINTS.md: flutter_test's default font renders every glyph
+as a full em square (text wraps in tests where it does not on a device -- treat it
+as a free large-text-scale case, not a reason to loosen the test); `Column`
+centres its children; PowerShell 5 `Set-Content -Encoding UTF8` writes a BOM,
+which a negative-test probe left in `main.dart` before it was stripped.
 
 ### 2026-09-24 22:44 -- seed (not a loop cycle; written by the setup turn)
 

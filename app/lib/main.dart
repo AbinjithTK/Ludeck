@@ -7,6 +7,7 @@ import 'services/catalog_service.dart';
 import 'services/share_intake.dart';
 import 'services/share_resolver.dart';
 import 'ui/intake/confirm_sheet.dart';
+import 'ui/chrome_metrics.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
 import 'ui/collection/collection_view.dart';
@@ -418,7 +419,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
     final items = _items;
 
     // The first read. Deliberately quiet: no spinner, because the read is fast
@@ -427,104 +427,207 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       return const Scaffold(body: SizedBox.shrink());
     }
 
+    // Only the bottom band needs a number now. The header's height is settled
+    // by layout rather than arithmetic; see ChromeMetrics for why the previous
+    // computed top inset was wrong on a device.
+    final chrome = ChromeMetrics.of(context);
+
     return Scaffold(
-      // The collection visualisation sits behind the chrome. This is the plain
-      // Flutter stand-in for the Rive tree while feature behaviour is built and
-      // tested: the tree wedges the Windows test runner and hides per-item
-      // status behind a canvas. The chrome layout (header top-left, add-menu
-      // bottom-left) is unchanged, so swapping the tree back in later is a
-      // one-widget change here.
-      body: Stack(
-        fit: StackFit.expand,
+      // The header is a real layout sibling ABOVE the content, not an overlay
+      // floating over it.
+      //
+      // It used to float, because the Rive tree wants to fill the whole screen
+      // behind the chrome. With the plain-Flutter collection standing in for the
+      // tree, floating text over a scrolling list is simply wrong: rows slid
+      // under the headline and the status-bar clock, and the inset that was
+      // supposed to prevent it assumed a single-line header. A header that can
+      // wrap cannot be cleared by any fixed number, so the fix is structural.
+      // When the tree returns it goes back into a Stack beneath this column.
+      body: Column(
+        // Stretch, not the default centre. A Column centres its children on the
+        // cross axis, which shrink-wraps the header to its text width and centres
+        // the block -- the header is specified top-LEFT.
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CollectionView(
-            items: items,
-            onSelect: (item) {
-              final hours = item.game.hours;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  backgroundColor: Tokens.palette.surface,
-                  duration: const Duration(seconds: 2),
-                  content: Text(
-                    item.isSeed
-                        ? '${item.game.title} \u00B7 seed from '
-                            '${item.entry.recommendedBy ?? "somewhere"}'
-                        : '${item.game.title} \u00B7 ${item.entry.progress.label}'
-                            '${hours == null ? '' : ' \u00B7 $hours h'}',
-                    style: TextStyle(color: Tokens.palette.text),
-                  ),
-                ),
-              );
-            },
-            onHold: _openStatusSheet,
+          _Header(
+            headline: _headline(items),
+            subline: _subline(items),
+            skipped: _skipped,
+            onSkippedTap: _showSkippedNotice,
           ),
 
-          // The chrome. Inside a SafeArea so it clears the notch, while the
-          // canvas behind it deliberately does not.
-          SafeArea(
+          // The content layer, with the add control floating over it. Only this
+          // part is a Stack, so nothing can overlap the header.
+          Expanded(
             child: Stack(
+              fit: StackFit.expand,
               children: [
-                // Top left. Wrapped in IgnorePointer so a drag that happens to
-                // begin on the text still rotates the tree. Without this the
-                // header becomes a dead patch of screen, which is exactly the
-                // kind of thing nobody reports and everybody feels.
-                Positioned(
-                  left: Tokens.space.md,
-                  top: Tokens.space.md,
-                  right: Tokens.space.md,
-                  child: IgnorePointer(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_headline(items), style: text.displaySmall),
-                        SizedBox(height: Tokens.space.xxs),
-                        Text(_subline(items), style: text.labelSmall),
-                      ],
-                    ),
-                  ),
+                CollectionView(
+                  items: items,
+                  // The header already supplies the gap above; the list only
+                  // needs to clear the control at the bottom.
+                  topInset: 0,
+                  bottomInset: chrome.bottom,
+                  onSelect: (item) {
+                    final hours = item.game.hours;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: Tokens.palette.surface,
+                        duration: const Duration(seconds: 2),
+                        content: Text(
+                          item.isSeed
+                              ? '${item.game.title} \u00B7 seed from '
+                                  '${item.entry.recommendedBy ?? "somewhere"}'
+                              : '${item.game.title} \u00B7 '
+                                  '${item.entry.progress.label}'
+                                  '${hours == null ? '' : ' \u00B7 $hours h'}',
+                          style: TextStyle(color: Tokens.palette.text),
+                        ),
+                      ),
+                    );
+                  },
+                  onHold: _openStatusSheet,
                 ),
 
-                // A separate, tappable notice below the header rather than
-                // folded into it. The header is wrapped in IgnorePointer so a
-                // drag can start on the text; this is the one line in that
-                // corner someone might actually want to act on, so it needs its
-                // own hit target rather than inheriting a dead zone.
-                //
-                // Present only when `_skipped > 0`. Silence is correct in the
-                // ordinary case: printing "0 rows could not be read" every time
-                // the screen opens would train the user to stop reading this
-                // corner, which is exactly wrong the one time it says something
-                // real.
-                if (_skipped > 0)
-                  Positioned(
-                    left: Tokens.space.md,
-                    top: Tokens.space.md + Tokens.space.xl + Tokens.space.lg,
-                    right: Tokens.space.md,
-                    child: GestureDetector(
-                      onTap: _showSkippedNotice,
-                      child: Text(
-                        _skipped == 1
-                            ? '1 game could not be read. Tap to find out more.'
-                            : '$_skipped games could not be read. Tap to find '
-                                'out more.',
-                        style: text.labelSmall
-                            ?.copyWith(color: Tokens.palette.danger),
-                      ),
-                    ),
-                  ),
+                // A fade under the add control. Padding alone only fixes where
+                // the list comes to REST; while it is being dragged, rows travel
+                // behind the button, and a row half-visible under a solid circle
+                // reads as a rendering fault. IgnorePointer is load bearing: a
+                // scrim that took pointer events would make the bottom band of
+                // the screen dead to touch.
+                _Scrim(extent: chrome.bottom),
 
                 // Bottom left, per the reference. The add action is the one
                 // thing a new person has to find, so it sits where a thumb
                 // already rests.
-                Positioned(
-                  left: Tokens.space.md,
-                  bottom: Tokens.space.md,
-                  child: AddMenu(onAction: _onAdd),
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.bottomLeft,
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: Tokens.space.md,
+                        bottom: Tokens.space.md,
+                      ),
+                      child: AddMenu(onAction: _onAdd),
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The top of the screen: headline, subline, and the unreadable-rows notice.
+///
+/// An ordinary layout child with its own natural height, which is the whole
+/// point. It previously floated over the content inside a Stack, and the content
+/// padded itself by a guessed header height; that guess assumed one line of
+/// display type and was short by the subline on a real device. Text wraps at
+/// large text scales and on narrow screens, so no constant could have been
+/// right. Laid out in sequence, an overlap is not expressible.
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.headline,
+    required this.subline,
+    required this.skipped,
+    required this.onSkippedTap,
+  });
+
+  final String headline;
+  final String subline;
+  final int skipped;
+  final VoidCallback onSkippedTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+
+    return SafeArea(
+      // Only the top edge: the content below owns the bottom inset.
+      bottom: false,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          Tokens.space.md,
+          Tokens.space.md,
+          Tokens.space.md,
+          Tokens.space.lg,
+        ),
+        child: Column(
+          key: const Key('screen-header'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(headline, style: text.displaySmall),
+            SizedBox(height: Tokens.space.xxs),
+            Text(subline, style: text.labelSmall),
+
+            // Present only when something actually failed to read. Silence is
+            // correct in the ordinary case: printing "0 rows could not be read"
+            // every time the screen opens would train the user to stop reading
+            // this corner, which is exactly wrong the one time it says something
+            // real.
+            //
+            // It flows after the subline rather than being positioned at a fixed
+            // offset, so it can no longer land on top of a wrapped headline.
+            if (skipped > 0) ...[
+              SizedBox(height: Tokens.space.xs),
+              GestureDetector(
+                onTap: onSkippedTap,
+                child: Text(
+                  skipped == 1
+                      ? '1 game could not be read. Tap to find out more.'
+                      : '$skipped games could not be read. Tap to find out '
+                          'more.',
+                  style:
+                      text.labelSmall?.copyWith(color: Tokens.palette.danger),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A fade at the bottom edge, so rows dissolve rather than sliding visibly
+/// behind the add control while the list is being dragged.
+///
+/// Opaque at the screen edge and transparent at its inner edge. Sized from the
+/// same `ChromeMetrics.bottom` the list pads itself by, so the covered band and
+/// the reserved band cannot fall out of step.
+class _Scrim extends StatelessWidget {
+  const _Scrim({required this.extent});
+
+  final double extent;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = Tokens.palette.bg;
+    return Positioned(
+      key: const Key('scrim-bottom'),
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: extent,
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              // Solid for most of the band, then a short fade. Fading across the
+              // whole height would leave the control sitting over a half-visible
+              // row, which is the artefact this exists to remove.
+              colors: [bg, bg, bg.withValues(alpha: 0)],
+              stops: const [0, 0.65, 1],
+            ),
+          ),
+        ),
       ),
     );
   }

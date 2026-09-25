@@ -322,3 +322,47 @@ violating probe test and watching it go red.
 4. Never run `flutter test` from a tool call with no timeout. Use
    `Start-Process -PassThru` plus `WaitForExit(ms)` so a hang returns a result
    instead of silence.
+
+## A computed inset can never clear a header that wraps (2026-09-25)
+
+The home screen shipped with rows rendering under the headline and the status-bar
+clock. `CollectionView` computed its own top inset as
+`padding.top + space.md + type.display * leadingDisplay + space.lg`, which budgets
+for ONE line of display type. The header is two lines (headline over subline) plus
+an optional notice line, so the inset was short by the subline.
+
+Fixing the sum was the wrong instinct, and a test proved it. A first attempt
+MEASURED both lines with a TextPainter and was still 20px short, because the
+header had WRAPPED. Its height depends on the font, the text scale and the
+available width, so any number computed away from the real layout is a guess that
+happens to be close on the device you tried.
+
+Fix: the header is now an ordinary layout sibling above the content (a `Column`,
+with the content in an `Expanded`), so an overlap is not expressible. Arithmetic
+remains only for the bottom band, where the value genuinely is fixed: a 52px
+control a known distance off the bottom edge (`ChromeMetrics.bottom`).
+
+Two traps this surfaced, both worth remembering:
+
+- **flutter_test's default font renders every glyph as a full em square**, so text
+  is much wider in a widget test than on a device and wraps where the real app
+  does not. A layout test can therefore fail for a font reason while the device is
+  fine. That is not a reason to loosen the test: it is a free large-text-scale
+  case, and the code has to survive it either way.
+- **`Column` centres its children on the cross axis.** Moving the header from a
+  `Positioned` into a `Column` child silently centred it, because the block
+  shrink-wrapped to its text width. `crossAxisAlignment: CrossAxisAlignment.stretch`
+  is required, and a test now locks the header's left edge to `space.md`.
+
+Padding alone was also only half the fix. It governs where a list comes to REST;
+while it is being dragged, rows still travel behind the add control. A bottom
+scrim sized from the same `ChromeMetrics.bottom` fades them out, and it must be
+wrapped in `IgnorePointer` or the bottom band of the screen goes dead to touch
+(there is a test for exactly that, on a deliberately short viewport so the list
+actually overflows -- a drag that moves nothing on a non-scrolling list proves
+nothing).
+
+Also: `Set-Content -Encoding UTF8` in PowerShell 5 writes a BOM. A negative-test
+probe that rewrote `main.dart` with it left a BOM behind; check the first three
+bytes (`EF BB BF`) after any scripted rewrite and strip with
+`UTF8Encoding($false)`.

@@ -135,8 +135,8 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
                 customBorder: const CircleBorder(),
                 onTap: _toggle,
                 child: SizedBox(
-                  width: 52,
-                  height: 52,
+                  width: Tokens.size.control,
+                  height: Tokens.size.control,
                   child: Icon(Icons.add, color: Tokens.palette.bg, size: 26),
                 ),
               ),

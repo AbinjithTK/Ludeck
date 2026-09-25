@@ -76,6 +76,12 @@ class _Size {
   /// Minimum cover width in the list grid; the column count follows from it.
   final double coverMin = 120;
 
+  /// A round floating control's diameter. Added because the add button's size
+  /// was a bare 52 at its call site AND the chrome metrics need the same
+  /// number to reserve space for it; two copies would drift and the scrim
+  /// would stop matching the button it covers.
+  final double control = 52;
+
   /// A fruit's diameter on the canvas at zoom 1.
   final double fruit = 44;
 

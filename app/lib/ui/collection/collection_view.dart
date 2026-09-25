@@ -24,11 +24,23 @@ class CollectionView extends StatelessWidget {
     required this.items,
     required this.onSelect,
     required this.onHold,
+    required this.topInset,
+    required this.bottomInset,
   });
 
   final List<TreeItem> items;
   final ValueChanged<TreeItem> onSelect;
   final ValueChanged<TreeItem> onHold;
+
+  /// Space to keep clear at the top and bottom for the floating chrome.
+  ///
+  /// Passed IN rather than measured here, deliberately. This widget cannot see
+  /// what its parent stacks on top of it, and when it tried to guess it
+  /// budgeted for a one-line header that was actually two lines. The owner of
+  /// the chrome is the only thing that knows its height, so the owner supplies
+  /// it, from `ChromeMetrics`.
+  final double topInset;
+  final double bottomInset;
 
   @override
   Widget build(BuildContext context) {
@@ -37,17 +49,8 @@ class CollectionView extends StatelessWidget {
     // rather than shown as a zero, matching the subline rule in main.dart.
     final groups = _group(items);
 
-    // The header reserves the top ~150px in main.dart's Stack; the list must
-    // start below it so the first row is not hidden under the headline.
-    final topInset = MediaQuery.of(context).padding.top +
-        Tokens.space.md +
-        Tokens.type.display * Tokens.type.leadingDisplay +
-        Tokens.space.lg;
-
-    // And the AddMenu sits bottom-left, so the last row must clear it.
-    final bottomInset = MediaQuery.of(context).padding.bottom + 96;
-
     return ListView(
+      key: const Key('collection-list'),
       padding: EdgeInsets.fromLTRB(
           Tokens.space.md, topInset, Tokens.space.md, bottomInset),
       children: [
