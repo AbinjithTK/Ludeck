@@ -119,6 +119,68 @@ void main() {
     });
   });
 
+  group('applyCoverUrl', () {
+    // These are the lazy cover-art fill-in: CoverArtCache resolves a cover long
+    // after the row loaded, and this is what lands it without paying for a full
+    // collection re-read on every trickling-in result.
+
+    test('patches the in-memory item and persists it', () async {
+      final item = await anyItem();
+      expect(item.game.coverUrl, isNull);
+
+      await store.applyCoverUrl(item.game.igdbId, 'https://example.com/cover.png');
+
+      final patched =
+          store.items!.firstWhere((i) => i.game.igdbId == item.game.igdbId);
+      expect(patched.game.coverUrl, 'https://example.com/cover.png');
+
+      // And it really reached the database, not just the in-memory list -- a
+      // fresh load must see the same value.
+      await store.load();
+      final reread =
+          store.items!.firstWhere((i) => i.game.igdbId == item.game.igdbId);
+      expect(reread.game.coverUrl, 'https://example.com/cover.png');
+    });
+
+    test('does nothing before the first load', () async {
+      // Called from a row's build() while items could in principle still be
+      // null. Must not throw and must not crash on a null items list.
+      await expectLater(store.applyCoverUrl(999, 'https://x/y.png'), completes);
+    });
+
+    test('does nothing for a game not in the loaded list', () async {
+      await anyItem();
+      final before = store.items;
+
+      await store.applyCoverUrl(999999, 'https://x/y.png');
+
+      expect(store.items, same(before),
+          reason: 'an unknown id must not replace the list or notify');
+    });
+
+    test('never overwrites an existing cover with a weaker guess', () async {
+      final item = await anyItem();
+      await store.applyCoverUrl(item.game.igdbId, 'https://first.example/a.png');
+
+      // A second, slower lookup answering after a faster one already won.
+      await store.applyCoverUrl(item.game.igdbId, 'https://second.example/b.png');
+
+      final patched =
+          store.items!.firstWhere((i) => i.game.igdbId == item.game.igdbId);
+      expect(patched.game.coverUrl, 'https://first.example/a.png');
+    });
+
+    test('notifies listeners so the row repaints', () async {
+      final item = await anyItem();
+      var notified = false;
+      store.addListener(() => notified = true);
+
+      await store.applyCoverUrl(item.game.igdbId, 'https://x/y.png');
+
+      expect(notified, isTrue);
+    });
+  });
+
   group('every mutation writes then re-reads', () {
     test('setProgress is visible in items without a manual reload', () async {
       final item = await anyItem();

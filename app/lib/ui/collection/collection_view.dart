@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/enums.dart';
 import '../../data/models.dart';
+import '../../services/cover_art_cache.dart';
 import '../tokens.dart';
 
 /// A plain-Flutter view of the collection, standing in for the Rive tree while
@@ -28,6 +29,8 @@ class CollectionView extends StatefulWidget {
     required this.bottomInset,
     this.branches = const [],
     this.placements = const {},
+    this.coverCache,
+    this.onCoverFound,
   });
 
   final List<TreeItem> items;
@@ -39,6 +42,19 @@ class CollectionView extends StatefulWidget {
 
   /// Which game ids hang on which branch id.
   final Map<int, List<int>> placements;
+
+  /// Looks up cover art for a row that has none. Defaults to null, and the
+  /// default is the safe one on purpose: a widget test that pumps this view
+  /// must not reach the network, matching `TreeScreen.metadata`'s null default
+  /// for the same reason. `LudeckApp` supplies the real cache.
+  final CoverArtCache? coverCache;
+
+  /// Called when [coverCache] resolves a cover for a game that had none.
+  /// `LudeckApp` wires this to `LudeckStore.applyCoverUrl` so the result is
+  /// persisted and the row repaints; a test that passes [coverCache] without
+  /// this simply drops the result, which is fine for asserting the request
+  /// itself fired.
+  final void Function(int igdbId, String coverUrl)? onCoverFound;
 
   /// Space to keep clear at the top and bottom for the floating chrome.
   ///
@@ -87,6 +103,8 @@ class _CollectionViewState extends State<CollectionView> {
                 item: item,
                 onTap: () => widget.onSelect(item),
                 onLongPress: () => widget.onHold(item),
+                coverCache: widget.coverCache,
+                onCoverFound: widget.onCoverFound,
               ),
           SizedBox(height: Tokens.space.md),
         ],
@@ -247,16 +265,33 @@ class _GameRow extends StatelessWidget {
     required this.item,
     required this.onTap,
     required this.onLongPress,
+    this.coverCache,
+    this.onCoverFound,
   });
 
   final TreeItem item;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final CoverArtCache? coverCache;
+  final void Function(int igdbId, String coverUrl)? onCoverFound;
 
   @override
   Widget build(BuildContext context) {
     final game = item.game;
     final entry = item.entry;
+
+    // Fired every build, but harmless: `CoverArtCache` itself is what remembers
+    // an in-flight or finished lookup and refuses a second one, so a row that
+    // rebuilds ten times while scrolling still asks the network at most once.
+    // This does not need `initState` -- `_GameRow` is stateless on purpose,
+    // since nothing it owns needs to survive a rebuild except what the cache
+    // already tracks by igdbId.
+    final cache = coverCache;
+    if (cache != null && game.coverUrl == null) {
+      cache.request(game.igdbId, game.title, (url) {
+        onCoverFound?.call(game.igdbId, url);
+      });
+    }
 
     // The plain-language status label, never the metaphor word, so a screen
     // reader announces something a user actually understands. "Ripe" makes no
@@ -312,6 +347,8 @@ class _GameRow extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  _Cover(url: game.coverUrl),
+                  SizedBox(width: Tokens.space.xxs),
                   _StatusMark(item: item),
                   SizedBox(width: Tokens.space.sm),
                   Expanded(
@@ -375,6 +412,71 @@ class _GameRow extends StatelessWidget {
       Platform.values.where(set.contains).toList();
 }
 
+/// A small square thumbnail, or a placeholder tile when there is none yet.
+///
+/// Excluded from semantics entirely: the row's own `Semantics(label: announced)`
+/// already speaks the title, and an image with no cover is decoration, not
+/// content -- a screen reader gains nothing from being told a game has no
+/// picture.
+///
+/// `Image.network` owns its own memory/disk cache (Flutter's default
+/// `ImageCache`), so a URL that resolves once is not re-fetched on every
+/// rebuild -- this widget adds no caching of its own on top of it.
+class _Cover extends StatelessWidget {
+  const _Cover({required this.url});
+
+  final String? url;
+
+  static const double _size = 32;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(Tokens.radius.card / 2);
+    final placeholder = ClipRRect(
+      borderRadius: radius,
+      child: Container(
+        width: _size,
+        height: _size,
+        color: Tokens.palette.bg,
+        alignment: Alignment.center,
+        child: Icon(Icons.videogame_asset_outlined,
+            size: 18, color: Tokens.palette.textDim),
+      ),
+    );
+
+    final src = url;
+    if (src == null || src.isEmpty) {
+      return Semantics(excludeSemantics: true, child: placeholder);
+    }
+
+    return Semantics(
+      excludeSemantics: true,
+      child: ClipRRect(
+        borderRadius: radius,
+        child: Image.network(
+          src,
+          key: ValueKey(src),
+          width: _size,
+          height: _size,
+          fit: BoxFit.cover,
+          // A cover that fails to decode (a dead link, a network error) falls
+          // back to the same placeholder rather than Flutter's default broken-
+          // image icon, so a bad URL degrades to "no cover" instead of to a
+          // visibly wrong one.
+          errorBuilder: (context, error, stackTrace) => Container(
+            width: _size,
+            height: _size,
+            color: Tokens.palette.bg,
+            alignment: Alignment.center,
+            child: Icon(Icons.videogame_asset_outlined,
+                size: 18, color: Tokens.palette.textDim),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// A small mark on the left of a row.
 ///
 /// Harvested games carry a filled ring the same way the tree's harvested fruit
@@ -428,11 +530,17 @@ class _RatingOrStatus extends StatelessWidget {
     final rating = entry.rating ?? 0;
     final showRating = item.isHarvested && rating > 0;
 
-    final status = Text(
-      item.isSeed ? entry.ownership.label : entry.progress.label,
-      style: TextStyle(
-        fontSize: Tokens.type.caption,
-        color: Tokens.palette.textDim,
+    final status = ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 84),
+      child: Text(
+        item.isSeed ? entry.ownership.label : entry.progress.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.right,
+        style: TextStyle(
+          fontSize: Tokens.type.caption,
+          color: Tokens.palette.textDim,
+        ),
       ),
     );
 

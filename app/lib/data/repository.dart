@@ -372,6 +372,22 @@ class Repository {
     );
   }
 
+  /// Records a cover image found for a game that had none, and touches
+  /// nothing else.
+  ///
+  /// Separate from `upsert` deliberately: this is filled in AFTER the fact by a
+  /// lazy lookup (`CoverArtService`), often long after the row was written, and
+  /// a method that also re-writes ownership/progress/copies would risk a stale
+  /// caller resetting those. It only ever moves a game from no cover to a
+  /// cover -- callers never overwrite an existing one, so a live IGDB cover
+  /// can never be replaced by a weaker guess.
+  Future<void> setCoverUrl(int igdbId, String coverUrl) => _db.update(
+        'games',
+        {'cover_url': coverUrl},
+        where: 'igdb_id = ?',
+        whereArgs: [igdbId],
+      );
+
   /// Replaces delete.
   Future<void> shelve(int igdbId) => _db.update(
         'entries',

@@ -163,6 +163,60 @@ class LudeckStore extends ChangeNotifier {
   /// detail sheet cost a full load.
   Future<List<Source>> sourcesFor(int igdbId) => _repo.sourcesFor(igdbId);
 
+  /// Records a cover found for a game that had none, and patches it into the
+  /// in-memory list directly rather than through [_write].
+  ///
+  /// A full `_write` re-read is the right shape for a user action, but this is
+  /// called silently, lazily, per row, by [CoverArtCache] as covers trickle in
+  /// from the network -- re-reading the WHOLE collection (branches, placements,
+  /// every other game) for one field on one row would turn "the list is
+  /// scrolling" into a database read per frame. The repository is still
+  /// written and AWAITED before this returns; only the re-read is skipped. The
+  /// write must be awaited rather than fired and forgotten: a load racing
+  /// right behind an unawaited write could read the OLD value back and then
+  /// overwrite this method's in-memory patch on the next render, silently
+  /// losing the cover the user just saw appear.
+  ///
+  /// Silently does nothing if the game is no longer in the loaded list (it was
+  /// shelved or removed while the lookup was in flight) or already has a cover
+  /// (a second, slower lookup answering after a faster path already won).
+  Future<void> applyCoverUrl(int igdbId, String coverUrl) async {
+    final items = _items;
+    if (items == null) return;
+    final index = items.indexWhere((i) => i.game.igdbId == igdbId);
+    if (index == -1) return;
+    final item = items[index];
+    if (item.game.coverUrl != null) return;
+
+    await _repo.setCoverUrl(igdbId, coverUrl);
+
+    // Re-checked after the await: the list may have been replaced (shelved,
+    // reloaded, another cover already applied) while the write was in flight,
+    // and patching a stale snapshot would silently resurrect a row that has
+    // since moved on.
+    final current = _items;
+    if (current == null) return;
+    final currentIndex = current.indexWhere((i) => i.game.igdbId == igdbId);
+    if (currentIndex == -1) return;
+    final currentItem = current[currentIndex];
+    if (currentItem.game.coverUrl != null) return;
+
+    final updated = List<TreeItem>.of(current);
+    updated[currentIndex] = TreeItem(
+      game: Game(
+        igdbId: currentItem.game.igdbId,
+        title: currentItem.game.title,
+        coverUrl: coverUrl,
+        releaseYear: currentItem.game.releaseYear,
+        timeToBeatSeconds: currentItem.game.timeToBeatSeconds,
+      ),
+      entry: currentItem.entry,
+      copies: currentItem.copies,
+    );
+    _items = updated;
+    _notify();
+  }
+
   /// Runs a write, then re-reads, so the screen always shows what is stored.
   Future<void> _write(Future<void> Function() action) => _guard(() async {
         await action();

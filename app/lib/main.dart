@@ -8,6 +8,7 @@ import 'services/catalog_service.dart';
 import 'services/share_intake.dart';
 import 'services/http_catalog.dart';
 import 'services/link_metadata.dart';
+import 'services/cover_art_cache.dart';
 import 'services/share_resolver.dart';
 import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
@@ -80,7 +81,10 @@ class LudeckApp extends StatelessWidget {
           ),
         ),
       ),
-      home: TreeScreen(metadata: LinkMetadataReader()),
+      home: TreeScreen(
+        metadata: LinkMetadataReader(),
+        coverCache: CoverArtCache(),
+      ),
       ),
     );
   }
@@ -92,6 +96,7 @@ class TreeScreen extends StatefulWidget {
     this.intake = const PlatformShareIntake(),
     this.catalog,
     this.metadata,
+    this.coverCache,
   });
 
   /// Reads a shared link's page title, which is what turns a link into a game.
@@ -102,6 +107,10 @@ class TreeScreen extends StatefulWidget {
   /// LudeckApp supplies the real reader, so production wiring is explicit at the
   /// top of the tree instead of hidden in a default argument.
   final LinkMetadataReader? metadata;
+
+  /// Looks up cover art for a row that has none. Same null-default reasoning as
+  /// [metadata]: a widget test pumping this screen must not reach the network.
+  final CoverArtCache? coverCache;
 
   /// Where shared text arrives from. Injectable so a test can hand one in
   /// without an Android activity behind it.
@@ -596,6 +605,8 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   items: items,
                   branches: store.branches,
                   placements: store.placements,
+                  coverCache: widget.coverCache,
+                  onCoverFound: store.applyCoverUrl,
                   // The header already supplies the gap above; the list only
                   // needs to clear the control at the bottom.
                   topInset: 0,

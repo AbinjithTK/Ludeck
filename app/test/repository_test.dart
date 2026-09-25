@@ -241,4 +241,34 @@ void main() {
       expect((await repo.load()).single.game.title, 'Only this');
     });
   });
+
+  group('setCoverUrl', () {
+    // The lazy cover-art fill-in: a game that shipped with no cover (the
+    // bundled catalogue carries none by design) gets one written in after the
+    // fact by a background lookup, and this is the one place that write lands.
+
+    test('fills in a cover for a game that had none', () async {
+      await repo.upsert(item(20, 'Hollow Knight'));
+      expect((await repo.load()).single.game.coverUrl, isNull);
+
+      await repo.setCoverUrl(20, 'https://example.com/hk.png');
+
+      expect((await repo.load()).single.game.coverUrl,
+          'https://example.com/hk.png');
+    });
+
+    test('touches nothing else on the row', () async {
+      await repo.upsert(item(21, 'Celeste',
+          progress: Progress.finished, seconds: 28800));
+      await repo.setRating(21, 5);
+
+      await repo.setCoverUrl(21, 'https://example.com/celeste.png');
+
+      final reread = (await repo.load()).single;
+      expect(reread.game.title, 'Celeste');
+      expect(reread.game.hours, 8);
+      expect(reread.entry.progress, Progress.finished);
+      expect(reread.entry.rating, 5);
+    });
+  });
 }
