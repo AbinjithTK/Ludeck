@@ -498,6 +498,30 @@ class Repository {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
 
+  /// The user's chosen roadmap order, as igdb_id -> position. Games with no row
+  /// are simply absent; the store orders them after the ones that have a
+  /// position, keeping their relative default order stable.
+  Future<Map<int, int>> roadmapOrder() async {
+    final rows = await _db.query('roadmap_order', orderBy: 'position');
+    return {
+      for (final r in rows) r['igdb_id'] as int: r['position'] as int,
+    };
+  }
+
+  /// Rewrites the roadmap order in one transaction, same reasoning as
+  /// [reorderBranches]: a half-applied reorder leaves two games claiming one
+  /// position and the roadmap renders in an id-tiebreak order instead.
+  Future<void> reorderRoadmap(List<int> igdbIdsInOrder) =>
+      _db.transaction((txn) async {
+        await txn.delete('roadmap_order');
+        for (var i = 0; i < igdbIdsInOrder.length; i++) {
+          await txn.insert(
+            'roadmap_order',
+            {'igdb_id': igdbIdsInOrder[i], 'position': i},
+          );
+        }
+      });
+
   Future<void> unplace(int igdbId, int branchId) => _db.delete(
         'placements',
         where: 'branch_id = ? AND igdb_id = ?',

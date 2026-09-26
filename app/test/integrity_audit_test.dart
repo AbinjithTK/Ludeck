@@ -38,6 +38,7 @@ const List<({String child, String column, String parent})> kRelations = [
   (child: 'placements', column: 'igdb_id', parent: 'games'),
   (child: 'placements', column: 'branch_id', parent: 'branches'),
   (child: 'sources', column: 'igdb_id', parent: 'games'),
+  (child: 'roadmap_order', column: 'igdb_id', parent: 'games'),
 ];
 
 /// Tables the schema is expected to hold. A new one arriving without a cascade
@@ -49,6 +50,7 @@ const Set<String> kTables = {
   'branches',
   'placements',
   'sources',
+  'roadmap_order',
 };
 
 void main() {

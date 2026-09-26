@@ -840,6 +840,9 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                     store.consumeJustAdded();
                     if (mounted) setState(() {});
                   },
+                  // Drag-to-reorder, persisted through the store.
+                  roadmapOrder: store.roadmapOrder,
+                  onReorder: store.reorderRoadmap,
                 ),
 
                 // A fade under the add control. Padding alone only fixes where

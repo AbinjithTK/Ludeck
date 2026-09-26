@@ -195,3 +195,20 @@ double pathLength(Path path) {
   }
   return total;
 }
+
+
+/// Orders [igdbIds] by their persisted roadmap [order] (igdb_id -> position).
+///
+/// Games WITH a position come first, in position order. Games WITHOUT one keep
+/// their incoming (default) relative order and follow the ordered ones. This is
+/// what makes "the user reordered three games" stable while every not-yet-moved
+/// game stays where it was, and a brand-new game (no position) lands at the end.
+List<int> orderGames(List<int> igdbIds, Map<int, int> order) {
+  final ordered = <int>[];
+  final rest = <int>[];
+  for (final id in igdbIds) {
+    (order.containsKey(id) ? ordered : rest).add(id);
+  }
+  ordered.sort((a, b) => order[a]!.compareTo(order[b]!));
+  return [...ordered, ...rest];
+}

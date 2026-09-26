@@ -40,6 +40,8 @@ class RoadmapView extends StatefulWidget {
     this.interactive = true,
     this.justAddedIgdbId,
     this.onAddedDone,
+    this.roadmapOrder = const {},
+    this.onReorder,
   });
 
   final List<TreeItem> items;
@@ -70,6 +72,14 @@ class RoadmapView extends StatefulWidget {
 
   /// Called when the draw-line creation animation finishes.
   final VoidCallback? onAddedDone;
+
+  /// igdb_id -> chosen roadmap position. Games absent fall to the end in their
+  /// default order. Used to order the nodes on the path.
+  final Map<int, int> roadmapOrder;
+
+  /// Called with the full list of igdb_ids in their new order when the user
+  /// finishes a drag-reorder. Null disables reordering.
+  final void Function(List<int> igdbIdsInOrder)? onReorder;
 
   @override
   State<RoadmapView> createState() => _RoadmapViewState();
@@ -167,10 +177,17 @@ class _RoadmapViewState extends State<RoadmapView>
 
   /// Games shown on the roadmap, in roadmap order.
   ///
-  /// Shelved rows are dropped: the roadmap is the active journey. Order is the
-  /// list order for now; Stage 4 adds a persisted, user-editable order.
-  List<TreeItem> get _visible =>
-      widget.items.where((i) => !i.entry.shelved).toList();
+  /// Shelved rows are dropped: the roadmap is the active journey. Ordered by the
+  /// persisted roadmap order (games without a position keep their default order,
+  /// after the ordered ones) so a user's drag-reorder survives a reload.
+  List<TreeItem> get _visible {
+    final active =
+        widget.items.where((i) => !i.entry.shelved).toList();
+    final byId = {for (final i in active) i.game.igdbId: i};
+    final ids = orderGames(
+        active.map((i) => i.game.igdbId).toList(), widget.roadmapOrder);
+    return [for (final id in ids) byId[id]!];
+  }
 
   /// The index up to which the path is "walked" -- the furthest game the user
   /// has engaged with (finished, playing or installed). Connectors up to and
@@ -270,27 +287,82 @@ class _RoadmapViewState extends State<RoadmapView>
     final isDrawingTarget = _drawingIndex == node.index;
     final hidden = isDrawingTarget && !_popNode;
 
+    final nodeWidget = RoadmapNode(
+      item: item,
+      diameter: d,
+      titleSide: titleSide,
+      titleWidth: titleWidth,
+      // Pop the just-added node in when the draw finishes; other nodes use
+      // the view's normal arrival setting.
+      animateIn: isDrawingTarget ? _popNode : widget.animateArrivals,
+      coverCache: widget.coverCache,
+      onCoverFound: widget.onCoverFound,
+      onTap: () => widget.onSelect?.call(item),
+      // Long-press is the DRAG handle when reordering is on, so it no longer
+      // opens the sheet (tap does). onHold stays wired only when reordering is
+      // off, preserving the old hold-to-open behaviour on non-editable mounts.
+      onLongPress: widget.onReorder != null || widget.onHold == null
+          ? null
+          : () => widget.onHold!.call(item),
+    );
+
+    // Reordering: long-press to pick a node up, drop it on another to move it
+    // there. Disabled (plain node) when onReorder is null -- the profile
+    // portrait is a picture, not an editor.
+    final Widget child = widget.onReorder == null
+        ? nodeWidget
+        : DragTarget<int>(
+            onWillAcceptWithDetails: (d) => d.data != item.game.igdbId,
+            onAcceptWithDetails: (d) =>
+                _reorderTo(d.data, item.game.igdbId),
+            builder: (context, candidate, rejected) => LongPressDraggable<int>(
+              data: item.game.igdbId,
+              feedback: _dragFeedback(item, d),
+              childWhenDragging: Opacity(opacity: 0.3, child: nodeWidget),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: candidate.isNotEmpty
+                      ? Tokens.cosmos.glow.withValues(alpha: 0.3)
+                      : null,
+                ),
+                child: nodeWidget,
+              ),
+            ),
+          );
+
     return Positioned(
       left: rowLeft,
       top: node.centre.dy - d / 2,
-      child: Opacity(
-        opacity: hidden ? 0 : 1,
-        child: RoadmapNode(
-          item: item,
-          diameter: d,
-          titleSide: titleSide,
-          titleWidth: titleWidth,
-          // Pop the just-added node in when the draw finishes; other nodes use
-          // the view's normal arrival setting.
-          animateIn: isDrawingTarget ? _popNode : widget.animateArrivals,
-          coverCache: widget.coverCache,
-          onCoverFound: widget.onCoverFound,
-          onTap: () => widget.onSelect?.call(item),
-          onLongPress:
-              widget.onHold == null ? null : () => widget.onHold!.call(item),
-        ),
-      ),
+      child: Opacity(opacity: hidden ? 0 : 1, child: child),
     );
+  }
+
+  /// A small circular preview shown under the finger while dragging a node.
+  Widget _dragFeedback(TreeItem item, double d) => Material(
+        color: Tokens.palette.bg.withValues(alpha: 0),
+        child: SizedBox(
+          width: d,
+          height: d,
+          child: RoadmapNode(
+            item: item,
+            diameter: d,
+            titleSide: NodeTitleSide.right,
+            titleWidth: 0,
+            onTap: () {},
+          ),
+        ),
+      );
+
+  /// Moves [draggedId] to sit where [targetId] is, then persists the new order.
+  void _reorderTo(int draggedId, int targetId) {
+    final ids = _visible.map((i) => i.game.igdbId).toList();
+    final from = ids.indexOf(draggedId);
+    final to = ids.indexOf(targetId);
+    if (from < 0 || to < 0 || from == to) return;
+    ids.removeAt(from);
+    ids.insert(to, draggedId);
+    widget.onReorder?.call(ids);
   }
 }
 

@@ -78,11 +78,23 @@ class LudeckStore extends ChangeNotifier {
     final result = await _repo.loadDetailed();
     final branches = await _repo.branches();
     final placements = await _repo.placements();
+    final order = await _repo.roadmapOrder();
     _items = result.items;
     _skipped = result.skipped;
     _branches = branches;
     _placements = placements;
+    _roadmapOrder = order;
   }
+
+  /// igdb_id -> chosen roadmap position. Games absent from this map have no
+  /// explicit position and fall to the end in their default order.
+  Map<int, int> _roadmapOrder = const {};
+  Map<int, int> get roadmapOrder => _roadmapOrder;
+
+  /// Persists a new roadmap order (igdb_ids in the order they should appear),
+  /// then re-reads.
+  Future<void> reorderRoadmap(List<int> igdbIdsInOrder) =>
+      _write(() => _repo.reorderRoadmap(igdbIdsInOrder));
 
   /// Creates a branch at the END of the list, then re-reads.
   ///

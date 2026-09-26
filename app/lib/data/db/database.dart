@@ -18,7 +18,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 /// The file name. docs/DECISIONS.md froze `ludeck.db` and this honours it.
 const String kDatabaseFile = 'ludeck.db';
 
-const int kSchemaVersion = 2;
+const int kSchemaVersion = 3;
 
 /// Where a game came from. Added in schema v2.
 ///
@@ -56,6 +56,23 @@ const String _sourcesTable = '''
 
 const String _sourcesIndex =
     'CREATE INDEX IF NOT EXISTS idx_sources_game ON sources(igdb_id)';
+
+/// The user's chosen order of games on the roadmap. Added in schema v3.
+///
+/// A separate table rather than a column on `entries`, for the same reason
+/// placements are a join and not a field: it is additive, needs no change to
+/// the `Entry` model or its many read/write paths, and a game with no row here
+/// is simply unordered (it falls to the end in a stable default order), which
+/// is a real state — every game before the user first reorders anything.
+///
+/// Held as a named constant because BOTH `_ddl` (fresh install) and
+/// `_migrations[3]` (existing install) must produce a byte-identical table.
+const String _roadmapOrderTable = '''
+  CREATE TABLE IF NOT EXISTS roadmap_order (
+    igdb_id  INTEGER PRIMARY KEY REFERENCES games(igdb_id) ON DELETE CASCADE,
+    position INTEGER NOT NULL
+  )
+  ''';
 
 /// Every table, in dependency order.
 ///
@@ -150,6 +167,8 @@ const List<String> _ddl = [
 
   _sourcesTable,
 
+  _roadmapOrderTable,
+
   'CREATE INDEX IF NOT EXISTS idx_copies_game ON copies(igdb_id)',
   'CREATE INDEX IF NOT EXISTS idx_placements_game ON placements(igdb_id)',
   _sourcesIndex,
@@ -223,6 +242,7 @@ Future<void> _onCreate(Database db, int version) async {
 /// recreating a table destroys a real collection and is never the answer.
 const Map<int, List<String>> _migrations = {
   2: [_sourcesTable, _sourcesIndex],
+  3: [_roadmapOrderTable],
 };
 
 /// Versions `_migrations` can produce.
