@@ -1,0 +1,133 @@
+<Rive version="1" kind="fragment">
+    <!--
+      LoadingDisc. The same disc as app/lib/ui/common/loading_disc.dart, so the
+      Flutter and Rive versions read as one object.
+
+      Motion: one full turn every 1.4s (84 frames), LINEAR. A spinner is a
+      steady state; an eased loop stutters once per turn. Only rotation is
+      keyed. The host pauses it (NestedArtboard.isPaused / controller) for
+      reduced motion, which leaves it drawn still.
+
+      Rive has no sweep gradient, so the iridescent bands are two wedges with
+      a cross-wedge linear gradient, clipped to the disc. The bands are what
+      make the turn visible: a rotationally even disc looks parked.
+
+      Draw order runs FRONT to BACK: the first shape declared paints on top.
+      The hole is filled with the sky colour (Tokens.cosmos.deep[0]) because
+      RML cannot punch through; the disc is only ever placed on that sky.
+    -->
+    <Artboard defaultStateMachineId="1:70" styleId="1:5" width="160" height="160" name="LoadingDisc" isComponent="true" x="0" y="0" id="1:2">
+        <LayoutComponentStyle name="Artboard Style" id="1:5"/>
+
+        <Node x="80" y="80" name="Disc" id="1:10">
+            <Shape name="Hole">
+                <Ellipse width="14" height="14" name="Path"/>
+                <Fill name="Fill"><SolidColor colorValue="FF0B0A1C" name="C"/></Fill>
+            </Shape>
+
+            <!-- Gold clamp ring: the one warm accent, Tokens.palette.accent. -->
+            <Shape name="Clamp">
+                <Ellipse width="26" height="26" name="Path"/>
+                <Stroke thickness="2.6" name="Stroke">
+                    <SolidColor colorValue="BFE8B84B" name="C"/>
+                </Stroke>
+            </Shape>
+
+            <!-- Clear plastic hub, Tokens.cosmos.discHub. -->
+            <Shape name="Hub">
+                <Ellipse width="37" height="37" name="Path"/>
+                <Fill name="Fill"><SolidColor colorValue="E63A3D4E" name="C"/></Fill>
+            </Shape>
+
+            <!-- Glint: a short bright arc on the outer data band. -->
+            <Shape name="Glint">
+                <Ellipse width="118" height="118" name="Path"/>
+                <Stroke thickness="5" cap="round" name="Stroke">
+                    <SolidColor colorValue="47F2F3F5" name="C"/>
+                    <TargetEffect targetId="1:81" name="Use Trim"/>
+                </Stroke>
+            </Shape>
+            <GroupEffect name="GlintTrim" id="1:81">
+                <TrimPath start="0.70" end="0.80" name="Trim"/>
+            </GroupEffect>
+
+            <!-- The one track boundary. No grooves: grooves read as vinyl. -->
+            <Shape name="Track">
+                <Ellipse width="61" height="61" name="Path"/>
+                <Stroke thickness="1" name="Stroke">
+                    <SolidColor colorValue="1AF2F3F5" name="C"/>
+                </Stroke>
+            </Shape>
+
+            <Shape name="Rim">
+                <Ellipse width="151" height="151" name="Path"/>
+                <Stroke thickness="1" name="Stroke">
+                    <SolidColor colorValue="1FF2F3F5" name="C"/>
+                </Stroke>
+            </Shape>
+
+            <!-- Violet band, centred at 36 degrees (Tokens.cosmos.hero[2]). -->
+            <Shape name="BandViolet">
+                <PointsPath isClosed="true" name="Path">
+                    <StraightVertex x="0" y="0"/>
+                    <StraightVertex x="105.7" y="30.3"/>
+                    <StraightVertex x="61.5" y="91.2"/>
+                </PointsPath>
+                <Fill name="Fill">
+                    <LinearGradient startX="52.9" startY="15.2" endX="30.8" endY="45.6" name="G">
+                        <GradientStop colorValue="005B4A82" position="0"/>
+                        <GradientStop colorValue="F25B4A82" position="0.5"/>
+                        <GradientStop colorValue="005B4A82" position="1"/>
+                    </LinearGradient>
+                </Fill>
+                <ClippingShape sourceId="1:30" name="Clip"/>
+            </Shape>
+
+            <!-- Gold band, centred at 216 degrees, fainter than the violet. -->
+            <Shape name="BandGold">
+                <PointsPath isClosed="true" name="Path">
+                    <StraightVertex x="0" y="0"/>
+                    <StraightVertex x="-105.7" y="-30.3"/>
+                    <StraightVertex x="-61.5" y="-91.2"/>
+                </PointsPath>
+                <Fill name="Fill">
+                    <LinearGradient startX="-52.9" startY="-15.2" endX="-30.8" endY="-45.6" name="G">
+                        <GradientStop colorValue="00E8B84B" position="0"/>
+                        <GradientStop colorValue="66E8B84B" position="0.5"/>
+                        <GradientStop colorValue="00E8B84B" position="1"/>
+                    </LinearGradient>
+                </Fill>
+                <ClippingShape sourceId="1:30" name="Clip"/>
+            </Shape>
+
+            <!-- Data surface, Tokens.cosmos.discBase. -->
+            <Shape name="Body">
+                <Ellipse width="152" height="152" name="Path"/>
+                <Fill name="Fill"><SolidColor colorValue="FF2A2C3A" name="C"/></Fill>
+            </Shape>
+
+            <!-- Clip source for the bands. No paints: masks without drawing. -->
+            <Shape name="BodyMask" id="1:30">
+                <Ellipse width="152" height="152" name="Path"/>
+            </Shape>
+        </Node>
+
+        <LinearAnimation loopValue="loop" duration="84" name="Spin" id="1:60">
+            <KeyedObject objectId="1:10">
+                <KeyedProperty propertyKey="15">
+                    <KeyFrameDouble value="0" interpolationType="linear" frame="0"/>
+                    <KeyFrameDouble value="6.2831855" interpolationType="linear" frame="84"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+
+        <StateMachine name="Main" id="1:70">
+            <StateMachineLayer name="Spin" id="1:71">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState x="0" y="0"><StateTransition stateToId="1:73"/></EntryState>
+                <AnimationState x="200" y="0" animationId="1:60" id="1:73"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+</Rive>

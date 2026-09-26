@@ -1,0 +1,177 @@
+<Rive version="1" kind="fragment">
+    <!--
+      PrimaryButton. The calm outlined gold pill used for "What should I play?"
+      (a solid gold slab clashed with gold's one meaning, finished games).
+
+      Wired with view-model booleans, not deprecated state-machine inputs, so the
+      host can read/set `down` and `label` directly.
+
+      Timing, from Tokens.motion:
+        press in   100ms  (press)  scale 0.97, fill brightens
+        release    200ms  (swap)   back to rest/hover
+        hover      120ms           desktop/pointer only; touch never enters it
+      Rest -> Press exists directly because a touch has no hover step.
+      One hold key per state; the transition duration IS the cross-fade.
+    -->
+    <ViewModel defaultInstanceId="2:41" name="PrimaryButton" id="2:40">
+        <ViewModelPropertyBoolean name="hover" id="2:45"/>
+        <ViewModelPropertyBoolean name="down" id="2:46"/>
+        <ViewModelPropertyString name="label" id="2:47"/>
+        <ViewModelInstance exports="true" name="Default" id="2:41">
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="2:45"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="2:46"/>
+            <ViewModelInstanceString propertyValue="What should I play?" viewModelPropertyId="2:47"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <Artboard viewModelId="2:40" defaultStateMachineId="2:70" styleId="2:5" width="280" height="64" name="PrimaryButton" x="300" y="0" id="2:2">
+        <LayoutComponentStyle name="Artboard Style" id="2:5"/>
+
+        <Node x="140" y="32" name="Pill" id="2:10">
+            <Text x="0" y="0" sizingValue="autoWidth" originX="0.5" originY="0.5" name="Label">
+                <TextStylePaint fontSize="16" fontAssetId="0:30" familyName="Inter" styleName="SemiBold" name="Label" id="2:21">
+                    <Fill name="Fill"><SolidColor colorValue="FFE8B84B" name="C"/></Fill>
+                    <TextStyleAxis tag="2003265652" axisValue="600" name="Weight"/>
+                </TextStylePaint>
+                <TextValueRun styleId="2:21" text="What should I play?" name="Run">
+                    <DataBindContext sourcePathIds="2:40-2:47" propertyKey="268"/>
+                </TextValueRun>
+            </Text>
+
+            <Shape name="Face" id="2:12">
+                <Rectangle width="256" height="48" cornerRadiusTL="24" originX="0.5" originY="0.5" name="Path"/>
+                <Stroke thickness="1.5" name="Edge">
+                    <SolidColor colorValue="B3E8B84B" name="C" id="2:14"/>
+                </Stroke>
+                <Fill name="Fill">
+                    <SolidColor colorValue="14E8B84B" name="C" id="2:13"/>
+                </Fill>
+            </Shape>
+        </Node>
+
+        <!-- Rest / Hover / Press: one hold key each. -->
+        <LinearAnimation duration="1" name="Rest" id="2:60">
+            <KeyedObject objectId="2:13"><KeyedProperty propertyKey="37"><KeyFrameColor value="14E8B84B" frame="0"/></KeyedProperty></KeyedObject>
+            <KeyedObject objectId="2:14"><KeyedProperty propertyKey="37"><KeyFrameColor value="B3E8B84B" frame="0"/></KeyedProperty></KeyedObject>
+            <KeyedObject objectId="2:10">
+                <KeyedProperty propertyKey="16"><KeyFrameDouble value="1" frame="0"/></KeyedProperty>
+                <KeyedProperty propertyKey="17"><KeyFrameDouble value="1" frame="0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" name="Hover" id="2:61">
+            <KeyedObject objectId="2:13"><KeyedProperty propertyKey="37"><KeyFrameColor value="24E8B84B" frame="0"/></KeyedProperty></KeyedObject>
+            <KeyedObject objectId="2:14"><KeyedProperty propertyKey="37"><KeyFrameColor value="FFE8B84B" frame="0"/></KeyedProperty></KeyedObject>
+            <KeyedObject objectId="2:10">
+                <KeyedProperty propertyKey="16"><KeyFrameDouble value="1" frame="0"/></KeyedProperty>
+                <KeyedProperty propertyKey="17"><KeyFrameDouble value="1" frame="0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" name="Press" id="2:62">
+            <KeyedObject objectId="2:13"><KeyedProperty propertyKey="37"><KeyFrameColor value="3DE8B84B" frame="0"/></KeyedProperty></KeyedObject>
+            <KeyedObject objectId="2:14"><KeyedProperty propertyKey="37"><KeyFrameColor value="FFE8B84B" frame="0"/></KeyedProperty></KeyedObject>
+            <KeyedObject objectId="2:10">
+                <KeyedProperty propertyKey="16"><KeyFrameDouble value="0.97" frame="0"/></KeyedProperty>
+                <KeyedProperty propertyKey="17"><KeyFrameDouble value="0.97" frame="0"/></KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+
+        <StateMachine name="Main" id="2:70">
+            <StateMachineLayer name="Button" id="2:71">
+                <AnyState x="400" y="-160"/>
+                <ExitState x="560" y="-160"/>
+                <EntryState x="0" y="0"><StateTransition stateToId="2:73"/></EntryState>
+
+                <!-- Rest -->
+                <AnimationState x="200" y="0" animationId="2:60" id="2:73">
+                    <StateTransition stateToId="2:75" duration="100">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:40-2:46" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="2:74" duration="120">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:40-2:45" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+
+                <!-- Hover -->
+                <AnimationState x="400" y="0" animationId="2:61" id="2:74">
+                    <StateTransition stateToId="2:75" duration="100">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:40-2:46" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="2:73" duration="200">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:40-2:45" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+
+                <!-- Press. Releases to Hover if the pointer is still over it, else Rest. -->
+                <AnimationState x="300" y="160" animationId="2:62" id="2:75">
+                    <StateTransition stateToId="2:74" duration="200">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:40-2:46" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:40-2:45" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                    <StateTransition stateToId="2:73" duration="200">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="2:40-2:46" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+
+            <!-- Pointer -> view model. `exit` clears both so a drag-off never strands it pressed. -->
+            <StateMachineListenerSingle targetId="2:12" listenerTypeValue="enter" name="In" id="2:50">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true"><DataBindContext sourcePathIds="2:40-2:45" propertyKey="634" direction="true"/></BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="2:12" listenerTypeValue="exit" name="Out" id="2:51">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="false"><DataBindContext sourcePathIds="2:40-2:45" propertyKey="634" direction="true"/></BindablePropertyBoolean>
+                </ListenerViewModelChange>
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="false"><DataBindContext sourcePathIds="2:40-2:46" propertyKey="634" direction="true"/></BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="2:12" listenerTypeValue="down" name="Down" id="2:52">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="true"><DataBindContext sourcePathIds="2:40-2:46" propertyKey="634" direction="true"/></BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+            <StateMachineListenerSingle targetId="2:12" listenerTypeValue="up" name="Up" id="2:53">
+                <ListenerViewModelChange>
+                    <BindablePropertyBoolean propertyValue="false"><DataBindContext sourcePathIds="2:40-2:46" propertyKey="634" direction="true"/></BindablePropertyBoolean>
+                </ListenerViewModelChange>
+            </StateMachineListenerSingle>
+        </StateMachine>
+    </Artboard>
+</Rive>

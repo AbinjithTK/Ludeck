@@ -1,0 +1,8 @@
+name: tree_discovery
+main: TreeDiscovery
+exclude:
+  - source
+  - __pycache__
+logs:
+  file: build/rive.log
+  problems: build/problems.log

@@ -1,0 +1,146 @@
+<Rive version="1" kind="fragment">
+    <!--
+      GameCard. A library/search cover card: 3:4 cover, title, one meta line.
+
+      The cover slot nests the LoadingDisc artboard until the host flips
+      `coverLoaded`; then the art fades in over 200ms (Tokens.motion.swap) and
+      the nested disc is paused, so a loaded card costs no animation.
+
+      The real cover image is NOT in this file. Swap it at runtime by replacing
+      the "Art" shape's paint with an image (asset loader), or keep the art in
+      Flutter and use this card only for its motion. The gradient here is a
+      stand-in so the loaded state is visible in previews.
+
+      Entrance: rises 12px and fades in over 260ms (Tokens.motion.grow) on the
+      strong ease-out, cubic(0.23, 1, 0.32, 1). Once, not on every rebuild:
+      a list that re-enters every card on scroll is the failure to avoid.
+    -->
+    <ViewModel defaultInstanceId="3:41" name="GameCard" id="3:40">
+        <ViewModelPropertyString name="title" id="3:45"/>
+        <ViewModelPropertyString name="meta" id="3:46"/>
+        <ViewModelPropertyBoolean name="coverLoaded" id="3:47"/>
+        <ViewModelInstance exports="true" name="Default" id="3:41">
+            <ViewModelInstanceString propertyValue="Hollow Knight" viewModelPropertyId="3:45"/>
+            <ViewModelInstanceString propertyValue="2017  ·  27 h" viewModelPropertyId="3:46"/>
+            <ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="3:47"/>
+        </ViewModelInstance>
+    </ViewModel>
+
+    <Artboard viewModelId="3:40" defaultStateMachineId="3:70" styleId="3:5" width="180" height="292" name="GameCard" x="620" y="0" id="3:2">
+        <LayoutComponentStyle name="Artboard Style" id="3:5"/>
+
+        <Node x="90" y="146" name="Card" id="3:10">
+            <Text x="-82" y="84" width="164" sizingValue="autoHeight" wrapValue="noWrap" overflowValue="ellipsis" name="Title">
+                <TextStylePaint fontSize="15" fontAssetId="0:30" familyName="Inter" styleName="SemiBold" name="Title" id="3:21">
+                    <Fill name="Fill"><SolidColor colorValue="FFF2F3F5" name="C"/></Fill>
+                    <TextStyleAxis tag="2003265652" axisValue="600" name="Weight"/>
+                </TextStylePaint>
+                <TextValueRun styleId="3:21" text="Hollow Knight" name="Run">
+                    <DataBindContext sourcePathIds="3:40-3:45" propertyKey="268"/>
+                </TextValueRun>
+            </Text>
+            <Text x="-82" y="106" width="164" sizingValue="autoHeight" wrapValue="noWrap" overflowValue="ellipsis" name="Meta">
+                <TextStylePaint fontSize="12" fontAssetId="0:30" familyName="Inter" styleName="Regular" name="Meta" id="3:22">
+                    <Fill name="Fill"><SolidColor colorValue="FF8B9099" name="C"/></Fill>
+                    <TextStyleAxis tag="2003265652" axisValue="400" name="Weight"/>
+                </TextStylePaint>
+                <TextValueRun styleId="3:22" text="2017  ·  27 h" name="Run">
+                    <DataBindContext sourcePathIds="3:40-3:46" propertyKey="268"/>
+                </TextValueRun>
+            </Text>
+
+            <!-- The disc, centred in the cover slot, 72px (0.45 of 160). -->
+            <Node x="0" y="-28.5" name="DiscSlot" id="3:31">
+                <NestedArtboard artboardId="1:2" x="-36" y="-36" scaleX="0.45" scaleY="0.45" name="Disc" id="3:30"/>
+            </Node>
+
+            <!-- Stand-in cover art. Hidden (opacity 0) until coverLoaded. -->
+            <Shape x="0" y="-28.5" opacity="0" name="Art" id="3:32">
+                <Rectangle width="164" height="219" cornerRadiusTL="10" originX="0.5" originY="0.5" name="Path"/>
+                <Fill name="Fill">
+                    <LinearGradient startX="0" startY="-110" endX="0" endY="110" name="G">
+                        <GradientStop colorValue="FF1B2A6B" position="0"/>
+                        <GradientStop colorValue="FF3B2F75" position="0.45"/>
+                        <GradientStop colorValue="FF7C6580" position="1"/>
+                    </LinearGradient>
+                </Fill>
+            </Shape>
+
+            <!-- Empty cover slot: Tokens.cosmos.panelDeep. -->
+            <Shape x="0" y="-28.5" name="Slot">
+                <Rectangle width="164" height="219" cornerRadiusTL="10" originX="0.5" originY="0.5" name="Path"/>
+                <Fill name="Fill"><SolidColor colorValue="8A120F26" name="C"/></Fill>
+            </Shape>
+
+            <!-- Card: Tokens.cosmos.panel with the panelEdge hairline. -->
+            <Shape name="Panel">
+                <Rectangle width="180" height="292" cornerRadiusTL="14" originX="0.5" originY="0.5" name="Path"/>
+                <Stroke thickness="1" name="Edge"><SolidColor colorValue="3DFFFFFF" name="C"/></Stroke>
+                <Fill name="Fill"><SolidColor colorValue="2EFFFFFF" name="C"/></Fill>
+            </Shape>
+        </Node>
+
+        <!-- Entrance: 16 frames = ~260ms. -->
+        <LinearAnimation duration="16" name="Intro" id="3:60">
+            <KeyedObject objectId="3:10">
+                <KeyedProperty propertyKey="14">
+                    <KeyFrameDouble value="158" frame="0" interpolationType="cubic">
+                        <CubicEaseInterpolator x1="0.23" y1="1" x2="0.32" y2="1"/>
+                    </KeyFrameDouble>
+                    <KeyFrameDouble value="146" frame="16"/>
+                </KeyedProperty>
+                <KeyedProperty propertyKey="18">
+                    <KeyFrameDouble value="0" frame="0" interpolationType="cubic">
+                        <CubicEaseInterpolator x1="0.23" y1="1" x2="0.32" y2="1"/>
+                    </KeyFrameDouble>
+                    <KeyFrameDouble value="1" frame="16"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+
+        <!-- Cover states: one hold key each; the 200ms transition is the fade. -->
+        <LinearAnimation duration="1" name="CoverLoading" id="3:61">
+            <KeyedObject objectId="3:31"><KeyedProperty propertyKey="18"><KeyFrameDouble value="1" frame="0"/></KeyedProperty></KeyedObject>
+            <KeyedObject objectId="3:32"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0" frame="0"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+        <LinearAnimation duration="1" name="CoverLoaded" id="3:62">
+            <KeyedObject objectId="3:31"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0" frame="0"/></KeyedProperty></KeyedObject>
+            <KeyedObject objectId="3:32"><KeyedProperty propertyKey="18"><KeyFrameDouble value="1" frame="0"/></KeyedProperty></KeyedObject>
+        </LinearAnimation>
+
+        <StateMachine name="Main" id="3:70">
+            <StateMachineLayer name="Intro" id="3:71">
+                <AnyState x="400" y="-120"/>
+                <ExitState x="560" y="-120"/>
+                <EntryState x="0" y="0"><StateTransition stateToId="3:73"/></EntryState>
+                <AnimationState x="200" y="0" animationId="3:60" id="3:73"/>
+            </StateMachineLayer>
+
+            <StateMachineLayer name="Cover" id="3:72">
+                <AnyState x="400" y="120"/>
+                <ExitState x="560" y="120"/>
+                <EntryState x="0" y="240"><StateTransition stateToId="3:74"/></EntryState>
+                <AnimationState x="200" y="240" animationId="3:61" id="3:74">
+                    <StateTransition stateToId="3:75" duration="200">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="3:40-3:47" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="true"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+                <AnimationState x="400" y="240" animationId="3:62" id="3:75">
+                    <StateTransition stateToId="3:74" duration="0">
+                        <TransitionViewModelCondition>
+                            <TransitionPropertyViewModelComparator>
+                                <BindablePropertyBoolean><DataBindContext sourcePathIds="3:40-3:47" propertyKey="634"/></BindablePropertyBoolean>
+                            </TransitionPropertyViewModelComparator>
+                            <TransitionValueBooleanComparator value="false"/>
+                        </TransitionViewModelCondition>
+                    </StateTransition>
+                </AnimationState>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+</Rive>

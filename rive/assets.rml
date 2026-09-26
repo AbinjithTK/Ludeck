@@ -1,0 +1,18 @@
+<Rive version="1" kind="fragment">
+    <!--
+      Shared assets for every artboard in this project. All .rml files compile
+      as ONE document, so ids must be unique across files. Id ranges:
+        0:*  shared assets (this file)
+        1:*  LoadingDisc        components/loading_disc.rml
+        2:*  PrimaryButton      components/primary_button.rml
+        3:*  GameCard           components/game_card.rml
+        4:*  SearchLoading      screens/search_loading.rml
+      A new artboard takes the next free prefix.
+
+      Inter is SIL Open Font License (copied from the Rive CLI samples).
+    -->
+    <FontAsset file="fonts/Inter.ttf" name="Inter" id="0:30"/>
+
+    <!-- Artboards other artboards nest must be components, listed here. -->
+    <ComponentAsset artboardId="1:2" name="LoadingDisc"/>
+</Rive>

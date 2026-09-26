@@ -30,6 +30,7 @@ import '../../services/http_catalog.dart';
 import '../../state/ludeck_store.dart';
 import '../common/loading_disc.dart';
 import '../tokens.dart';
+import 'discovery_tree.dart';
 
 /// How long after the last keystroke the search actually runs.
 ///
@@ -264,13 +265,31 @@ class _AddScreenState extends State<AddScreen> {
         );
 
       case _Phase.results:
-        return ListView.builder(
+        final list = ListView.builder(
           key: const Key('search-results'),
           padding: EdgeInsets.symmetric(horizontal: Tokens.space.md),
           itemCount: _results.length,
           itemBuilder: (context, i) =>
               _ResultRow(game: _results[i], onAdd: () => _add(_results[i])),
         );
+        // The discovery tree sits above the list and grows its cards from
+        // the same results. 40% of the body, capped so the list keeps room
+        // on a short screen.
+        return LayoutBuilder(builder: (context, box) {
+          final treeH = (box.maxHeight * 0.4).clamp(0.0, 340.0);
+          if (treeH < 200) return list; // too short to read as a tree
+          return Column(children: [
+            SizedBox(
+              height: treeH,
+              child: DiscoveryTree(
+                key: const Key('discovery-tree'),
+                games: _results,
+                onPick: _add,
+              ),
+            ),
+            Expanded(child: list),
+          ]);
+        });
     }
   }
 }

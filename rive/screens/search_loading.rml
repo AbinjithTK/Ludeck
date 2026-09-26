@@ -1,0 +1,87 @@
+<Rive version="1" kind="fragment">
+    <!--
+      SearchLoading. The body of the Add screen while a catalogue search is in
+      flight and has taken longer than 350ms (the host decides when to show it;
+      under that a signal reads as a flicker).
+
+      Composition, top to bottom, on the map sky (Tokens.cosmos.deep):
+        the LoadingDisc (nested, 128px), "Searching", one line of context,
+        then three result-row skeletons where the answers will land.
+
+      The skeletons pulse together (1.2s ping-pong, Tokens.motion.easeInOut).
+      No stagger: a wave across placeholders is decoration on a wait.
+
+      Not interactive, so the state machine exists only to run the loops
+      (without one the CLI previewer runs no binds).
+    -->
+    <Artboard defaultStateMachineId="4:70" styleId="4:5" width="412" height="560" name="SearchLoading" x="840" y="0" id="4:2">
+        <LayoutComponentStyle name="Artboard Style" id="4:5"/>
+
+        <Text x="206" y="222" sizingValue="autoWidth" originX="0.5" originY="0.5" name="Heading">
+            <TextStylePaint fontSize="17" fontAssetId="0:30" familyName="Inter" styleName="SemiBold" name="Heading" id="4:21">
+                <Fill name="Fill"><SolidColor colorValue="FFF2F3F5" name="C"/></Fill>
+                <TextStyleAxis tag="2003265652" axisValue="600" name="Weight"/>
+            </TextStylePaint>
+            <TextValueRun styleId="4:21" text="Searching" name="Run"/>
+        </Text>
+        <Text x="206" y="246" sizingValue="autoWidth" originX="0.5" originY="0.5" name="Context">
+            <TextStylePaint fontSize="13" fontAssetId="0:30" familyName="Inter" styleName="Regular" name="Context" id="4:22">
+                <Fill name="Fill"><SolidColor colorValue="FF8B9099" name="C"/></Fill>
+                <TextStyleAxis tag="2003265652" axisValue="400" name="Weight"/>
+            </TextStylePaint>
+            <TextValueRun styleId="4:22" text="Finding the game and its cover" name="Run"/>
+        </Text>
+
+        <NestedArtboard artboardId="1:2" x="142" y="56" scaleX="0.8" scaleY="0.8" name="Disc" id="4:30"/>
+
+        <!-- Result-row skeletons: cover chip + two bars, matching _ResultRow. -->
+        <Node x="16" y="296" name="Skeletons" id="4:10">
+            <Shape x="12" y="12" name="Cover1"><Rectangle originX="0" originY="0" width="40" height="53" cornerRadiusTL="6" name="Path"/><Fill name="Fill"><SolidColor colorValue="1FF2F3F5" name="C"/></Fill></Shape>
+            <Shape x="64" y="22" name="Title1"><Rectangle originX="0" originY="0" width="180" height="12" cornerRadiusTL="6" name="Path"/><Fill name="Fill"><SolidColor colorValue="1FF2F3F5" name="C"/></Fill></Shape>
+            <Shape x="64" y="42" name="Meta1"><Rectangle originX="0" originY="0" width="90" height="10" cornerRadiusTL="5" name="Path"/><Fill name="Fill"><SolidColor colorValue="14F2F3F5" name="C"/></Fill></Shape>
+            <Shape name="Row1"><Rectangle originX="0" originY="0" width="380" height="77" cornerRadiusTL="12" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF181A1D" name="C"/></Fill></Shape>
+
+            <Shape x="12" y="97" name="Cover2"><Rectangle originX="0" originY="0" width="40" height="53" cornerRadiusTL="6" name="Path"/><Fill name="Fill"><SolidColor colorValue="1FF2F3F5" name="C"/></Fill></Shape>
+            <Shape x="64" y="107" name="Title2"><Rectangle originX="0" originY="0" width="140" height="12" cornerRadiusTL="6" name="Path"/><Fill name="Fill"><SolidColor colorValue="1FF2F3F5" name="C"/></Fill></Shape>
+            <Shape x="64" y="127" name="Meta2"><Rectangle originX="0" originY="0" width="70" height="10" cornerRadiusTL="5" name="Path"/><Fill name="Fill"><SolidColor colorValue="14F2F3F5" name="C"/></Fill></Shape>
+            <Shape y="85" name="Row2"><Rectangle originX="0" originY="0" width="380" height="77" cornerRadiusTL="12" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF181A1D" name="C"/></Fill></Shape>
+
+            <Shape x="12" y="182" name="Cover3"><Rectangle originX="0" originY="0" width="40" height="53" cornerRadiusTL="6" name="Path"/><Fill name="Fill"><SolidColor colorValue="1FF2F3F5" name="C"/></Fill></Shape>
+            <Shape x="64" y="192" name="Title3"><Rectangle originX="0" originY="0" width="200" height="12" cornerRadiusTL="6" name="Path"/><Fill name="Fill"><SolidColor colorValue="1FF2F3F5" name="C"/></Fill></Shape>
+            <Shape x="64" y="212" name="Meta3"><Rectangle originX="0" originY="0" width="100" height="10" cornerRadiusTL="5" name="Path"/><Fill name="Fill"><SolidColor colorValue="14F2F3F5" name="C"/></Fill></Shape>
+            <Shape y="170" name="Row3"><Rectangle originX="0" originY="0" width="380" height="77" cornerRadiusTL="12" name="Path"/><Fill name="Fill"><SolidColor colorValue="FF181A1D" name="C"/></Fill></Shape>
+        </Node>
+
+        <!-- Sky. Declared last so it paints behind everything. -->
+        <Shape name="Sky">
+            <Rectangle originX="0" originY="0" width="412" height="560" name="Path"/>
+            <Fill name="Fill">
+                <LinearGradient startX="0" startY="0" endX="0" endY="560" name="G">
+                    <GradientStop colorValue="FF0B0A1C" position="0"/>
+                    <GradientStop colorValue="FF16112E" position="0.5"/>
+                    <GradientStop colorValue="FF241A3D" position="1"/>
+                </LinearGradient>
+            </Fill>
+        </Shape>
+
+        <LinearAnimation loopValue="pingPong" duration="72" name="Pulse" id="4:60">
+            <KeyedObject objectId="4:10">
+                <KeyedProperty propertyKey="18">
+                    <KeyFrameDouble value="0.55" frame="0" interpolationType="cubic">
+                        <CubicEaseInterpolator x1="0.77" y1="0" x2="0.175" y2="1"/>
+                    </KeyFrameDouble>
+                    <KeyFrameDouble value="1" frame="72"/>
+                </KeyedProperty>
+            </KeyedObject>
+        </LinearAnimation>
+
+        <StateMachine name="Main" id="4:70">
+            <StateMachineLayer name="Pulse" id="4:71">
+                <AnyState x="200" y="-120"/>
+                <ExitState x="400" y="-120"/>
+                <EntryState x="0" y="0"><StateTransition stateToId="4:73"/></EntryState>
+                <AnimationState x="200" y="0" animationId="4:60" id="4:73"/>
+            </StateMachineLayer>
+        </StateMachine>
+    </Artboard>
+</Rive>

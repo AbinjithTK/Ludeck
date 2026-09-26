@@ -1,0 +1,9 @@
+name: ludeck_ui
+main: SearchLoading
+exclude:
+  - _docs
+  - tree
+  - tool
+logs:
+  file: build/rive.log
+  problems: build/problems.log
