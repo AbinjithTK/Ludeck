@@ -153,8 +153,8 @@ class LudeckStore extends ChangeNotifier {
       _items?.where((i) => i.entry.progress == Progress.finished).length ?? 0;
 
   /// The igdbId that just transitioned into finished, for a one-shot harvest
-  /// burst, or null. The tree view reads it and calls [consumeJustHarvested] so
-  /// the burst plays once and never again on a later rebuild.
+  /// burst, or null. The roadmap view reads it and calls [consumeJustHarvested]
+  /// so the burst plays once and never again on a later rebuild.
   int? _justHarvested;
   int? get justHarvested => _justHarvested;
 

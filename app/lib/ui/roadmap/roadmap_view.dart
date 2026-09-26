@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import '../../data/enums.dart';
 import '../../data/models.dart';
 import '../../services/cover_art_cache.dart';
+import '../harvest/harvest_burst.dart';
 import '../tokens.dart';
 import 'roadmap_layout.dart';
 import 'roadmap_node.dart';
@@ -42,6 +43,9 @@ class RoadmapView extends StatefulWidget {
     this.onAddedDone,
     this.roadmapOrder = const {},
     this.onReorder,
+    this.burstIgdbId,
+    this.burstLevelUp = false,
+    this.onBurstDone,
   });
 
   final List<TreeItem> items;
@@ -80,6 +84,18 @@ class RoadmapView extends StatefulWidget {
   /// Called with the full list of igdb_ids in their new order when the user
   /// finishes a drag-reorder. Null disables reordering.
   final void Function(List<int> igdbIdsInOrder)? onReorder;
+
+  /// The igdbId of a game that just transitioned to finished, or null. When set
+  /// and present on the roadmap, a one-shot gold harvest burst plays over that
+  /// node -- the celebration, moved here from the retired tree view.
+  final int? burstIgdbId;
+
+  /// Whether the harvest burst plays its larger level-up variant.
+  final bool burstLevelUp;
+
+  /// Called when the harvest burst finishes, so the caller clears the signal
+  /// and it never replays on a later rebuild.
+  final VoidCallback? onBurstDone;
 
   @override
   State<RoadmapView> createState() => _RoadmapViewState();
@@ -252,6 +268,9 @@ class _RoadmapViewState extends State<RoadmapView>
               ),
               for (final node in layout.nodes)
                 _positioned(node, games[node.index], width),
+
+              // The one-shot harvest burst over the just-finished node.
+              ..._burstOverlay(layout, games),
             ],
           ),
         );
@@ -363,6 +382,34 @@ class _RoadmapViewState extends State<RoadmapView>
     ids.removeAt(from);
     ids.insert(to, draggedId);
     widget.onReorder?.call(ids);
+  }
+
+  /// A one-shot HarvestBurst over the just-finished node, or nothing.
+  ///
+  /// Sized to the node ring and centred on the node. Ignores pointers (the
+  /// burst never eats a tap). onBurstDone clears the store signal so it plays
+  /// once. This is the harvest celebration moved from the retired tree view.
+  List<Widget> _burstOverlay(RoadmapLayout layout, List<TreeItem> games) {
+    final id = widget.burstIgdbId;
+    if (id == null) return const [];
+    final index = games.indexWhere((g) => g.game.igdbId == id);
+    if (index < 0 || index >= layout.nodes.length) return const [];
+    final centre = layout.nodes[index].centre;
+    const d = _kNodeDiameter;
+    return [
+      Positioned(
+        left: centre.dx - d / 2,
+        top: centre.dy - d / 2,
+        width: d,
+        height: d,
+        child: IgnorePointer(
+          child: HarvestBurst(
+            levelUp: widget.burstLevelUp,
+            onDone: widget.onBurstDone,
+          ),
+        ),
+      ),
+    ];
   }
 }
 

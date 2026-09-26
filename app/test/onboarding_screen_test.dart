@@ -81,13 +81,13 @@ void main() {
 
       await tester.tap(find.text('Open'));
       await tester.pumpAndSettle();
-      expect(find.text('Your games, as a tree'), findsOneWidget);
+      expect(find.text('Your games, as a roadmap'), findsOneWidget);
 
       await tester.tap(find.text('Skip'));
       await tester.pumpAndSettle();
 
       expect(find.text('Open'), findsOneWidget); // back on the caller screen.
-      expect(find.text('Your games, as a tree'), findsNothing);
+      expect(find.text('Your games, as a roadmap'), findsNothing);
     });
   });
 }

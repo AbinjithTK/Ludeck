@@ -170,6 +170,17 @@ layers sliding), not of a true perspective camera, and that path is now buildabl
 covers become `WidgetComponent`s that always face the camera while the wood turns,
 so titles stay upright. This is built in the 3D stage, not on the painter.
 
+**SUPERSEDED 2026-09-26: the tree is retired for a node roadmap.** After the 3D
+tree rendered (bark meshes, orbit, billboarded covers, all working behind a flag),
+Abin judged both the 2D painted tree and the 3D scene wrong for the product and
+asked for a Noom/Mimo-style **editable roadmap of connected nodes** instead: each
+game a node on a winding path, joined by rounded elbow connectors, with a draw-line
+creation animation and an editable, reorderable order. `flutter_scene`, the 3D
+scene, `tree_mesh`, `tree_painter` and `procedural_tree` were all deleted; the
+renderer is now `ui/roadmap/`. The no-rotation objection is moot — a roadmap
+scrolls, it does not orbit. The billboarding lesson still stands as history. The
+`docs/HANDOFF.md`, `DESIGN.md` and `PROGRESS.md` tree sections predate this pivot.
+
 **`shelved` replaces delete.** Nothing the user has recorded is ever destroyed by a
 normal action.
 

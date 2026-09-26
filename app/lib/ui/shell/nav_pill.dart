@@ -7,7 +7,7 @@ import '../tokens.dart';
 /// An enum rather than a list of strings, so a destination cannot be added to the
 /// bar without the switch that routes it failing to compile.
 enum NavDestination {
-  tree('Tree', Icons.park_outlined),
+  tree('Roadmap', Icons.route_outlined),
   library('Library', Icons.grid_view_outlined),
   friends('Friends', Icons.people_outline),
   you('You', Icons.person_outline);

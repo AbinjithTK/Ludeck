@@ -40,10 +40,10 @@ class _Page {
 
 const _pages = [
   _Page(
-    icon: Icons.park_outlined,
-    title: 'Your games, as a tree',
-    body: 'Every game you own or want to play lives on your tree. '
-        'Harvested games glow gold. That is the only thing this app marks. '
+    icon: Icons.route_outlined,
+    title: 'Your games, as a roadmap',
+    body: 'Every game you own or want to play becomes a node on your roadmap. '
+        'Finished games glow gold. That is the only thing this app marks. '
         "Nothing is ever shown as locked, overdue, or behind.",
   ),
   _Page(
@@ -55,9 +55,9 @@ const _pages = [
   ),
   _Page(
     icon: Icons.touch_app_outlined,
-    title: 'Press and hold to move a game',
-    body: 'Press and hold a cover, then drag it to another branch to move '
-        'it there. A plain tap opens that game\'s status instead.',
+    title: 'Press and hold to reorder',
+    body: 'Press and hold a node, then drag it along the roadmap to reorder '
+        'your journey. A plain tap opens that game\'s status instead.',
   ),
   _Page(
     icon: Icons.ios_share,

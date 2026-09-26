@@ -843,6 +843,14 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   // Drag-to-reorder, persisted through the store.
                   roadmapOrder: store.roadmapOrder,
                   onReorder: store.reorderRoadmap,
+                  // The one-shot harvest burst on the real transition-to-finished
+                  // event, over the harvested node.
+                  burstIgdbId: store.justHarvested,
+                  burstLevelUp: store.harvestLevelledUp,
+                  onBurstDone: () {
+                    store.consumeJustHarvested();
+                    if (mounted) setState(() {});
+                  },
                 ),
 
                 // A fade under the add control. Padding alone only fixes where

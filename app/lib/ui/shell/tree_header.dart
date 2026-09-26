@@ -63,11 +63,11 @@ class TreeHeader extends StatelessWidget {
   /// The headline. Counts what EXISTS, never what is outstanding -- a count that
   /// can only go up is the whole difference between this and a backlog.
   String get _headline {
-    if (total == 0) return 'Nothing growing yet.';
+    if (total == 0) return 'Nothing here yet.';
     final onTree = total - seeds;
-    if (onTree <= 0) return 'All buds, for now.';
-    if (onTree == 1) return 'One on the tree.';
-    return '$onTree on the tree.';
+    if (onTree <= 0) return 'All wishlist.';
+    if (onTree == 1) return 'One game.';
+    return '$onTree games.';
   }
 
   @override
