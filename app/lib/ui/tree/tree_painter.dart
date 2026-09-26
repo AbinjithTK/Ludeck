@@ -238,6 +238,7 @@ class ProceduralTreePainter extends CustomPainter {
     required this.tree,
     required this.foliage,
     this.groundVisible = true,
+    this.bloomTints = const {},
   }) : skinName = Tokens.canopy.name;
 
   final ProceduralTree tree;
@@ -245,6 +246,12 @@ class ProceduralTreePainter extends CustomPainter {
 
   /// The active skin at construction, so a colour-direction swap repaints.
   final String skinName;
+
+  /// igdbId -> the dominant colour of that game's cover, for the bloom a fruit
+  /// casts onto the wood and foliage around it. Empty until covers resolve and
+  /// their colours are extracted; a fruit not in the map casts no bloom, so the
+  /// tree simply lights up gradually as art loads rather than flashing.
+  final Map<int, Color> bloomTints;
 
   /// False for a small portrait, where a ground plane crops awkwardly and the
   /// tree reads better floating.
@@ -287,6 +294,14 @@ class ProceduralTreePainter extends CustomPainter {
       );
     }
     _paintFoliage(canvas, maxDepth: 0.5);
+
+    // Each fruit casts a BLOOM of its cover's dominant colour onto the wood and
+    // foliage beneath it. This is the tree taking its colour from the user's own
+    // games. Painted after the scene and before the stalks/fruit, with a plus
+    // blend so it LIGHTS the surface rather than covering it -- a coloured glow,
+    // not a coloured disc. Falls off with radius, and a set-back fruit blooms
+    // fainter (aerial perspective, same cue the foliage uses).
+    _paintBlooms(canvas);
 
     // Stalks last, so a fruit is always joined to wood no matter which layer its
     // limb ended up in.
@@ -455,6 +470,39 @@ class ProceduralTreePainter extends CustomPainter {
     final facing = normal.dx * kLightDirection.dx + normal.dy * kLightDirection.dy;
     return facing >= 0 ? -0.42 : 0.42;
   }
+  /// Cast each fruit's cover colour as a soft radial bloom on the scene.
+  void _paintBlooms(Canvas canvas) {
+    if (bloomTints.isEmpty) return;
+    for (final f in tree.allFruit) {
+      // A bud is not the user's game yet, so it does not light the tree.
+      if (f.bud) continue;
+      final colour = bloomTints[f.item.game.igdbId];
+      if (colour == null) continue;
+      // A bloom the size of a fruit or so, brightest at the fruit and gone by
+      // its edge. Kept modest: a big bright bloom washes the tree into one
+      // colour and merges neighbours, where a tight one reads as THIS game
+      // tinting its own patch of wood. Set-back fruit bloom fainter.
+      final radius = f.radius * 2.1;
+      final peak = (0.26 - f.depth * 0.10).clamp(0.0, 1.0);
+      final shader = RadialGradient(
+        colors: [
+          colour.withValues(alpha: peak),
+          colour.withValues(alpha: 0),
+        ],
+      ).createShader(Rect.fromCircle(center: f.centre, radius: radius));
+      canvas.drawCircle(
+        f.centre,
+        radius,
+        Paint()
+          ..shader = shader
+          // Plus lightens the surface toward the colour instead of painting a
+          // flat disc over it, so it reads as light cast, not as a sticker.
+          ..blendMode = BlendMode.plus,
+      );
+    }
+  }
+
+
 
   void _paintStalks(Canvas canvas) {
     final paint = Paint()
@@ -512,5 +560,6 @@ class ProceduralTreePainter extends CustomPainter {
       old.tree.canvas != tree.canvas ||
       old.tree.fruitCount != tree.fruitCount ||
       old.skinName != skinName ||
+      old.bloomTints.length != bloomTints.length ||
       old.groundVisible != groundVisible;
 }

@@ -135,6 +135,23 @@ class _ProceduralTreeViewState extends State<ProceduralTreeView> {
         final interactive = widget.onSelect != null || widget.onHold != null;
         final branchNames = {for (final b in widget.branches) b.id: b.name};
 
+        // Kick off dominant-colour extraction for any fruit whose cover is
+        // known. Idempotent per game in the cache, and the callback rebuilds so
+        // the painter's bloom pass sees the new colour. A bud does not light the
+        // tree, so it is skipped.
+        final cache = widget.coverCache;
+        if (cache != null) {
+          for (final f in tree.allFruit) {
+            if (f.bud) continue;
+            final url = f.item.game.coverUrl;
+            if (url != null && url.isNotEmpty) {
+              cache.requestBloom(f.item.game.igdbId, url, (_) {
+                if (mounted) setState(() {});
+              });
+            }
+          }
+        }
+
         return Padding(
           padding: EdgeInsets.only(
             top: widget.topInset,
@@ -153,6 +170,8 @@ class _ProceduralTreeViewState extends State<ProceduralTreeView> {
                       tree: tree,
                       foliage: foliageFor(tree),
                       groundVisible: widget.showGround,
+                      bloomTints:
+                          widget.coverCache?.bloomTints ?? const {},
                     ),
                   ),
                 ),

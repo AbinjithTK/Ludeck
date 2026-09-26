@@ -554,6 +554,70 @@ void main() {
       } finally {
         Tokens.activeSkin = original;
       }
+
+      // Stage 3: the bloom pass, driven with synthetic per-fruit colours so it
+      // can be SEEN without a network decode. Vivid, deliberately varied hues so
+      // the "colour from the games" effect is visible on the wood and foliage.
+      final blooms = <int, ui.Color>{
+        100: const ui.Color(0xFFE84B5A), // red
+        101: const ui.Color(0xFF4B7BE8), // blue
+        102: const ui.Color(0xFF9C4BE8), // violet
+        103: const ui.Color(0xFF4BE8C8), // teal
+        104: const ui.Color(0xFFE87A4B), // orange
+        105: const ui.Color(0xFF4BE85A), // green
+        106: const ui.Color(0xFFE84BC8), // magenta
+        107: const ui.Color(0xFF4BC8E8), // cyan
+      };
+      final bloomItems =
+          [for (var i = 0; i < 8; i++) _item(100 + i, 'Game $i', harvested: i == 1)];
+      tester.view.physicalSize = _phone;
+      tester.view.devicePixelRatio = 1.0;
+      final tree = ProceduralTree.build(
+        canvas: _phone,
+        branches: const [],
+        placements: const {},
+        items: bloomItems,
+        fruitRadius: 28,
+        trunkWidth: 32,
+      );
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: RepaintBoundary(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: Tokens.canopy.sky,
+                ),
+              ),
+              child: SizedBox(
+                width: _phone.width,
+                height: _phone.height,
+                child: CustomPaint(
+                  painter: ProceduralTreePainter(
+                    tree: tree,
+                    foliage: foliageFor(tree),
+                    bloomTints: blooms,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      final b = tester.renderObject<RenderRepaintBoundary>(
+        find.byType(RepaintBoundary).first,
+      );
+      await tester.runAsync(() async {
+        final image = await b.toImage();
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        io.File('$dir/bloom-8.png').writeAsBytesSync(
+          bytes!.buffer.asUint8List(),
+          flush: true,
+        );
+      });
     });
   });
 }
