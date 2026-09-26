@@ -79,15 +79,19 @@ class RoadmapLayout {
 ///
 /// [width] is the viewport width; [sideInset] is how far a left/right node sits
 /// from the centre line. [topInset] / [bottomInset] clear the header and the
-/// floating controls so no node hides under chrome.
+/// floating controls so no node hides under chrome. [nodeRadius] is half the
+/// node's circular hit area: connectors anchor to the node EDGE (this radius
+/// out from the centre) rather than the centre, so the stroke never crosses the
+/// card the way a centre-to-centre line did.
 RoadmapLayout layoutRoadmap({
   required int count,
   required double width,
-  double rowHeight = 150,
-  double sideInset = 78,
+  double rowHeight = 168,
+  double sideInset = 64,
   double topInset = 0,
   double bottomInset = 0,
-  double cornerRadius = 26,
+  double cornerRadius = 24,
+  double nodeRadius = 40,
 }) {
   final centreX = width / 2;
   final firstY = topInset + rowHeight * 0.6;
@@ -115,7 +119,12 @@ RoadmapLayout layoutRoadmap({
 
   final links = <RoadLink>[
     for (var i = 0; i < nodes.length - 1; i++)
-      _linkBetween(nodes[i].centre, nodes[i + 1].centre, cornerRadius),
+      _linkBetween(
+        nodes[i].centre,
+        nodes[i + 1].centre,
+        cornerRadius,
+        nodeRadius,
+      ),
   ];
 
   final height = count == 0
@@ -129,13 +138,21 @@ RoadmapLayout layoutRoadmap({
   );
 }
 
-/// Builds the elbow between two node centres.
+/// Builds the elbow between two node centres, anchored to the node EDGES.
 ///
-/// Same column -> a single vertical segment (two points). Different columns ->
-/// drop halfway, run across, drop again: a four-point elbow with two rounded
-/// corners. The vertical-first shape (not horizontal-first) keeps the line
-/// leaving each node downward, which reads as "the path continues down".
-RoadLink _linkBetween(Offset from, Offset to, double radius) {
+/// The line leaves the FROM node at its bottom edge and enters the TO node at
+/// its top edge ([nodeRadius] from each centre vertically), so it never draws
+/// across a card. Same column -> a single vertical segment. Different columns ->
+/// drop to the midpoint, run across, drop again: a four-point elbow with two
+/// rounded corners. Vertical-first keeps the line leaving each node downward.
+RoadLink _linkBetween(
+  Offset fromCentre,
+  Offset toCentre,
+  double radius,
+  double nodeRadius,
+) {
+  final from = Offset(fromCentre.dx, fromCentre.dy + nodeRadius);
+  final to = Offset(toCentre.dx, toCentre.dy - nodeRadius);
   if ((from.dx - to.dx).abs() < 0.5) {
     return RoadLink(points: [from, to], radius: 0);
   }

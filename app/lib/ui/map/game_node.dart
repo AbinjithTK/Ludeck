@@ -30,6 +30,7 @@ class GameNode extends StatefulWidget {
     this.branchName,
     this.animateIn = false,
     this.showTitle = true,
+    this.circular = false,
     this.coverCache,
     this.onCoverFound,
   });
@@ -63,6 +64,12 @@ class GameNode extends StatefulWidget {
 
   /// Whether to paint the title under the card.
   final bool showTitle;
+
+  /// Circular mode for the roadmap: a SQUARE cover fitted into a circle, with a
+  /// circle-native placeholder and no card chrome or harvest badge (the roadmap
+  /// node draws its own lifecycle ring instead). A rectangular card clipped into
+  /// a circle showed a clipped band; this renders for the circle from the start.
+  final bool circular;
 
   final CoverArtCache? coverCache;
   final void Function(int igdbId, String coverUrl)? onCoverFound;
@@ -145,7 +152,21 @@ class _GameNodeState extends State<GameNode>
         'rated ${item.entry.rating} out of 5',
     ].join(', ');
 
-    final card = DecoratedBox(
+    final card = widget.circular
+        ? ClipOval(
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: Tokens.cosmos.panelDeep),
+              child: (cover != null && cover.isNotEmpty)
+                  ? Image.network(
+                      cover,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) =>
+                          _NodePlaceholder(title: game.title),
+                    )
+                  : _NodePlaceholder(title: game.title),
+            ),
+          )
+        : DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: radius,
         // Only a harvested game glows: rewarding what happened, never marking
@@ -195,6 +216,9 @@ class _GameNodeState extends State<GameNode>
       ),
     );
 
+    // Circular mode: a SQUARE cover clipped to a circle, filling the ring.
+    final cardHeightEffective = widget.circular ? widget.cardWidth : cardHeight;
+
     final node = Semantics(
       button: true,
       label: announced,
@@ -213,7 +237,9 @@ class _GameNodeState extends State<GameNode>
             mainAxisSize: MainAxisSize.min,
             children: [
               SizedBox(
-                  width: widget.cardWidth, height: cardHeight, child: card),
+                  width: widget.cardWidth,
+                  height: cardHeightEffective,
+                  child: card),
               if (widget.showTitle) ...[
                 SizedBox(height: Tokens.space.xxs),
                 SizedBox(
@@ -268,13 +294,15 @@ class _NodePlaceholder extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(color: Tokens.cosmos.panelDeep),
-      child: Center(
-        child: Text(
-          initials.isEmpty ? '?' : initials,
-          style: TextStyle(
-            fontSize: Tokens.type.title,
-            color: Tokens.palette.textDim,
-            fontWeight: FontWeight.w600,
+      child: SizedBox.expand(
+        child: Center(
+          child: Text(
+            initials.isEmpty ? '?' : initials,
+            style: TextStyle(
+              fontSize: Tokens.type.title,
+              color: Tokens.palette.textDim,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),

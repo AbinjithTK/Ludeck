@@ -94,4 +94,17 @@ void main() {
             Progress.values[i % Progress.values.length]),
     ]);
   });
+
+  testWidgets('lifecycle states', (tester) async {
+    // One node per lifecycle state, in order, so each ring can be judged: a
+    // wishlist bud (dim ring), untouched, installed, playing (accent ring),
+    // finished (gold glow ring).
+    await capture(tester, 'states', [
+      game(1, 'Wishlist bud', Ownership.spotted, Progress.untouched),
+      game(2, 'Not started', Ownership.owned, Progress.untouched),
+      game(3, 'Installed', Ownership.owned, Progress.installed),
+      game(4, 'Playing now', Ownership.owned, Progress.playing),
+      game(5, 'Finished', Ownership.owned, Progress.finished),
+    ]);
+  });
 }

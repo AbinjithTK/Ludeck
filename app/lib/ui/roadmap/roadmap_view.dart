@@ -7,18 +7,22 @@
 // which already carries a `trail` / `trailDim` pair documented for exactly this.
 //
 // Drop-in for the old `ProceduralTreeView`: the prop shape is deliberately the
-// same (items, branches, placements, onSelect, onHold, cover cache, insets, the
-// burst signals) so `main.dart` and the profile portrait re-point with no other
-// change. The layout math is the pure, unit-tested `roadmap_layout.dart`; this
-// file is the widget shell around it.
+// same (items, branches, placements, onSelect, onHold, cover cache, insets) so
+// `main.dart` and the profile portrait re-point with no other change. The
+// layout math is the pure, unit-tested `roadmap_layout.dart`; this file is the
+// widget shell around it.
 
 import 'package:flutter/material.dart';
 
+import '../../data/enums.dart';
 import '../../data/models.dart';
 import '../../services/cover_art_cache.dart';
-import '../map/game_node.dart';
 import '../tokens.dart';
 import 'roadmap_layout.dart';
+import 'roadmap_node.dart';
+
+/// The node ring's outer diameter on the roadmap.
+const double _kNodeDiameter = 78;
 
 class RoadmapView extends StatefulWidget {
   const RoadmapView({
@@ -68,6 +72,24 @@ class _RoadmapViewState extends State<RoadmapView> {
   List<TreeItem> get _visible =>
       widget.items.where((i) => !i.entry.shelved).toList();
 
+  /// The index up to which the path is "walked" -- the furthest game the user
+  /// has engaged with (finished, playing or installed). Connectors up to and
+  /// including this index are the bright `trail`; those after are `trailDim`.
+  /// This is a where-you-are marker on a map, which DECISIONS.md permits, not a
+  /// lock or an overdue mark, which it forbids.
+  int _walkedThrough(List<TreeItem> games) {
+    var last = -1;
+    for (var i = 0; i < games.length; i++) {
+      final p = games[i].entry.progress;
+      if (p == Progress.finished ||
+          p == Progress.playing ||
+          p == Progress.installed) {
+        last = i;
+      }
+    }
+    return last;
+  }
+
   @override
   Widget build(BuildContext context) {
     final games = _visible;
@@ -84,53 +106,67 @@ class _RoadmapViewState extends State<RoadmapView> {
           width: width,
           topInset: widget.topInset,
           bottomInset: widget.bottomInset,
+          nodeRadius: _kNodeDiameter / 2,
         );
+        final walked = _walkedThrough(games);
 
         final board = SizedBox(
           width: layout.size.width,
           height: layout.size.height,
           child: Stack(
             children: [
-              // The connectors, behind the nodes.
+              // The connectors, behind the nodes. Split into the walked part
+              // (bright) and the rest (dim): link i joins node i to node i+1, so
+              // it is "walked" when node i+1 is within the walked range.
               Positioned.fill(
                 child: CustomPaint(
                   painter: _RoadPainter(
                     links: layout.links,
-                    colour: Tokens.cosmos.trail,
+                    walkedColour: Tokens.cosmos.trail,
+                    aheadColour: Tokens.cosmos.trailDim,
+                    walkedThroughLink: walked - 1,
                   ),
                 ),
               ),
-              // The nodes.
               for (final node in layout.nodes)
-                _positioned(node, games[node.index]),
+                _positioned(node, games[node.index], width),
             ],
           ),
         );
 
         if (!widget.interactive) {
-          // Portrait: fit the whole board into the given box, no scroll.
           return FittedBox(fit: BoxFit.contain, child: board);
         }
 
-        return SingleChildScrollView(
-          child: board,
-        );
+        return SingleChildScrollView(child: board);
       },
     );
   }
 
-  Widget _positioned(RoadNode node, TreeItem item) {
-    final w = Tokens.size.nodeCard;
-    final h = w * Tokens.size.coverRatio;
-    // Centre the card on the node centre; the title sits below within the row.
+  Widget _positioned(RoadNode node, TreeItem item, double width) {
+    final d = _kNodeDiameter;
+    // The node's Row is chip + title; the CHIP must sit centred on the path
+    // point, with the title extending outward. Give the row the full half-width
+    // on the title side and pin the chip to the path x by offsetting the row.
+    final titleSide =
+        node.side == RoadSide.left ? NodeTitleSide.left : NodeTitleSide.right;
+
+    // The row is [chip | title] (right side) or [title | chip] (left side). To
+    // land the CHIP centre on node.centre.dx, the row's left edge is the chip
+    // centre minus half the chip, minus (for a left title) the title block.
+    final titleWidth = width * 0.32;
+    final rowLeft = titleSide == NodeTitleSide.right
+        ? node.centre.dx - d / 2
+        : node.centre.dx - d / 2 - titleWidth - Tokens.space.sm;
+
     return Positioned(
-      left: node.centre.dx - w / 2,
-      top: node.centre.dy - h / 2,
-      width: w,
-      child: GameNode(
+      left: rowLeft,
+      top: node.centre.dy - d / 2,
+      child: RoadmapNode(
         item: item,
-        cardWidth: w,
-        showTitle: true,
+        diameter: d,
+        titleSide: titleSide,
+        titleWidth: titleWidth,
         animateIn: widget.animateArrivals,
         coverCache: widget.coverCache,
         onCoverFound: widget.onCoverFound,
@@ -142,29 +178,37 @@ class _RoadmapViewState extends State<RoadmapView> {
   }
 }
 
-/// Strokes the rounded elbow connectors.
+/// Strokes the rounded elbow connectors, walked part bright and the rest dim.
 ///
 /// Each link is an axis-aligned polyline with a corner radius. A straight link
 /// (two points) is one line; an elbow (four points) is drawn segment by segment
-/// with a quarter-circle arc at each interior corner via `conicTo`, so the bend
-/// is a true rounded corner rather than a chamfer.
+/// with a quarter-circle arc at each interior corner, so the bend is a true
+/// rounded corner rather than a chamfer.
 class _RoadPainter extends CustomPainter {
-  _RoadPainter({required this.links, required this.colour});
+  _RoadPainter({
+    required this.links,
+    required this.walkedColour,
+    required this.aheadColour,
+    required this.walkedThroughLink,
+  });
 
   final List<RoadLink> links;
-  final Color colour;
+  final Color walkedColour;
+  final Color aheadColour;
+
+  /// Highest link index that is "walked" (bright). -1 means none are.
+  final int walkedThroughLink;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = colour
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    for (final link in links) {
-      canvas.drawPath(_pathFor(link), paint);
+    for (var i = 0; i < links.length; i++) {
+      final paint = Paint()
+        ..color = i <= walkedThroughLink ? walkedColour : aheadColour
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      canvas.drawPath(_pathFor(links[i]), paint);
     }
   }
 
@@ -177,9 +221,6 @@ class _RoadPainter extends CustomPainter {
       }
       return path;
     }
-    // Rounded corners at each interior point: stop short of the corner, arc
-    // through it toward the next segment. arcToPoint with a quarter radius is
-    // the clean rounded elbow.
     for (var i = 1; i < pts.length - 1; i++) {
       final prev = pts[i - 1];
       final corner = pts[i];
@@ -198,7 +239,6 @@ class _RoadPainter extends CustomPainter {
     return path;
   }
 
-  /// A point [distance] from [origin] toward [target].
   Offset _towards(Offset origin, Offset target, double distance) {
     final d = target - origin;
     final len = d.distance;
@@ -206,7 +246,6 @@ class _RoadPainter extends CustomPainter {
     return origin + d * (distance / len);
   }
 
-  /// Winding of the turn prev->corner->next, for the arc sweep direction.
   bool _clockwise(Offset prev, Offset corner, Offset next) {
     final cross = (corner.dx - prev.dx) * (next.dy - corner.dy) -
         (corner.dy - prev.dy) * (next.dx - corner.dx);
@@ -215,11 +254,15 @@ class _RoadPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_RoadPainter old) =>
-      old.links != links || old.colour != colour;
+      old.links != links ||
+      old.walkedColour != walkedColour ||
+      old.aheadColour != aheadColour ||
+      old.walkedThroughLink != walkedThroughLink;
 }
 
-/// The empty state: no games yet. A single dimmed node marker on the spine, so
-/// the screen reads as "your roadmap starts here" rather than as a blank.
+/// The empty state: no games yet. A dimmed start node on the spine with a line
+/// leading down into nothing, so the screen reads as "your roadmap begins here"
+/// rather than as a blank canvas.
 class _EmptyRoadmap extends StatelessWidget {
   const _EmptyRoadmap({required this.topInset});
 
@@ -228,28 +271,76 @@ class _EmptyRoadmap extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(top: topInset + Tokens.space.xl),
+      padding: EdgeInsets.only(top: topInset + Tokens.space.xl * 2),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: [
           Container(
-            width: Tokens.size.nodeCard,
-            height: Tokens.size.nodeCard,
+            width: _kNodeDiameter,
+            height: _kNodeDiameter,
             decoration: BoxDecoration(
+              shape: BoxShape.circle,
               color: Tokens.cosmos.panel,
-              borderRadius: BorderRadius.circular(Tokens.radius.panel),
-              border: Border.all(color: Tokens.cosmos.panelEdge),
+              border: Border.all(color: Tokens.cosmos.panelEdge, width: 2),
             ),
-            child: Icon(Icons.add, color: Tokens.palette.textDim),
+            child: Icon(Icons.add_rounded,
+                color: Tokens.palette.text, size: 32),
+          ),
+          // A short stub of dim path descending from the start node.
+          SizedBox(
+            height: 56,
+            child: CustomPaint(
+              size: const Size(5, 56),
+              painter: _StubPainter(colour: Tokens.cosmos.trailDim),
+            ),
           ),
           SizedBox(height: Tokens.space.md),
-          Text(
-            'Add your first game to start the roadmap',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Tokens.palette.textDim),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: Tokens.space.xl),
+            child: Text(
+              'Add your first game to begin the roadmap',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Tokens.palette.text,
+                fontSize: Tokens.type.body,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          SizedBox(height: Tokens.space.xs),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: Tokens.space.xl),
+            child: Text(
+              'Each game you save becomes a node on your journey.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Tokens.palette.textDim),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// A short vertical dim stub under the empty-state start node.
+class _StubPainter extends CustomPainter {
+  _StubPainter({required this.colour});
+  final Color colour;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = colour
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width / 2, 0),
+      Offset(size.width / 2, size.height),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_StubPainter old) => old.colour != colour;
 }

@@ -80,7 +80,15 @@ void main() {
     /// LongPressDraggable won the gesture arena and stopped the drag starting at
     /// all. Filing now lives in this very sheet, so tap and hold both open it.
     Future<void> openStatusSheet(WidgetTester tester, String title) async {
-      await tester.tap(find.bySemanticsLabel(RegExp('^$title,')));
+      final target = find.bySemanticsLabel(RegExp('^$title,'));
+      // The roadmap SCROLLS -- unlike the old tree, a later node can sit below
+      // the fold, so tapping its semantics rect derives an off-screen offset and
+      // misses. Every node is built eagerly in the Stack, so the finder already
+      // matches; it just needs scrolling into view (ensureVisible), the same
+      // result a user's scroll produces.
+      await tester.ensureVisible(target);
+      await tester.pumpAndSettle();
+      await tester.tap(target);
       await tester.pumpAndSettle();
     }
 
