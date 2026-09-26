@@ -32,6 +32,22 @@ class LibraryScreen extends StatelessWidget {
 
   final CoverArtCache? coverCache;
 
+  /// The library lists everything you track: owned GAMES and wishlist BUDS.
+  /// The header headline counts only games on the tree (owned), so a bare
+  /// total here would read as a contradiction of it -- 10 vs 8. Breaking the
+  /// count out (8 games, 2 buds) makes the two numbers agree instead of fight,
+  /// and honours DECISIONS.md's rule that a bud is a wish, not a game.
+  static String _libraryTitle(List<TreeItem> items) {
+    if (items.isEmpty) return 'Your library';
+    final buds = items.where((i) => i.isSeed).length;
+    final games = items.length - buds;
+    if (buds == 0) {
+      return 'Your library \u00B7 $games ${games == 1 ? 'game' : 'games'}';
+    }
+    return 'Your library \u00B7 $games ${games == 1 ? 'game' : 'games'}, '
+        '$buds ${buds == 1 ? 'bud' : 'buds'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final store = context.watch<LudeckStore>();
@@ -51,7 +67,7 @@ class LibraryScreen extends StatelessWidget {
                 Tokens.space.sm,
               ),
               child: Text(
-                items.isEmpty ? 'Your library' : 'Your library, ${items.length}',
+                _libraryTitle(items),
                 style: TextStyle(
                   fontSize: Tokens.type.title,
                   letterSpacing: Tokens.type.trackingTitle,

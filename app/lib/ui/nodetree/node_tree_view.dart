@@ -426,9 +426,10 @@ class _BranchNodeRow extends StatelessWidget {
       padding: EdgeInsets.fromLTRB(
           Tokens.space.md + indent, Tokens.space.xxs, Tokens.space.md, Tokens.space.xxs),
       child: Semantics(
-        label: '${b.name}, $childCount games'
+        label: '${b.name}, $childCount ${childCount == 1 ? 'game' : 'games'}'
             '${hasChildren ? (collapsed ? ', collapsed' : ', expanded') : ''}',
         button: true,
+        excludeSemantics: true,
         child: Material(
           color: highlighted
               ? Tokens.palette.accent.withValues(alpha: 0.12)
@@ -592,6 +593,7 @@ class _GameNodeRow extends StatelessWidget {
       child: Semantics(
         label: '${item.game.title}, ${item.entry.progress.label}',
         button: true,
+        excludeSemantics: true,
         child: Material(
           type: MaterialType.transparency,
           child: InkWell(
