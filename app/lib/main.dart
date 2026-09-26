@@ -826,6 +826,17 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   // instead of it.
                   onSelect: _openStatusSheet,
                   onHold: _openStatusSheet,
+                  // The one-shot harvest burst, driven by the real store event:
+                  // setProgress flags the transition into finished, the burst
+                  // plays over that fruit, and onBurstDone clears the flag so it
+                  // never replays. setState is needed to drop burstIgdbId back to
+                  // null after the burst.
+                  burstIgdbId: store.justHarvested,
+                  burstLevelUp: store.harvestLevelledUp,
+                  onBurstDone: () {
+                    store.consumeJustHarvested();
+                    if (mounted) setState(() {});
+                  },
                 ),
 
                 // A fade under the add control. Padding alone only fixes where

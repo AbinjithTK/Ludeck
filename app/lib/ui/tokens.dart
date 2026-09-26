@@ -517,4 +517,15 @@ class _Motion {
 
   /// Something already on screen moving to a new place.
   final Curve easeInOut = const Cubic(0.77, 0, 0.175, 1);
+
+  /// Collapse a duration to zero when the OS reduce-motion setting is on.
+  ///
+  /// `DECISIONS.md` requires reduced motion be honoured by RESOLVING instantly
+  /// rather than skipping in a way that loses state -- a zero-duration animation
+  /// still runs its listeners and lands on its end value, so the node arrives at
+  /// full size, the burst reaches its final (invisible) frame, nothing is left
+  /// half-built. Callers pass `MediaQuery.disableAnimationsOf(context)`; kept
+  /// pure (a bool in, a Duration out) so it needs no widgets import here.
+  Duration maybe(Duration d, {required bool reduceMotion}) =>
+      reduceMotion ? Duration.zero : d;
 }

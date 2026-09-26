@@ -116,6 +116,13 @@ class _GameNodeState extends State<GameNode>
     final cardHeight = widget.cardWidth * Tokens.size.coverRatio;
     final cover = game.coverUrl;
 
+    // Reduced motion: the arrival controller's duration collapses to zero, so a
+    // just-added node lands at full size instantly instead of scaling in. It
+    // still RESOLVES (runs listeners, ends at 1.0) rather than being skipped, so
+    // no node is left half-grown. Read here because initState has no context.
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    _controller.duration = Tokens.motion.maybe(Tokens.motion.grow, reduceMotion: reduce);
+
     // Fired from build, which CoverArtCache is built to tolerate: it remembers a
     // lookup per game id, so a node rebuilding on every scroll frame still
     // reaches the network at most once.

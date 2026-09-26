@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../data/enums.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import '../domain/level.dart';
 
 /// The collection's state, and the only thing the UI mutates it through.
 ///
@@ -114,8 +115,50 @@ class LudeckStore extends ChangeNotifier {
   Future<void> unplace(int igdbId, int branchId) =>
       _write(() => _repo.unplace(igdbId, branchId));
 
-  Future<void> setProgress(int igdbId, Progress value) =>
-      _write(() => _repo.setProgress(igdbId, value));
+  Future<void> setProgress(int igdbId, Progress value) => _write(() async {
+        // Detect the TRANSITION into finished so the tree can play a one-shot
+        // harvest burst on the real event -- not on the finished STATE, which
+        // would re-fire on every rebuild. Read the prior progress before the
+        // write; cleared once the view consumes it.
+        final before = _items
+            ?.where((i) => i.game.igdbId == igdbId)
+            .map((i) => i.entry.progress)
+            .firstOrNull;
+        final harvestsBefore = _harvestCount();
+        await _repo.setProgress(igdbId, value);
+        if (value == Progress.finished && before != Progress.finished) {
+          _justHarvested = igdbId;
+          // A level-up is the SAME event, larger: if this harvest crossed a
+          // threshold, the burst plays its bigger variant. Computed from the
+          // count, never invented (see domain/level.dart).
+          _harvestLevelledUp =
+              levelFor(harvestsBefore + 1).level > levelFor(harvestsBefore).level;
+        }
+      });
+
+  /// Harvested (finished) games in the current collection.
+  int _harvestCount() =>
+      _items?.where((i) => i.entry.progress == Progress.finished).length ?? 0;
+
+  /// The igdbId that just transitioned into finished, for a one-shot harvest
+  /// burst, or null. The tree view reads it and calls [consumeJustHarvested] so
+  /// the burst plays once and never again on a later rebuild.
+  int? _justHarvested;
+  int? get justHarvested => _justHarvested;
+
+  /// True when the just-harvested game also crossed a level threshold, so the
+  /// burst plays its larger level-up variant. Only meaningful while
+  /// [justHarvested] is set.
+  bool _harvestLevelledUp = false;
+  bool get harvestLevelledUp => _harvestLevelledUp;
+
+  /// Read-and-clear the just-harvested id. Returns it once, then null.
+  int? consumeJustHarvested() {
+    final id = _justHarvested;
+    _justHarvested = null;
+    _harvestLevelledUp = false;
+    return id;
+  }
 
   Future<void> setOwnership(int igdbId, Ownership value) =>
       _write(() => _repo.setOwnership(igdbId, value));

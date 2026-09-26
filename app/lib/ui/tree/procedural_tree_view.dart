@@ -32,6 +32,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/models.dart';
 import '../../services/cover_art_cache.dart';
+import '../harvest/harvest_burst.dart';
 import '../map/game_node.dart';
 import '../tokens.dart';
 import 'procedural_tree.dart';
@@ -51,6 +52,9 @@ class ProceduralTreeView extends StatefulWidget {
     this.bottomInset = 0,
     this.showGround = true,
     this.animateArrivals = true,
+    this.burstIgdbId,
+    this.onBurstDone,
+    this.burstLevelUp = false,
   });
 
   final List<TreeItem> items;
@@ -78,6 +82,17 @@ class ProceduralTreeView extends StatefulWidget {
 
   /// False in layout tests, so a fruit is at final size on the first pump.
   final bool animateArrivals;
+
+  /// The igdbId of a game that just transitioned to finished, or null. When set
+  /// and present on the tree, a one-shot harvest burst plays over that fruit.
+  final int? burstIgdbId;
+
+  /// Called when the harvest burst finishes, so the caller can clear the signal
+  /// and it never replays on a later rebuild.
+  final VoidCallback? onBurstDone;
+
+  /// Whether the burst should play its larger level-up variant.
+  final bool burstLevelUp;
 
   @override
   State<ProceduralTreeView> createState() => _ProceduralTreeViewState();
@@ -203,11 +218,38 @@ class _ProceduralTreeViewState extends State<ProceduralTreeView> {
               // list above -- smaller cards on the wood -- so they go through the
               // same depth sort, the same stalk and the same tap target as
               // everything else instead of living in a separate bar underneath.
+
+              // The harvest burst, over the fruit that just transitioned to
+              // finished. One-shot: it plays, calls onBurstDone to clear the
+              // signal, and is gone -- nothing animates at rest.
+              if (widget.burstIgdbId case final int id)
+                ..._burstFor(id, tree),
             ],
           ),
         );
       },
     );
+  }
+
+  /// The burst overlay for [id], if that fruit is on the tree.
+  List<Widget> _burstFor(int id, ProceduralTree tree) {
+    for (final f in tree.allFruit) {
+      if (f.item.game.igdbId != id) continue;
+      final side = f.radius * 2.4;
+      return [
+        Positioned(
+          left: f.centre.dx - side / 2,
+          top: f.centre.dy - side / 2,
+          width: side,
+          height: side,
+          child: HarvestBurst(
+            onDone: widget.onBurstDone,
+            levelUp: widget.burstLevelUp,
+          ),
+        ),
+      ];
+    }
+    return const [];
   }
 
   /// Furthest first.
