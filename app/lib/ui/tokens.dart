@@ -167,6 +167,11 @@ class _Cosmos {
   /// caption-sized text; this one sits over the gradient rather than in it.
   final Color panelDeep = const Color(0x8A120F26);
 
+  /// The loading disc's data surface and its clear hub. Cool silver-violet so
+  /// it reads as an optical disc, not vinyl.
+  final Color discBase = const Color(0xFF2A2C3A);
+  final Color discHub = const Color(0xE63A3D4E);
+
   /// The bloom around an orb or an active node. Used at low alpha in a radial
   /// gradient, never as a fill.
   final Color glow = const Color(0x66A99BFF);

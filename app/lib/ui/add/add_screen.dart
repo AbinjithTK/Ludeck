@@ -28,6 +28,7 @@ import '../../domain/title_match.dart';
 import '../../services/catalog_service.dart';
 import '../../services/http_catalog.dart';
 import '../../state/ludeck_store.dart';
+import '../common/loading_disc.dart';
 import '../tokens.dart';
 
 /// How long after the last keystroke the search actually runs.
@@ -238,9 +239,10 @@ class _AddScreenState extends State<AddScreen> {
         );
 
       case _Phase.searching:
-        // Deliberately quiet: a spinner that appears for 80ms reads as a flicker.
-        // The field already shows the user their own typing.
-        return const SizedBox.shrink();
+        // Quiet for the first 350ms: a disc that appears for 80ms reads as a
+        // flicker, and the bundled catalogue answers well inside that. Only a
+        // real wait (the live catalogue, a slow network) earns the disc.
+        return const DelayedSearchDisc();
 
       case _Phase.empty:
         return _Message(
@@ -306,6 +308,14 @@ class _ResultRow extends StatelessWidget {
               padding: EdgeInsets.all(Tokens.space.sm),
               child: Row(
                 children: [
+                  DiscCover(
+                    url: game.coverUrl,
+                    width: 40,
+                    height: 40 * Tokens.size.coverRatio,
+                    placeholder: _NoCover(
+                        width: 40, height: 40 * Tokens.size.coverRatio),
+                  ),
+                  SizedBox(width: Tokens.space.sm),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,6 +350,27 @@ class _ResultRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The slot a cover would fill, for a result with no art. Flat on purpose: a
+/// disc here would promise an image that is not coming.
+class _NoCover extends StatelessWidget {
+  const _NoCover({required this.width, required this.height});
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Tokens.cosmos.panelDeep,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Tokens.cosmos.panelEdge),
+        ),
+        child: Icon(Icons.videogame_asset_outlined,
+            size: 18, color: Tokens.palette.textDim),
+      );
 }
 
 /// A failure, named and retryable where retrying could help.

@@ -18,6 +18,7 @@ import '../../data/enums.dart';
 import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
 import '../../services/cover_art_cache.dart';
+import '../common/loading_disc.dart';
 import '../tokens.dart';
 
 class NodeTreeView extends StatefulWidget {
@@ -673,15 +674,11 @@ class _Cover extends StatelessWidget {
           ),
         );
     if (url == null || url.isEmpty) return placeholder();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Image.network(
-        url,
-        width: w,
-        height: h,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stack) => placeholder(),
-      ),
+    return DiscCover(
+      url: url,
+      width: w,
+      height: h,
+      placeholder: placeholder(),
     );
   }
 
