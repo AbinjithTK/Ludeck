@@ -37,12 +37,17 @@ import '../tokens.dart';
 const Duration kSearchDebounce = Duration(milliseconds: 300);
 
 class AddScreen extends StatefulWidget {
-  const AddScreen({super.key, this.catalog});
+  const AddScreen({super.key, this.catalog, this.fileOnto});
 
   /// Injectable so a test can supply a fixture or a failing source. Defaults to
   /// whatever `resolveCatalog` decides, which is the fixture until the proxy
   /// exists.
   final CatalogSource? catalog;
+
+  /// When set, a game added here is also filed onto this branch, not just left
+  /// on the trunk. Used by the tree's "Add a game here" action so the add lands
+  /// where the user asked for it.
+  final int? fileOnto;
 
   @override
   State<AddScreen> createState() => _AddScreenState();
@@ -154,6 +159,10 @@ class _AddScreenState extends State<AddScreen> {
         ),
         copies: const [],
       ));
+    }
+    // File it onto the branch the user opened this from, if any.
+    if (widget.fileOnto != null) {
+      await store.place(game.igdbId, widget.fileOnto!);
     }
     if (!mounted) return;
 

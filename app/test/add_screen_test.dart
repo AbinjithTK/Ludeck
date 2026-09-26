@@ -389,4 +389,44 @@ void main() {
       handle.dispose();
     });
   });
+
+  group('fileOnto — Add a game here', () {
+    // The tree's branch menu opens AddScreen with fileOnto set, so a game added
+    // there is placed on that branch, not just left on the trunk.
+    testWidgets('a game added with fileOnto is placed on that branch',
+        (tester) async {
+      late int branchId;
+      await tester.runAsync(() async {
+        await repo.createBranch('Couch co-op');
+        branchId = (await repo.branches())
+            .firstWhere((b) => b.name == 'Couch co-op')
+            .id;
+        store = LudeckStore(repo);
+      });
+      await tester.runAsync(() async {
+        await tester.pumpWidget(MaterialApp(
+          home: ChangeNotifierProvider<LudeckStore>.value(
+            value: store,
+            child: AddScreen(catalog: FixtureCatalog(), fileOnto: branchId),
+          ),
+        ));
+        await store.load();
+      });
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('search-field')), 'hollow');
+      await tester.pump(kSearchDebounce + const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+
+      await tester.runAsync(() async => tester.tap(find.text('Hollow Knight')));
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 80)));
+      await tester.pumpAndSettle();
+
+      final added =
+          store.items!.firstWhere((i) => i.game.title == 'Hollow Knight');
+      // It is on the branch the add flow was scoped to.
+      expect(store.placements[branchId], contains(added.game.igdbId));
+    });
+  });
 }

@@ -12,6 +12,7 @@
 // interactive shell and the node/connector painting.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../data/enums.dart';
 import '../../data/models.dart';
@@ -33,6 +34,7 @@ class NodeTreeView extends StatefulWidget {
     this.onCreateBranch,
     this.onBranchHold,
     this.onToggleCollapse,
+    this.onMoveGame,
     this.onPick,
     this.onUnfiledTap,
     this.onSwitchView,
@@ -59,6 +61,9 @@ class NodeTreeView extends StatefulWidget {
 
   /// Fold or unfold a branch. Persisted via the store (schema v4 `collapsed`).
   final ValueChanged<Branch>? onToggleCollapse;
+
+  /// Drop a dragged game onto a branch. The parent decides move-vs-also-add.
+  final void Function(TreeItem game, Branch target)? onMoveGame;
 
   /// "What should I play?" with the games under [from] (null = whole tree).
   final void Function(List<TreeItem> pool, Branch? from)? onPick;
@@ -165,6 +170,7 @@ class NodeTreeViewState extends State<NodeTreeView> {
                           onSelectGame: widget.onSelect,
                           onBranchHold: widget.onBranchHold,
                           onCreateBranch: widget.onCreateBranch,
+                          onMoveGame: widget.onMoveGame,
                           coverCache: widget.coverCache,
                           onCoverFound: widget.onCoverFound,
                         ),
@@ -228,6 +234,7 @@ class NodeTreeViewState extends State<NodeTreeView> {
   }
 
   void _toggle(Branch b) {
+    HapticFeedback.selectionClick();
     setState(() {
       // Effective state = persisted `collapsed` XOR an optimistic override.
       // One tap flips the override so the animation starts instantly; the
@@ -283,6 +290,7 @@ class _BranchSubtree extends StatelessWidget {
     this.onSelectGame,
     this.onBranchHold,
     this.onCreateBranch,
+    this.onMoveGame,
     this.coverCache,
     this.onCoverFound,
   });
@@ -296,6 +304,7 @@ class _BranchSubtree extends StatelessWidget {
   final ValueChanged<TreeItem>? onSelectGame;
   final ValueChanged<Branch>? onBranchHold;
   final ValueChanged<int?>? onCreateBranch;
+  final void Function(TreeItem game, Branch target)? onMoveGame;
   final CoverArtCache? coverCache;
   final void Function(int igdbId, String coverUrl)? onCoverFound;
 
@@ -321,35 +330,46 @@ class _BranchSubtree extends StatelessWidget {
           onSelectGame: onSelectGame,
           onBranchHold: onBranchHold,
           onCreateBranch: onCreateBranch,
+          onMoveGame: onMoveGame,
           coverCache: coverCache,
           onCoverFound: onCoverFound,
         ),
       for (var i = 0; i < games.length; i++)
         if (byId[games[i]] != null)
-          _GameNodeRow(
+          _DraggableGame(
             item: byId[games[i]]!,
-            depth: depth,
-            isLast: i == games.length - 1,
-            onTap: () => onSelectGame?.call(byId[games[i]]!),
-            coverCache: coverCache,
-            onCoverFound: onCoverFound,
+            enabled: onMoveGame != null,
+            child: _GameNodeRow(
+              item: byId[games[i]]!,
+              depth: depth,
+              isLast: i == games.length - 1,
+              onTap: () => onSelectGame?.call(byId[games[i]]!),
+              coverCache: coverCache,
+              onCoverFound: onCoverFound,
+            ),
           ),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _BranchNodeRow(
-          branch: branch,
-          depth: depth,
-          childCount: tree.gamesUnder(branch.id).length,
-          hasChildren: hasChildren,
-          collapsed: collapsed,
-          tint: _branchTint(tree, branch.id, byId),
-          onToggle: () => onToggle(branch),
-          onMore: onBranchHold == null ? null : () => onBranchHold!(branch),
-          onAdd:
-              onCreateBranch == null ? null : () => onCreateBranch!(branch.id),
+        DragTarget<TreeItem>(
+          onWillAcceptWithDetails: (d) => onMoveGame != null,
+          onAcceptWithDetails: (d) => onMoveGame?.call(d.data, branch),
+          builder: (context, candidate, rejected) => _BranchNodeRow(
+            branch: branch,
+            depth: depth,
+            childCount: tree.gamesUnder(branch.id).length,
+            hasChildren: hasChildren,
+            collapsed: collapsed,
+            tint: _branchTint(tree, branch.id, byId),
+            highlighted: candidate.isNotEmpty,
+            onToggle: () => onToggle(branch),
+            onMore: onBranchHold == null ? null : () => onBranchHold!(branch),
+            onAdd: onCreateBranch == null
+                ? null
+                : () => onCreateBranch!(branch.id),
+          ),
         ),
         // Collapse to zero height when folded; ClipRect stops children
         // spilling during the shrink.
@@ -380,6 +400,7 @@ class _BranchNodeRow extends StatelessWidget {
     required this.hasChildren,
     required this.collapsed,
     required this.tint,
+    this.highlighted = false,
     required this.onToggle,
     this.onMore,
     this.onAdd,
@@ -391,6 +412,7 @@ class _BranchNodeRow extends StatelessWidget {
   final bool hasChildren;
   final bool collapsed;
   final Color tint;
+  final bool highlighted;
   final VoidCallback onToggle;
   final VoidCallback? onMore;
   final VoidCallback? onAdd;
@@ -408,10 +430,16 @@ class _BranchNodeRow extends StatelessWidget {
             '${hasChildren ? (collapsed ? ', collapsed' : ', expanded') : ''}',
         button: true,
         child: Material(
-          color: Tokens.cosmos.panel,
+          color: highlighted
+              ? Tokens.palette.accent.withValues(alpha: 0.12)
+              : Tokens.cosmos.panel,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(Tokens.radius.card),
-            side: BorderSide(color: Tokens.cosmos.panelEdge),
+            side: BorderSide(
+                color: highlighted
+                    ? Tokens.palette.accent
+                    : Tokens.cosmos.panelEdge,
+                width: highlighted ? 1.5 : 1),
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
@@ -480,6 +508,49 @@ class _BranchNodeRow extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Wraps a game row so it can be dragged onto a branch. Long-press to pick up
+/// (a tap still opens the status sheet); the payload is the game itself, which
+/// a branch `DragTarget` receives. Disabled when no move handler is wired (e.g.
+/// the read-only profile portrait).
+class _DraggableGame extends StatelessWidget {
+  const _DraggableGame({
+    required this.item,
+    required this.enabled,
+    required this.child,
+  });
+
+  final TreeItem item;
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!enabled) return child;
+    final feedback = Material(
+      color: Tokens.cosmos.panelDeep,
+      elevation: 6,
+      borderRadius: BorderRadius.circular(Tokens.radius.card),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+            horizontal: Tokens.space.md, vertical: Tokens.space.sm),
+        child: Text(item.game.title,
+            style: TextStyle(
+                color: Tokens.palette.text, fontSize: Tokens.type.body)),
+      ),
+    );
+    return LongPressDraggable<TreeItem>(
+      data: item,
+      onDragStarted: HapticFeedback.selectionClick,
+      feedback: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 240),
+        child: feedback,
+      ),
+      childWhenDragging: Opacity(opacity: 0.35, child: child),
+      child: child,
     );
   }
 }

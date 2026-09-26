@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'data/enums.dart';
@@ -546,6 +547,253 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     await store.createBranch(name, parentId: parentId);
   }
 
+  /// The branch node's context menu (long-press or the ⋯): rename, add a game
+  /// here, add a sub-branch, delete. Replaces the old jump to the Branches
+  /// screen -- every branch action now lives on the node itself.
+  void _branchMenu(LudeckStore store, Branch branch) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Tokens.palette.surface,
+      builder: (sheet) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(Tokens.space.md, Tokens.space.md,
+                Tokens.space.md, Tokens.space.xs),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(branch.name,
+                  style: TextStyle(
+                      color: Tokens.palette.text,
+                      fontSize: Tokens.type.title,
+                      fontWeight: FontWeight.w700)),
+            ),
+          ),
+          ListTile(
+            leading: Icon(Icons.edit_outlined, color: Tokens.palette.text),
+            title: Text('Rename', style: TextStyle(color: Tokens.palette.text)),
+            onTap: () {
+              Navigator.of(sheet).pop();
+              _renameBranch(store, branch);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.add_photo_alternate_outlined,
+                color: Tokens.palette.text),
+            title: Text('Add a game here',
+                style: TextStyle(color: Tokens.palette.text)),
+            onTap: () {
+              Navigator.of(sheet).pop();
+              _addGameToBranch(branch);
+            },
+          ),
+          ListTile(
+            leading:
+                Icon(Icons.account_tree_outlined, color: Tokens.palette.text),
+            title: Text('Add a branch inside',
+                style: TextStyle(color: Tokens.palette.text)),
+            onTap: () {
+              Navigator.of(sheet).pop();
+              _growBranch(store, branch.id);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.delete_outline, color: Tokens.palette.danger),
+            title: Text('Delete branch',
+                style: TextStyle(color: Tokens.palette.danger)),
+            subtitle: Text('Games move back to the trunk',
+                style: TextStyle(
+                    color: Tokens.palette.textDim,
+                    fontSize: Tokens.type.caption)),
+            onTap: () {
+              Navigator.of(sheet).pop();
+              _deleteBranch(store, branch);
+            },
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Rename in place. A plain dialog, prefilled with the current name.
+  Future<void> _renameBranch(LudeckStore store, Branch branch) async {
+    final controller = TextEditingController(text: branch.name);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: Tokens.palette.surface,
+        title: const Text('Rename branch'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: Repository.maxNameLength,
+          textCapitalization: TextCapitalization.sentences,
+          onSubmitted: (v) => Navigator.of(dialog).pop(v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(dialog).pop(controller.text),
+              child: const Text('Rename')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.trim().isEmpty || name.trim() == branch.name) {
+      return;
+    }
+    await store.renameBranch(branch.id, name.trim());
+  }
+
+  /// Delete a branch, with an undo that re-creates it and re-files the games
+  /// that were on it. The games are never destroyed -- delete only unfiles them
+  /// to the trunk -- so undo is a re-create + re-place, not a resurrection.
+  Future<void> _deleteBranch(LudeckStore store, Branch branch) async {
+    final placedGames = List<int>.from(store.placements[branch.id] ?? const []);
+    final subCount = store.branches.where((b) => b.parentId == branch.id).length;
+    await store.deleteBranch(branch.id);
+    HapticFeedback.mediumImpact();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Tokens.palette.surface,
+        duration: const Duration(seconds: 4),
+        content: Text(
+          subCount > 0
+              ? '"${branch.name}" deleted. Its sub-branches and games moved up.'
+              : '"${branch.name}" deleted. Its games are back on the trunk.',
+          style: TextStyle(color: Tokens.palette.text),
+        ),
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: Tokens.palette.accent,
+          onPressed: () async {
+            await store.createBranch(branch.name, parentId: branch.parentId);
+            // The re-created branch takes a new id; re-file its former games.
+            final revived = store.branches
+                .where((b) =>
+                    b.name == branch.name && b.parentId == branch.parentId)
+                .toList();
+            if (revived.isNotEmpty) {
+              final id = revived.last.id;
+              for (final g in placedGames) {
+                await store.place(g, id);
+              }
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  /// "Add a game here": opens the add flow scoped to file onto [branch], so a
+  /// game the user adds lands on that branch rather than the trunk. AddScreen
+  /// shows its own per-game feedback and does the filing.
+  Future<void> _addGameToBranch(Branch branch) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => AddScreen(catalog: _catalog, fileOnto: branch.id),
+      ),
+    );
+  }
+
+  /// Drop a game on a branch: the user chooses MOVE (take it off its current
+  /// branch) or ALSO ADD (a game can hang on several). Both end with an undo.
+  Future<void> _dropGameOnBranch(
+      LudeckStore store, TreeItem item, Branch target) async {
+    final id = item.game.igdbId;
+    final currentBranches = <int>[
+      for (final b in store.branches)
+        if ((store.placements[b.id] ?? const <int>[]).contains(id)) b.id,
+    ];
+    if (currentBranches.contains(target.id)) return; // already here
+    HapticFeedback.mediumImpact();
+
+    // If the game is already on exactly one other branch, offer move vs also-add.
+    // If it is on the trunk (no branch), just place it -- there is nothing to
+    // move it off.
+    var alsoAdd = true;
+    if (currentBranches.length == 1) {
+      final choice = await showModalBottomSheet<String>(
+        context: context,
+        backgroundColor: Tokens.palette.surface,
+        builder: (sheet) => SafeArea(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Padding(
+              padding: EdgeInsets.all(Tokens.space.md),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('${item.game.title} → ${target.name}',
+                    style: TextStyle(
+                        color: Tokens.palette.text,
+                        fontSize: Tokens.type.body,
+                        fontWeight: FontWeight.w700)),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.drive_file_move_outline,
+                  color: Tokens.palette.text),
+              title: Text('Move it here',
+                  style: TextStyle(color: Tokens.palette.text)),
+              subtitle: Text('Takes it off its current branch',
+                  style: TextStyle(
+                      color: Tokens.palette.textDim,
+                      fontSize: Tokens.type.caption)),
+              onTap: () => Navigator.of(sheet).pop('move'),
+            ),
+            ListTile(
+              leading:
+                  Icon(Icons.library_add_outlined, color: Tokens.palette.text),
+              title: Text('Also add it here',
+                  style: TextStyle(color: Tokens.palette.text)),
+              subtitle: Text('Keeps it on both branches',
+                  style: TextStyle(
+                      color: Tokens.palette.textDim,
+                      fontSize: Tokens.type.caption)),
+              onTap: () => Navigator.of(sheet).pop('add'),
+            ),
+          ]),
+        ),
+      );
+      if (choice == null) return; // dismissed
+      alsoAdd = choice == 'add';
+    }
+
+    if (alsoAdd) {
+      await store.place(id, target.id);
+    } else {
+      await store.moveGame(id,
+          fromBranchId: currentBranches.first, toBranchId: target.id);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Tokens.palette.surface,
+        duration: const Duration(seconds: 3),
+        content: Text(
+          alsoAdd
+              ? '${item.game.title} also added to "${target.name}".'
+              : '${item.game.title} moved to "${target.name}".',
+          style: TextStyle(color: Tokens.palette.text),
+        ),
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: Tokens.palette.accent,
+          onPressed: () async {
+            if (alsoAdd) {
+              await store.unplace(id, target.id);
+            } else {
+              await store.moveGame(id,
+                  fromBranchId: target.id, toBranchId: currentBranches.first);
+            }
+          },
+        ),
+      ),
+    );
+  }
+
   /// "What should I play?" over the games in view: the root, or one branch
   /// and everything under it. The first surface `choosePick` has ever had.
   void _showPick(List<TreeItem> pool, Branch? from) {
@@ -926,9 +1174,11 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                     onSelect: _openStatusSheet,
                     onHold: _openStatusSheet,
                     onCreateBranch: (parent) => _growBranch(store, parent),
-                    onBranchHold: (_) => _openBranches(),
+                    onBranchHold: (b) => _branchMenu(store, b),
                     onToggleCollapse: (b) =>
                         store.setBranchCollapsed(b.id, !b.collapsed),
+                    onMoveGame: (item, target) =>
+                        _dropGameOnBranch(store, item, target),
                     onPick: _showPick,
                     onUnfiledTap: () =>
                         setState(() => _place = NavDestination.library),
