@@ -39,18 +39,27 @@ import 'procedural_tree.dart';
 /// scene, and a light that moved per screen would undo that.
 const Offset kLightDirection = Offset(-0.62, -0.78);
 
-/// One clump of leaf mass.
+/// One leaf in the canopy.
 ///
-/// Foliage is a cloud of overlapping circles rather than drawn leaves. At phone
-/// size an individual leaf is under a pixel of useful detail, so drawing leaves
-/// spends a lot of paint on noise; what the eye actually reads at this scale is
-/// the SILHOUETTE of the mass and where the light falls on it.
+/// Was a blurred circle ("blob"). At device scale a cloud of blurred circles
+/// read as green SMOKE rather than foliage -- Abin's "boring" verdict and the
+/// Stage-1 render both showed it. A leaf now carries an ANGLE and a small HUE
+/// SHIFT, both from the deterministic seed, so the mass is built from hundreds
+/// of small shapes at varied tilts and tints. That is what reads as leaves: the
+/// silhouette is still the thing the eye takes in, but it is now a ragged leafy
+/// edge instead of a soft puff, and the tint variation stops it looking like one
+/// flat fill.
+///
+/// The name is kept as `FoliageBlob` so no call site outside this file changes;
+/// what changed is what it draws.
 class FoliageBlob {
   const FoliageBlob({
     required this.centre,
     required this.radius,
     required this.depth,
     required this.lit,
+    this.angle = 0,
+    this.hueShift = 0,
   });
 
   final Offset centre;
@@ -59,8 +68,17 @@ class FoliageBlob {
   /// 0 nearest the viewer, 1 furthest. Decides paint order and colour.
   final double depth;
 
-  /// True for the blobs that catch the light, drawn last and smaller.
+  /// True for the leaves that catch the light, drawn last and smaller.
   final bool lit;
+
+  /// The leaf's tilt in radians, from the seed. A canopy of identically-angled
+  /// leaves reads as a pattern, not as growth.
+  final double angle;
+
+  /// A small per-leaf lightness nudge, -1..1, from the seed. Applied to the
+  /// base foliage colour so the mass has internal variation rather than being
+  /// one flat green, which is most of what separated "leaves" from "smoke".
+  final double hueShift;
 }
 
 /// Generate the canopy for [tree].
@@ -86,45 +104,59 @@ List<FoliageBlob> foliageFor(ProceduralTree tree) {
     // Along the outer half of the stem: leaves grow toward the light, not out of
     // the shoulder where the limb leaves the trunk.
     //
-    // Seven samples with two blobs each, not five with one. The first version
-    // produced isolated puffs that read as mould on a stick rather than as a
-    // canopy, because separated circles never merge into a silhouette -- and a
-    // silhouette is the only thing the eye actually reads at this size.
+    // Seven samples, and at each one a SPRAY of small leaves rather than two big
+    // blobs. The blob version read as smoke; a spray of tilted leaf shapes reads
+    // as foliage because its silhouette is ragged and its interior varies. Each
+    // leaf takes an angle and a hue shift from the seed, so no two are identical
+    // and the mass is not one flat fill.
     const steps = 7;
+    const leavesPerSample = 6;
     for (var k = 0; k < steps; k++) {
       final u = 0.46 + 0.54 * (k / (steps - 1));
       final at = stem.sample(u);
       // Bigger toward the tip, so the mass gathers at the ends of the wood the
       // way a real canopy does, instead of sleeving the whole branch evenly.
       final grow = 0.62 + 0.38 * ((u - 0.46) / 0.54);
-      final r = unit * 0.074 * scale * grow;
-      final jitter = Offset(
-        (rnd() - 0.5) * r * 1.1,
-        (rnd() - 0.5) * r * 0.9 - r * 0.20,
-      );
-      out.add(FoliageBlob(
-        centre: at.point + jitter,
-        radius: r * (0.85 + rnd() * 0.4),
-        depth: depth,
-        lit: false,
-      ));
-      // A second blob half a radius away, which is what makes adjacent samples
-      // overlap into continuous mass instead of beading.
-      out.add(FoliageBlob(
-        centre: at.point + jitter + Offset((rnd() - 0.5) * r, r * 0.42),
-        radius: r * (0.6 + rnd() * 0.3),
-        depth: depth,
-        lit: false,
-      ));
-      // Highlight, offset toward the light. This is the only thing that gives
-      // the mass a top and a bottom.
-      if (k.isOdd) {
+      // The size a single leaf is scaled from. Smaller than the old blob radius
+      // because many leaves now fill the space one blob used to.
+      final leafR = unit * 0.030 * scale * grow;
+      // The radius the spray is scattered within, which is what actually sets
+      // the silhouette's size -- kept close to the old blob radius so the canopy
+      // is the same overall size, just built from leaves.
+      final spread = unit * 0.058 * scale * grow;
+
+      for (var j = 0; j < leavesPerSample; j++) {
+        final ang = rnd() * 6.283;
+        final dist = spread * (0.2 + 0.8 * rnd());
+        final centre = at.point +
+            Offset(math.cos(ang) * dist, math.sin(ang) * dist - spread * 0.20);
         out.add(FoliageBlob(
-          centre: at.point + jitter + kLightDirection * (r * 0.55),
-          radius: r * 0.5,
+          centre: centre,
+          radius: leafR * (0.7 + rnd() * 0.6),
           depth: depth,
-          lit: true,
+          lit: false,
+          // Leaves fan outward from the sample point, plus jitter, so they point
+          // away from the branch the way real leaves do.
+          angle: ang + (rnd() - 0.5) * 1.4,
+          hueShift: (rnd() - 0.5) * 2,
         ));
+      }
+      // A few lit leaves offset toward the light. This is the only thing that
+      // gives the mass a top and a bottom.
+      if (k.isOdd) {
+        for (var j = 0; j < 3; j++) {
+          final ang = rnd() * 6.283;
+          out.add(FoliageBlob(
+            centre: at.point +
+                kLightDirection * (spread * 0.55) +
+                Offset(math.cos(ang) * leafR, math.sin(ang) * leafR),
+            radius: leafR * (0.6 + rnd() * 0.4),
+            depth: depth,
+            lit: true,
+            angle: ang + (rnd() - 0.5) * 1.4,
+            hueShift: (rnd() - 0.5) * 2,
+          ));
+        }
       }
     }
   }
@@ -238,6 +270,22 @@ class ProceduralTreePainter extends CustomPainter {
     for (final limb in near) {
       _paintStem(canvas, limb.stem, opacity: limb.opacity);
     }
+    // Contact shadow where each limb leaves the trunk. A limb painted over the
+    // trunk with no shadow reads as a stick laid ON the trunk; a soft dark patch
+    // at the join is what makes it read as GROWING FROM it. One lamp, so the
+    // shadow sits on the shaded side of the join. Cheap: one blurred circle per
+    // limb, drawn after the wood so it sits in the crease.
+    for (final limb in tree.limbs) {
+      final base = limb.stem.base;
+      final r = limb.stem.baseHalfWidth;
+      canvas.drawCircle(
+        base - kLightDirection * (r * 0.6),
+        r * 1.8,
+        Paint()
+          ..color = Tokens.canopy.barkShade.withValues(alpha: 0.55 * limb.opacity)
+          ..maskFilter = ui.MaskFilter.blur(BlurStyle.normal, r * 1.1),
+      );
+    }
     _paintFoliage(canvas, maxDepth: 0.5);
 
     // Stalks last, so a fruit is always joined to wood no matter which layer its
@@ -290,36 +338,80 @@ class ProceduralTreePainter extends CustomPainter {
         if (b.depth >= 0.5 || !b.lit) continue;
         canvas.drawCircle(
           b.centre,
-          b.radius * 2.1,
+          b.radius * 2.0,
           Paint()
-            ..color = Tokens.canopy.glow
-            ..maskFilter = ui.MaskFilter.blur(BlurStyle.normal, b.radius * 1.3),
+            ..color = Tokens.canopy.glow.withValues(alpha: Tokens.canopy.glow.a * 0.55)
+            ..maskFilter = ui.MaskFilter.blur(BlurStyle.normal, b.radius * 1.4),
         );
       }
     }
 
+    // A SOFT MASS BASE under the leaves, per depth band, so the sky does not
+    // show through the gaps between individual leaf shapes. This is the old
+    // blurred-blob idea kept only as a backing wash: it carries the silhouette's
+    // solidity while the leaves on top carry the texture. Without it a spray of
+    // separate leaves reads as confetti; with it, as a canopy.
+    for (final b in foliage) {
+      if (b.depth < minDepth || b.depth >= maxDepth || b.lit) continue;
+      final base = b.depth >= 0.5 ? Tokens.canopy.foliageFar : Tokens.canopy.foliageNear;
+      canvas.drawCircle(
+        b.centre,
+        b.radius * 1.5,
+        Paint()
+          ..color = base.withValues(alpha: (0.42 - b.depth * 0.14).clamp(0.0, 1.0))
+          ..maskFilter = ui.MaskFilter.blur(BlurStyle.normal, b.radius * 0.9),
+      );
+    }
+
+    // The leaves themselves, each a tilted shape with its own tint.
     for (final b in foliage) {
       if (b.depth < minDepth || b.depth >= maxDepth) continue;
       final base = b.lit
           ? Tokens.canopy.foliageLit
           : (b.depth >= 0.5 ? Tokens.canopy.foliageFar : Tokens.canopy.foliageNear);
-      // Aerial perspective: further mass loses contrast rather than just getting
-      // smaller. The blur is DELIBERATELY small -- at 0.22 of the radius the
-      // canopy rendered as green smoke, because a circle blurred by a fifth of
-      // itself has no edge left and a mass with no edge has no silhouette. At
-      // 0.09 the individual circle still softens but the outline of the mass
-      // survives, which is the thing being drawn.
-      canvas.drawCircle(
-        b.centre,
-        b.radius,
-        Paint()
-          ..color = base.withValues(alpha: b.lit ? 0.50 : 0.94 - b.depth * 0.30)
-          ..maskFilter = ui.MaskFilter.blur(
-            BlurStyle.normal,
-            b.radius * (b.lit ? 0.16 : 0.09),
-          ),
-      );
+      // Per-leaf lightness variation, so the mass is not one flat fill. A small
+      // range: too much and it reads as noise rather than as leaves in light.
+      final tinted = _shiftLightness(base, b.hueShift * 0.12);
+      // Aerial perspective: further leaves lose contrast. The lit ones stay
+      // brighter (they are the highlight) and the near ones are near-opaque.
+      final alpha = b.lit ? 0.62 : (0.96 - b.depth * 0.32).clamp(0.0, 1.0);
+      final paint = Paint()
+        ..color = tinted.withValues(alpha: alpha)
+        // A whisper of blur softens the leaf edge without dissolving it, so the
+        // silhouette survives while a hard vector edge does not read as organic.
+        ..maskFilter = ui.MaskFilter.blur(BlurStyle.normal, math.max(0.4, b.radius * 0.12));
+      canvas.drawPath(_leafPath(b.centre, b.radius, b.angle), paint);
     }
+  }
+
+  /// A single leaf: a rounded almond, its long axis along [angle].
+  ///
+  /// Two quadratics from tip to tip through offset control points. Cheap, and at
+  /// canopy scale it reads as a leaf where a circle read as a bubble.
+  Path _leafPath(Offset c, double r, double angle) {
+    final dir = Offset(math.cos(angle), math.sin(angle));
+    final perp = Offset(-dir.dy, dir.dx);
+    final tip = c + dir * r;
+    final tail = c - dir * r;
+    final bulge = perp * (r * 0.5);
+    return Path()
+      ..moveTo(tail.dx, tail.dy)
+      ..quadraticBezierTo((c + bulge).dx, (c + bulge).dy, tip.dx, tip.dy)
+      ..quadraticBezierTo((c - bulge).dx, (c - bulge).dy, tail.dx, tail.dy)
+      ..close();
+  }
+
+  /// Nudge a colour's lightness by [delta]. Pure channel scaling -- no
+  /// colour-space import needed, and it keeps hue so a green leaf stays green.
+  Color _shiftLightness(Color base, double delta) {
+    if (delta == 0) return base;
+    double ch(double v) => (v + delta).clamp(0.0, 1.0);
+    return Color.from(
+      alpha: base.a,
+      red: ch(base.r),
+      green: ch(base.g),
+      blue: ch(base.b),
+    );
   }
 
   void _paintStem(Canvas canvas, TreeStem stem, {required double opacity}) {

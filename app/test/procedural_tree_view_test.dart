@@ -295,7 +295,33 @@ void main() {
       for (var i = 0; i < a.length; i++) {
         expect(a[i].centre, b[i].centre);
         expect(a[i].radius, b[i].radius);
+        // The per-leaf tilt and tint are seeded too, so a relaunch draws the
+        // same leaves at the same angles, not a reshuffled canopy.
+        expect(a[i].angle, b[i].angle);
+        expect(a[i].hueShift, b[i].hueShift);
       }
+    });
+
+    test('the canopy is built from many small leaves at varied angles', () {
+      // The Stage-2 change: a spray of leaf shapes, not a few big blobs. Guards
+      // against a regression to the smoke look -- if leaf count collapses or all
+      // angles are identical, the canopy is a blob field again.
+      final foliage = foliageFor(ProceduralTree.build(
+        canvas: _phone,
+        branches: const [],
+        placements: const {},
+        items: [for (var i = 0; i < 5; i++) _item(10 + i, 'G$i')],
+        fruitRadius: 22,
+        trunkWidth: 32,
+      ));
+      expect(foliage.length, greaterThan(40),
+          reason: 'too few shapes -- the canopy has collapsed back to blobs');
+      final angles = foliage.map((b) => b.angle).toSet();
+      expect(angles.length, greaterThan(10),
+          reason: 'leaves all point the same way -- no organic variation');
+      final shifts = foliage.where((b) => !b.lit).map((b) => b.hueShift).toSet();
+      expect(shifts.length, greaterThan(10),
+          reason: 'no per-leaf tint variation -- the mass is one flat green');
     });
 
     test('far mass is painted before near mass', () {
