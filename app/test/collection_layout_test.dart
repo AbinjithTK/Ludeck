@@ -42,7 +42,7 @@ import 'package:ludeck/state/ludeck_store.dart';
 import 'package:ludeck/ui/map/game_node.dart';
 import 'package:ludeck/ui/shell/add_menu.dart';
 import 'package:ludeck/ui/tokens.dart';
-import 'package:ludeck/ui/tree/procedural_tree_view.dart';
+import 'package:ludeck/ui/roadmap/roadmap_view.dart';
 
 void main() {
   late Repository repo;
@@ -111,7 +111,7 @@ void main() {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final tree = tester.getRect(find.byType(ProceduralTreeView));
+    final tree = tester.getRect(find.byType(RoadmapView));
 
     // The canvas must begin at or below the header's painted bottom. This is
     // structural now -- they are siblings in a Column -- and the assertion exists
@@ -132,7 +132,7 @@ void main() {
     await pump(tester, textScale: 2.0);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final tree = tester.getRect(find.byType(ProceduralTreeView));
+    final tree = tester.getRect(find.byType(RoadmapView));
 
     expect(tree.top, greaterThanOrEqualTo(header.bottom));
   });
@@ -154,22 +154,29 @@ void main() {
     }
   });
 
-  testWidgets('the lowest cover clears the add control', (tester) async {
+  testWidgets('the topmost cover sits within the visible viewport', (tester) async {
     await pump(tester);
 
-    final addMenu = tester.getRect(find.byType(AddMenu));
-    final lowest = covers(tester)
-        .map((r) => r.bottom)
-        .reduce((a, b) => a > b ? a : b);
+    final header = tester.getRect(find.byKey(const Key('screen-header')));
+    // The roadmap SCROLLS: lower nodes deliberately sit below the fold, so the
+    // tree-era "lowest cover clears the add control" no longer holds and would
+    // be a false premise on a scroll view. What must still be true is that the
+    // FIRST node lands in the visible band -- below the header, above the
+    // bottom of the screen -- so the collection is not empty-looking on open.
+    final covers = find.byType(GameNode);
+    final first = tester.getRect(covers.first);
 
-    // Measured on what is PAINTED, not on the inset that was budgeted for it.
-    // The old version read the list's padding value, which is the arithmetic
-    // rather than the result -- exactly the mistake the header bug was.
     expect(
-      lowest,
-      lessThanOrEqualTo(addMenu.top),
-      reason: 'the lowest cover reaches y=$lowest, behind the add control at '
-          'y=${addMenu.top}',
+      first.top,
+      greaterThanOrEqualTo(header.bottom),
+      reason: 'the first cover at y=${first.top} is under the header '
+          '(bottom ${header.bottom})',
+    );
+    expect(
+      first.top,
+      lessThan(915),
+      reason: 'the first cover at y=${first.top} starts below the fold, so the '
+          'roadmap opens looking empty',
     );
   });
 
@@ -177,7 +184,7 @@ void main() {
     await pump(tester);
 
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    final tree = tester.getRect(find.byType(ProceduralTreeView));
+    final tree = tester.getRect(find.byType(RoadmapView));
     final addMenu = tester.getRect(find.byType(AddMenu));
 
     // The scrim must reach at least as high as the add control it softens, and
@@ -257,33 +264,24 @@ void main() {
     );
   });
 
-  testWidgets('the scrim never swallows a tap', (tester) async {
-    // The tree does not scroll, so the old "the scrim ate the drag" check has no
-    // gesture to make. The risk it guarded is unchanged though: the scrim spans
-    // the bottom band of the screen, and if it were hit-testable that band would
-    // be dead to touch. Proven by tapping THROUGH it.
+  testWidgets('a cover tap opens the status sheet', (tester) async {
+    // The roadmap scrolls, so the lowest node can sit off-screen and is not a
+    // valid tap target here. The risk this guards is unchanged: a node must be
+    // tappable and open the status sheet, and nothing (scrim, scroll view) may
+    // eat the pointer. Proven on the first node, which is always in view.
     await pump(tester, size: const Size(412, 915));
 
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
     expect(scrim.height, greaterThan(0));
 
-    // A seed sits low on the canvas, in or near the scrim band. Tapping it must
-    // open the status sheet.
-    final lowest = find.byType(GameNode).evaluate().reduce((a, b) {
-      final ra = tester.getRect(find.byElementPredicate((x) => x == a));
-      final rb = tester.getRect(find.byElementPredicate((x) => x == b));
-      return ra.center.dy > rb.center.dy ? a : b;
-    });
-
-    await tester.tap(find.byElementPredicate((x) => x == lowest),
-        warnIfMissed: false);
+    await tester.tap(find.byType(GameNode).first, warnIfMissed: false);
     await tester.pumpAndSettle();
 
     expect(
       find.byType(BottomSheet),
       findsOneWidget,
-      reason: 'tapping the lowest cover opened nothing, so something in the '
-          'bottom band is eating pointer events',
+      reason: 'tapping a cover opened nothing, so something is eating pointer '
+          'events on the roadmap',
     );
   });
 }

@@ -39,7 +39,7 @@ import '../gamified/primitives.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../publish/publish_screen.dart';
 import '../tokens.dart';
-import '../tree/procedural_tree_view.dart';
+import '../roadmap/roadmap_view.dart';
 
 /// The profile route. Reads the store, so it needs no arguments -- the same
 /// pattern `BranchScreen` uses.
@@ -67,14 +67,14 @@ class ProfileScreen extends StatelessWidget {
       //
       // Passed in rather than constructed inside the body so the body stays
       // testable without a canvas.
-      hero: ProceduralTreeView(
+      hero: RoadmapView(
         items: items,
         branches: store.branches,
         placements: store.placements,
-        // No handlers at all: the portrait is a PICTURE of the collection, not a
-        // second place to edit it. Null is what removes every gesture, so it
-        // cannot end up half-interactive.
-        showGround: false,
+        // No handlers and non-interactive: the portrait is a PICTURE of the
+        // collection, not a second place to edit it.
+        interactive: false,
+        animateArrivals: false,
       ),
     );
   }

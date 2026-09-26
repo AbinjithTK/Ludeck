@@ -27,7 +27,7 @@ import 'ui/shell/add_menu.dart';
 import 'ui/shell/nav_pill.dart';
 import 'ui/shell/tree_header.dart';
 import 'ui/gamified/primitives.dart';
-import 'ui/tree/procedural_tree_view.dart';
+import 'ui/roadmap/roadmap_view.dart';
 
 Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
@@ -816,34 +816,21 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                ProceduralTreeView(
+                RoadmapView(
                   items: items,
                   branches: store.branches,
                   placements: store.placements,
                   coverCache: widget.coverCache,
                   onCoverFound: store.applyCoverUrl,
-                  // The header already supplies the gap above; the tree only
+                  // The header already supplies the gap above; the roadmap only
                   // needs to clear the control at the bottom.
                   topInset: 0,
                   bottomInset: chrome.bottom,
-                  // Tap and hold both open the status sheet, which is now also
-                  // where a game is filed onto a branch. Drag-to-file is gone
-                  // with the old renderer; the sheet is the accessible path and
-                  // Stage 4 adds direct manipulation on top of it rather than
-                  // instead of it.
+                  // Tap and hold both open the status sheet, which is also where
+                  // a game is filed onto a branch. Stage 4 adds drag-to-reorder
+                  // on top of the sheet rather than instead of it.
                   onSelect: _openStatusSheet,
                   onHold: _openStatusSheet,
-                  // The one-shot harvest burst, driven by the real store event:
-                  // setProgress flags the transition into finished, the burst
-                  // plays over that fruit, and onBurstDone clears the flag so it
-                  // never replays. setState is needed to drop burstIgdbId back to
-                  // null after the burst.
-                  burstIgdbId: store.justHarvested,
-                  burstLevelUp: store.harvestLevelledUp,
-                  onBurstDone: () {
-                    store.consumeJustHarvested();
-                    if (mounted) setState(() {});
-                  },
                 ),
 
                 // A fade under the add control. Padding alone only fixes where
@@ -889,7 +876,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// How many games are not filed onto a named branch.
   ///
   /// Counted from the store rather than from the built tree, because the pill is
-  /// drawn outside `ProceduralTreeView` and asking the view for a number would
+  /// drawn outside `RoadmapView` and asking the view for a number would
   /// mean building the tree a second time. Buds count: a recommendation can be
   /// filed like anything else now.
   int _unfiledCount(List<TreeItem> items, LudeckStore store) {
