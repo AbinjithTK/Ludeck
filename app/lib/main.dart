@@ -28,7 +28,7 @@ import 'ui/shell/nav_pill.dart';
 import 'ui/shell/tree_header.dart';
 import 'ui/gamified/primitives.dart';
 import 'ui/roadmap/roadmap_view.dart';
-import 'ui/canopy/canopy_view.dart';
+import 'ui/nodetree/node_tree_view.dart';
 import 'domain/pick.dart';
 
 Future<void> main() async {
@@ -916,7 +916,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               fit: StackFit.expand,
               children: [
                 if (_canopy)
-                  CanopyView(
+                  NodeTreeView(
                     items: items,
                     branches: store.branches,
                     placements: store.placements,
@@ -927,6 +927,8 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                     onHold: _openStatusSheet,
                     onCreateBranch: (parent) => _growBranch(store, parent),
                     onBranchHold: (_) => _openBranches(),
+                    onToggleCollapse: (b) =>
+                        store.setBranchCollapsed(b.id, !b.collapsed),
                     onPick: _showPick,
                     onUnfiledTap: () =>
                         setState(() => _place = NavDestination.library),

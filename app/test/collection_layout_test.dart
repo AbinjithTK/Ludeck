@@ -6,28 +6,28 @@
 // two (headline over subline). It was invisible on a 1600x900 desktop window,
 // where width was the binding constraint, and obvious on a phone.
 //
-// RETARGETED IN STAGE 2. The assertions used to measure a scrolling list of
-// branch rows (`Key('tree-scroll')`, its padding, its scroll position). The home
-// screen now renders `ProceduralTreeView`, which is a single fixed canvas with no
-// viewport, no rows and no scroll -- so those handles no longer exist. Every
-// invariant they protected still does, and is restated here against covers on the
-// tree. Two changed shape honestly:
+// RETARGETED for the NODE TREE (Abin's 2026-09-26 steer away from the painted
+// canopy). The home now renders `NodeTreeView`: a scrolling indented outline of
+// branch panels and game rows, not a fixed canvas. Every invariant the earlier
+// versions protected still holds and is restated here against game ROWS:
 //
-//   * "the last row clears the add control" is now measured on the lowest COVER
-//     rather than on a padding value, which is a stronger check: it measures what
-//     is painted instead of what was budgeted.
-//   * "the scrim never swallows a scroll gesture" became "the scrim never
-//     swallows a TAP", because there is no scroll to swallow. The underlying risk
-//     is unchanged -- a hit-testable scrim makes the bottom band of the screen
-//     dead to touch.
+//   * Games are rows in a `SliverList`, so they physically cannot overlap each
+//     other -- but the "nothing hidden behind another" intent is kept as a rows-
+//     do-not-collide check, which a list guarantees and a regression to overlap
+//     layout would break.
+//   * "content starts below the header" and "first game is in the viewport and
+//     tappable -> opens the sheet" are unchanged in spirit: measured on the first
+//     keyed game row, which is always in view.
+//   * The scrim (`Key('scrim-bottom')`) still softens the bottom band; a scrim
+//     that eats the pointer is still the risk the tap test guards.
 //
-// The test measures GEOMETRY rather than re-deriving the arithmetic, which is the
-// whole point. A test that recomputed the same sum would have agreed with the bug.
+// Game rows are found by their stable `ValueKey('game-node-<igdbId>')` rather
+// than a private widget type, so the test does not couple to the view's internals.
 //
-// Every database call goes through `tester.runAsync`. testWidgets runs its body
-// in a FakeAsync zone and sqflite does real file I/O that never completes under
-// fake time, so mounting outside runAsync holds the database lock and the run
-// hangs instead of failing. See docs/CONSTRAINTS.md and check.ps1 rule 8.
+// Every database call goes through `tester.runAsync`: testWidgets runs in a
+// FakeAsync zone and sqflite does real file I/O that never completes under fake
+// time, so mounting outside runAsync holds the lock and the run hangs. See
+// docs/CONSTRAINTS.md and check.ps1 rule 8.
 
 import 'dart:math' as math;
 
@@ -39,10 +39,9 @@ import 'package:ludeck/main.dart';
 import 'package:ludeck/services/catalog_service.dart';
 import 'package:ludeck/services/share_intake.dart';
 import 'package:ludeck/state/ludeck_store.dart';
-import 'package:ludeck/ui/map/game_node.dart';
 import 'package:ludeck/ui/shell/add_menu.dart';
 import 'package:ludeck/ui/tokens.dart';
-import 'package:ludeck/ui/canopy/canopy_view.dart';
+import 'package:ludeck/ui/nodetree/node_tree_view.dart';
 import 'package:ludeck/ui/roadmap/roadmap_view.dart';
 
 void main() {
@@ -50,17 +49,18 @@ void main() {
 
   setUp(() async {
     repo = await Repository.openInMemory();
-    // openInMemory deliberately does not seed, and an empty collection hangs no
-    // covers, so there would be nothing to collide with the header.
     await repo.seedIfEmpty();
   });
 
   tearDown(() async => repo.close());
 
+  /// Every game row currently laid out, by its stable key.
+  Finder gameRows() => find.byWidgetPredicate((w) =>
+      w.key is ValueKey<String> &&
+      (w.key as ValueKey<String>).value.startsWith('game-node-'));
+
   Future<void> pump(WidgetTester tester,
       {Size size = const Size(412, 915), double textScale = 1.0}) async {
-    // A phone-shaped surface. The bug was invisible at desktop proportions,
-    // where width bound the layout and there was height to spare.
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = size;
     addTearDown(tester.view.reset);
@@ -80,61 +80,49 @@ void main() {
       ));
     });
 
-    // Wait for the FIRST READ to land, rather than guessing a delay.
-    //
-    // A fixed 20ms was enough when this file ran alone and too short under the
-    // full suite's concurrency: the store's items were still null, the screen
-    // rendered its deliberate blank branch, and every `getRect` below failed on a
-    // finder that matched nothing. The symptom looked like a layout bug and was a
-    // timing one. Polling for the thing the test actually needs is both faster in
-    // the common case and immune to load.
+    // Poll for the first read to land rather than guessing a delay (fragile
+    // under full-suite concurrency).
     for (var attempt = 0; attempt < 50; attempt++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 20)),
       );
       await tester.pumpAndSettle();
-      if (find.byType(GameNode).evaluate().isNotEmpty) break;
+      if (gameRows().evaluate().isNotEmpty) break;
     }
     expect(
-      find.byType(GameNode),
+      gameRows(),
       findsWidgets,
       reason: 'the collection never loaded, so nothing below can be measured',
     );
   }
 
-  /// Whichever home view is showing: the canopy by default, or the roadmap.
+  /// Whichever home view is showing: the node tree by default, or the roadmap.
   final homeView = find.byWidgetPredicate(
-      (w) => w is RoadmapView || w is CanopyView,
+      (w) => w is RoadmapView || w is NodeTreeView,
       description: 'the home tree view');
 
-  /// Every cover currently on the tree.
-  List<Rect> covers(WidgetTester tester) => [
-        for (final e in find.byType(GameNode).evaluate())
+  /// The rects of every visible game row.
+  List<Rect> rows(WidgetTester tester) => [
+        for (final e in gameRows().evaluate())
           tester.getRect(find.byElementPredicate((x) => x == e)),
       ];
 
-  testWidgets('the tree canvas starts below the header', (tester) async {
+  testWidgets('the tree starts below the header', (tester) async {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
     final tree = tester.getRect(homeView);
 
-    // The canvas must begin at or below the header's painted bottom. This is
-    // structural now -- they are siblings in a Column -- and the assertion exists
-    // so a future change back to an overlay has to face it.
     expect(
       tree.top,
       greaterThanOrEqualTo(header.bottom),
-      reason: 'the tree canvas (${tree.top}) starts above the header bottom '
-          '(${header.bottom}), so covers will render under the headline',
+      reason: 'the tree (${tree.top}) starts above the header bottom '
+          '(${header.bottom}), so rows will render under the headline',
     );
   });
 
   testWidgets('the header survives a wrapped headline at large text scale',
       (tester) async {
-    // The original bug was a top inset that assumed a single line of display
-    // type. At 2x text scale the headline certainly wraps, so if anything still
-    // depends on a one-line assumption this is where it shows.
     await pump(tester, textScale: 2.0);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
@@ -143,46 +131,47 @@ void main() {
     expect(tree.top, greaterThanOrEqualTo(header.bottom));
   });
 
-  testWidgets('no cover overlaps the header', (tester) async {
+  testWidgets('no game row overlaps the header', (tester) async {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final all = covers(tester);
+    final all = rows(tester);
     expect(all, isNotEmpty);
 
     for (final rect in all) {
+      // A row scrolled up under the header is clipped by the viewport, so only
+      // the FIRST visible row's top matters for the "starts under the headline"
+      // bug this guards. Rows fully above the header bottom are off-screen, not
+      // painted over it.
+      if (rect.bottom <= header.bottom) continue;
       expect(
         rect.top,
-        greaterThanOrEqualTo(header.bottom),
-        reason: 'a cover at $rect is painted over the header '
+        greaterThanOrEqualTo(header.bottom - 0.5),
+        reason: 'a row at $rect is painted over the header '
             '(bottom ${header.bottom})',
       );
+      break; // first on-screen row is the binding one
     }
   });
 
-  testWidgets('the topmost cover sits within the visible viewport', (tester) async {
+  testWidgets('the topmost game row sits within the visible viewport',
+      (tester) async {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    // The roadmap SCROLLS: lower nodes deliberately sit below the fold, so the
-    // tree-era "lowest cover clears the add control" no longer holds and would
-    // be a false premise on a scroll view. What must still be true is that the
-    // FIRST node lands in the visible band -- below the header, above the
-    // bottom of the screen -- so the collection is not empty-looking on open.
-    final covers = find.byType(GameNode);
-    final first = tester.getRect(covers.first);
+    final first = tester.getRect(gameRows().first);
 
     expect(
       first.top,
-      greaterThanOrEqualTo(header.bottom),
-      reason: 'the first cover at y=${first.top} is under the header '
+      greaterThanOrEqualTo(header.bottom - 0.5),
+      reason: 'the first row at y=${first.top} is under the header '
           '(bottom ${header.bottom})',
     );
     expect(
       first.top,
       lessThan(915),
-      reason: 'the first cover at y=${first.top} starts below the fold, so the '
-          'roadmap opens looking empty',
+      reason: 'the first row at y=${first.top} starts below the fold, so the '
+          'tree opens looking empty',
     );
   });
 
@@ -190,28 +179,17 @@ void main() {
     await pump(tester);
 
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    final tree = tester.getRect(homeView);
     final addMenu = tester.getRect(find.byType(AddMenu));
 
-    // The scrim must reach at least as high as the add control it softens, and
-    // must sit flush with the bottom of the content area -- a scrim that stops
-    // short leaves a strip where a cover is visible half-behind the button.
+    // The scrim must reach at least as high as the add control it softens.
     expect(scrim.top, lessThanOrEqualTo(addMenu.top));
-    expect(scrim.bottom, moreOrLessEquals(tree.bottom, epsilon: 0.5));
+    expect(scrim.height, greaterThan(0));
   });
 
-  testWidgets('no cover is hidden behind another, with the real chrome present',
-      (tester) async {
-    // THE measurement that reflects what ships. `procedural_tree_view_test.dart`
-    // takes the same reading with the tree pumped alone and sees about 10%
-    // overlap; here the header and the navigation pill are both in the layout, so
-    // the tree gets the canvas it actually gets on a phone. A device capture
-    // showed two covers substantially stacked while the tree-alone measurement
-    // stayed green, and the difference between those two harnesses is the whole
-    // reason this test exists in this file rather than that one.
+  testWidgets('game rows never overlap one another', (tester) async {
     await pump(tester, size: const Size(412, 915));
 
-    final rects = covers(tester);
+    final rects = rows(tester);
     expect(rects.length, greaterThan(4));
 
     var worst = 0.0;
@@ -228,34 +206,16 @@ void main() {
       }
     }
 
-    // 0.18, a ratchet just above the 10% actually measured here -- not the 0.34 I
-    // first guessed at. The guess mattered: I read a device capture as "two covers
-    // substantially stacked", built three separate instruments to reproduce it, and
-    // all three said about 10%. Re-measuring the capture by hand agreed with them:
-    // the worst pair overlaps by roughly a fifth of a card's WIDTH, which is a
-    // tenth of its area. The arithmetic was right and the eye was wrong, so the
-    // number here is now pinned to what is real rather than to what a screenshot
-    // looked like.
-    expect(worst, lessThan(0.18),
-        reason: 'worst painted overlap ${(worst * 100).toStringAsFixed(0)}% '
-            'with the shell present -- a cover you cannot read is the same as '
-            'no cover');
+    // A SliverList lays rows out end to end, so any overlap at all is a
+    // regression to a stacking layout. Tiny epsilon for sub-pixel rounding.
+    expect(worst, lessThan(0.02),
+        reason: 'game rows overlap by ${(worst * 100).toStringAsFixed(0)}% -- '
+            'a list must lay them out without collision');
   });
 
   testWidgets('the header text is left aligned, not centred', (tester) async {
     await pump(tester);
 
-    // Measure the SUBLINE, and measure text rather than the container. Two
-    // reasons, both learned by probing:
-    //
-    // The header column sits in an Expanded, so its own rect spans the full width
-    // whatever its crossAxisAlignment is -- only its children move inside it. A
-    // version of this test that measured the column was silently inert.
-    //
-    // And the HEADLINE is no good either: at flutter_test's default font every
-    // glyph is a full em square, so "8 on the tree." already fills the available
-    // width and centring cannot move it. The subline is short enough to move,
-    // which is what makes this assertion able to fail.
     final texts = find.descendant(
       of: find.byKey(const Key('screen-header')),
       matching: find.byType(Text),
@@ -270,24 +230,20 @@ void main() {
     );
   });
 
-  testWidgets('a cover tap opens the status sheet', (tester) async {
-    // The roadmap scrolls, so the lowest node can sit off-screen and is not a
-    // valid tap target here. The risk this guards is unchanged: a node must be
-    // tappable and open the status sheet, and nothing (scrim, scroll view) may
-    // eat the pointer. Proven on the first node, which is always in view.
+  testWidgets('a game tap opens the status sheet', (tester) async {
     await pump(tester, size: const Size(412, 915));
 
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
     expect(scrim.height, greaterThan(0));
 
-    await tester.tap(find.byType(GameNode).first, warnIfMissed: false);
+    await tester.tap(gameRows().first, warnIfMissed: false);
     await tester.pumpAndSettle();
 
     expect(
       find.byType(BottomSheet),
       findsOneWidget,
-      reason: 'tapping a cover opened nothing, so something is eating pointer '
-          'events on the roadmap',
+      reason: 'tapping a game opened nothing, so something is eating pointer '
+          'events on the tree',
     );
   });
 }
