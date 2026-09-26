@@ -32,13 +32,17 @@ import 'package:path/path.dart' as p;
 /// Written out by hand on purpose. The point of the audit is to compare what the
 /// schema INTENDS against what the engine actually enforces, and generating this
 /// list from the engine would compare the engine to itself.
-const List<({String child, String column, String parent})> kRelations = [
-  (child: 'entries', column: 'igdb_id', parent: 'games'),
-  (child: 'copies', column: 'igdb_id', parent: 'games'),
-  (child: 'placements', column: 'igdb_id', parent: 'games'),
-  (child: 'placements', column: 'branch_id', parent: 'branches'),
-  (child: 'sources', column: 'igdb_id', parent: 'games'),
-  (child: 'roadmap_order', column: 'igdb_id', parent: 'games'),
+const List<({String child, String column, String parent, String onDelete})>
+    kRelations = [
+  (child: 'entries', column: 'igdb_id', parent: 'games', onDelete: 'CASCADE'),
+  (child: 'copies', column: 'igdb_id', parent: 'games', onDelete: 'CASCADE'),
+  (child: 'placements', column: 'igdb_id', parent: 'games', onDelete: 'CASCADE'),
+  (child: 'placements', column: 'branch_id', parent: 'branches', onDelete: 'CASCADE'),
+  (child: 'sources', column: 'igdb_id', parent: 'games', onDelete: 'CASCADE'),
+  (child: 'roadmap_order', column: 'igdb_id', parent: 'games', onDelete: 'CASCADE'),
+  // SET NULL, not CASCADE: deleting a branch must never take a subtree of the
+  // user's categories with it. The repository re-parents children first.
+  (child: 'branches', column: 'parent_id', parent: 'branches', onDelete: 'SET NULL'),
 ];
 
 /// Tables the schema is expected to hold. A new one arriving without a cascade
@@ -145,7 +149,7 @@ void main() {
       );
     });
 
-    test('every declared relation is present AND cascades', () async {
+    test('every declared relation is present with its delete rule', () async {
       for (final relation in kRelations) {
         final keys = await repo.foreignKeysOf(relation.child);
         final match = keys.where(
@@ -157,8 +161,9 @@ void main() {
         // Read from the engine, not the DDL text: a clause written but not
         // applied -- a migration that created the table before the clause was
         // added -- is only visible this way.
-        expect(match.first.onDelete, 'CASCADE',
-            reason: '${relation.child}.${relation.column} does not cascade');
+        expect(match.first.onDelete, relation.onDelete,
+            reason: '${relation.child}.${relation.column} should be '
+                'ON DELETE ${relation.onDelete}');
       }
     });
   });

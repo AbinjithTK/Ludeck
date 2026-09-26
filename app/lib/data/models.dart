@@ -16,7 +16,19 @@ const int secondsPerHour = 3600;
 ///
 /// Branches are NOT derived from platforms. Arbitrary, unlimited categorisation
 /// is what gives each tree its own shape.
-typedef Branch = ({int id, String name, int sortOrder});
+///
+/// Schema v4 made branches nest: [parentId] is null for a branch growing
+/// straight from the trunk, otherwise the branch it grows from. [sortOrder] is
+/// the position among SIBLINGS (same parent), not across the whole tree.
+/// [collapsed] is the user's own fold state, persisted so a tree they tidied
+/// stays tidy across launches.
+typedef Branch = ({
+  int id,
+  String name,
+  int sortOrder,
+  int? parentId,
+  bool collapsed,
+});
 
 class Game {
   const Game({

@@ -18,7 +18,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 /// The file name. docs/DECISIONS.md froze `ludeck.db` and this honours it.
 const String kDatabaseFile = 'ludeck.db';
 
-const int kSchemaVersion = 3;
+const int kSchemaVersion = 4;
 
 /// Where a game came from. Added in schema v2.
 ///
@@ -73,6 +73,48 @@ const String _roadmapOrderTable = '''
     position INTEGER NOT NULL
   )
   ''';
+
+/// A branch, named by the user. The v1-v3 shape; v4 adds columns below.
+const String _branchesTable = '''
+  CREATE TABLE IF NOT EXISTS branches (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    name       TEXT    NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  )
+  ''';
+
+/// Branches nest. Added in schema v4.
+///
+/// Columns added with ALTER on BOTH paths -- the fresh install creates the v3
+/// `branches` table and then runs these same statements -- so a new install and
+/// an upgraded one hold the same table definition, not two that merely look
+/// alike. Recreating `branches` with the columns inline would be tidier SQL and
+/// would make the two paths differ.
+///
+/// `parent_id` is NULL for a branch growing from the trunk. ON DELETE SET NULL,
+/// not CASCADE: deleting a branch must never silently take a subtree of the
+/// user's categories with it. The repository re-parents children explicitly
+/// before a delete; SET NULL is only the backstop if something bypasses it, and
+/// the worst it can do is lift a sub-branch to the trunk.
+///
+/// `collapsed` is the user's fold state. 0/1 because SQLite has no boolean.
+const String _branchParentColumn =
+    'ALTER TABLE branches ADD COLUMN parent_id INTEGER '
+    'REFERENCES branches(id) ON DELETE SET NULL';
+const String _branchCollapsedColumn =
+    'ALTER TABLE branches ADD COLUMN collapsed INTEGER NOT NULL DEFAULT 0';
+const String _branchParentIndex =
+    'CREATE INDEX IF NOT EXISTS idx_branches_parent ON branches(parent_id)';
+
+const List<String> _nestedBranches = [
+  // Idempotent on every real install. Present so a partial or hand-built old
+  // file (the migration tests' fixtures) upgrades instead of failing on the ALTER.
+  _branchesTable,
+  _branchParentColumn,
+  _branchCollapsedColumn,
+  _branchParentIndex,
+];
 
 /// Every table, in dependency order.
 ///
@@ -142,14 +184,8 @@ const List<String> _ddl = [
   // Branches are NOT derived from platforms. That was an earlier design and it
   // is superseded: arbitrary, unlimited categorisation is what gives each tree
   // its own shape.
-  '''
-  CREATE TABLE IF NOT EXISTS branches (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    name       TEXT    NOT NULL,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    created_at INTEGER NOT NULL
-  )
-  ''',
+  _branchesTable,
+
 
   // Which game hangs on which branch.
   //
@@ -172,6 +208,9 @@ const List<String> _ddl = [
   'CREATE INDEX IF NOT EXISTS idx_copies_game ON copies(igdb_id)',
   'CREATE INDEX IF NOT EXISTS idx_placements_game ON placements(igdb_id)',
   _sourcesIndex,
+
+  // Must follow the `branches` CREATE above. See [_nestedBranches].
+  ..._nestedBranches,
 ];
 
 /// Call once before opening a database on Windows, Linux or macOS.
@@ -243,6 +282,7 @@ Future<void> _onCreate(Database db, int version) async {
 const Map<int, List<String>> _migrations = {
   2: [_sourcesTable, _sourcesIndex],
   3: [_roadmapOrderTable],
+  4: _nestedBranches,
 };
 
 /// Versions `_migrations` can produce.

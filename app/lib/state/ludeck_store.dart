@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../data/enums.dart';
 import '../data/models.dart';
 import '../data/repository.dart';
+import '../domain/branch_tree.dart';
 import '../domain/level.dart';
 
 /// The collection's state, and the only thing the UI mutates it through.
@@ -49,6 +50,10 @@ class LudeckStore extends ChangeNotifier {
   /// that loaded them separately could render a branch count that did not match
   /// the rows under it.
   Map<int, List<int>> get placements => _placements;
+
+  /// Branches and placements as a tree. Rebuilt per call; it is cheap and it
+  /// can then never describe a different instant from [branches].
+  BranchTree get tree => BranchTree(_branches, _placements);
 
   /// True while a read or a write is in flight.
   bool get isLoading => _isLoading;
@@ -103,14 +108,33 @@ class LudeckStore extends ChangeNotifier {
   /// correct until the user reorders: `reorderBranches` then writes real 0..n-1
   /// values, and the next new branch would arrive at position 0 and jump to the
   /// front of a list the user had just arranged.
-  Future<void> createBranch(String name) => _write(() async {
-        final existing = await _repo.branches();
-        final next = existing.isEmpty
+  ///
+  /// [parentId] grows it as a sub-branch; the "end" is then the end of that
+  /// parent's children, since order is only meaningful among siblings.
+  Future<void> createBranch(String name, {int? parentId}) => _write(() async {
+        final siblings = (await _repo.branches())
+            .where((b) => b.parentId == parentId);
+        final next = siblings.isEmpty
             ? 0
-            : existing.map((b) => b.sortOrder).reduce((a, b) => a > b ? a : b) +
+            : siblings.map((b) => b.sortOrder).reduce((a, b) => a > b ? a : b) +
                 1;
-        await _repo.createBranch(name, sortOrder: next);
+        await _repo.createBranch(name, sortOrder: next, parentId: parentId);
       });
+
+  /// Re-parents a branch (`null` = the trunk) at [position] among its new
+  /// siblings. Refused, by the repository, if it would nest a branch in itself.
+  Future<void> moveBranch(int id, {int? newParentId, int? position}) =>
+      _write(() => _repo.moveBranch(id,
+          newParentId: newParentId, position: position));
+
+  Future<void> setBranchCollapsed(int id, bool collapsed) =>
+      _write(() => _repo.setBranchCollapsed(id, collapsed));
+
+  /// Moves ONE placement. The game's other branches are left alone.
+  Future<void> moveGame(int igdbId,
+          {required int fromBranchId, required int toBranchId}) =>
+      _write(() => _repo.moveGame(igdbId,
+          fromBranchId: fromBranchId, toBranchId: toBranchId));
 
   Future<void> renameBranch(int id, String name) =>
       _write(() => _repo.renameBranch(id, name));

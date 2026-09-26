@@ -436,15 +436,20 @@ class Repository {
     return name;
   }
 
-  Future<int> createBranch(String name, {int sortOrder = 0}) => _db.insert(
+  Future<int> createBranch(String name, {int sortOrder = 0, int? parentId}) =>
+      _db.insert(
         'branches',
         {
           'name': _branchName(name),
           'sort_order': sortOrder,
+          'parent_id': parentId,
           'created_at': DateTime.now().millisecondsSinceEpoch,
         },
       );
 
+  /// Every branch, flat, siblings in their order. The tree shape is built from
+  /// `parentId` by `BranchTree`; one flat read keeps this a single query however
+  /// deep the user nests.
   Future<List<Branch>> branches() async {
     final rows = await _db.query('branches', orderBy: 'sort_order, id');
     return rows
@@ -452,6 +457,8 @@ class Repository {
               id: r['id'] as int,
               name: r['name'] as String,
               sortOrder: r['sort_order'] as int,
+              parentId: r['parent_id'] as int?,
+              collapsed: (r['collapsed'] as int? ?? 0) != 0,
             ))
         .toList();
   }
@@ -463,6 +470,80 @@ class Repository {
         whereArgs: [id],
       );
 
+  Future<void> setBranchCollapsed(int id, bool collapsed) => _db.update(
+        'branches',
+        {'collapsed': collapsed ? 1 : 0},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+
+  /// Ids of [of]'s parent chain, nearest first. Used to refuse a cycle.
+  static Future<List<int>> _ancestors(DatabaseExecutor db, int of) async {
+    final rows = await db.rawQuery('''
+      WITH RECURSIVE up(id, parent_id) AS (
+        SELECT id, parent_id FROM branches WHERE id = ?
+        UNION
+        SELECT b.id, b.parent_id FROM branches b JOIN up ON b.id = up.parent_id
+      )
+      SELECT id FROM up WHERE id != ?
+    ''', [of, of]);
+    return rows.map((r) => r['id'] as int).toList();
+  }
+
+  /// Ids of [parentId]'s children in order, `null` meaning the trunk.
+  static Future<List<int>> _children(DatabaseExecutor db, int? parentId) async {
+    final rows = await db.query(
+      'branches',
+      columns: ['id'],
+      where: parentId == null ? 'parent_id IS NULL' : 'parent_id = ?',
+      whereArgs: parentId == null ? null : [parentId],
+      orderBy: 'sort_order, id',
+    );
+    return rows.map((r) => r['id'] as int).toList();
+  }
+
+  static Future<void> _writeOrder(DatabaseExecutor db, List<int> ids) async {
+    for (var i = 0; i < ids.length; i++) {
+      await db.update('branches', {'sort_order': i},
+          where: 'id = ?', whereArgs: [ids[i]]);
+    }
+  }
+
+  /// Moves branch [id] under [newParentId] (`null` = the trunk), at [position]
+  /// among its new siblings (clamped; omitted = last).
+  ///
+  /// Refuses to put a branch inside itself or inside one of its own
+  /// descendants. That would detach the whole subtree from the trunk into a
+  /// loop no view could ever reach, and the user's games on it would look lost.
+  ///
+  /// One transaction: the parent change and both sibling renumberings land
+  /// together or not at all.
+  Future<void> moveBranch(int id, {int? newParentId, int? position}) =>
+      _db.transaction((txn) async {
+        if (newParentId != null &&
+            (newParentId == id ||
+                (await _ancestors(txn, newParentId)).contains(id))) {
+          throw ArgumentError.value(
+              newParentId, 'newParentId', 'a branch cannot grow inside itself');
+        }
+        final old = await txn.query('branches',
+            columns: ['parent_id'], where: 'id = ?', whereArgs: [id]);
+        if (old.isEmpty) {
+          throw ArgumentError.value(id, 'id', 'no such branch');
+        }
+        final oldParent = old.single['parent_id'] as int?;
+
+        await txn.update('branches', {'parent_id': newParentId},
+            where: 'id = ?', whereArgs: [id]);
+        if (oldParent != newParentId) {
+          await _writeOrder(txn, await _children(txn, oldParent));
+        }
+        final siblings = (await _children(txn, newParentId))..remove(id);
+        final at = (position ?? siblings.length).clamp(0, siblings.length);
+        siblings.insert(at, id);
+        await _writeOrder(txn, siblings);
+      });
+
   /// Removes a branch and the placements that pointed at it.
   ///
   /// It does NOT remove a single game, entry or copy. A branch is a container,
@@ -471,7 +552,27 @@ class Repository {
   /// cascade would handle placements on its own, but only because
   /// `PRAGMA foreign_keys = ON` is set per connection, so the delete is written
   /// out explicitly rather than trusting that to stay true.
+  ///
+  /// Sub-branches are NOT deleted either. They move up one level, into the
+  /// deleted branch's slot among its siblings, so the tree keeps its shape
+  /// minus one fork.
   Future<void> deleteBranch(int id) => _db.transaction((txn) async {
+        final row = await txn.query('branches',
+            columns: ['parent_id'], where: 'id = ?', whereArgs: [id]);
+        if (row.isNotEmpty) {
+          final parent = row.single['parent_id'] as int?;
+          final kids = await _children(txn, id);
+          final siblings = await _children(txn, parent);
+          final at = siblings.indexOf(id);
+          siblings
+            ..removeAt(at)
+            ..insertAll(at, kids);
+          for (final k in kids) {
+            await txn.update('branches', {'parent_id': parent},
+                where: 'id = ?', whereArgs: [k]);
+          }
+          await _writeOrder(txn, siblings);
+        }
         await txn.delete('placements', where: 'branch_id = ?', whereArgs: [id]);
         await txn.delete('branches', where: 'id = ?', whereArgs: [id]);
       });
@@ -481,22 +582,35 @@ class Repository {
   /// One transaction because a reorder that fails halfway leaves two branches
   /// claiming the same position, and the list then renders in an order that
   /// depends on the id tiebreak rather than on anything the user did.
-  Future<void> reorderBranches(List<int> idsInOrder) => _db.transaction((txn) async {
-        for (var i = 0; i < idsInOrder.length; i++) {
-          await txn.update(
-            'branches',
-            {'sort_order': i},
-            where: 'id = ?',
-            whereArgs: [idsInOrder[i]],
-          );
-        }
-      });
+  ///
+  /// Pass one sibling group (the children of one parent). Order is only
+  /// meaningful among siblings; it does not change any branch's parent.
+  Future<void> reorderBranches(List<int> idsInOrder) =>
+      _db.transaction((txn) => _writeOrder(txn, idsInOrder));
 
   Future<void> place(int igdbId, int branchId, {int position = 0}) => _db.insert(
         'placements',
         {'branch_id': branchId, 'igdb_id': igdbId, 'position': position},
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+
+  /// Takes a game off [fromBranchId] and hangs it on [toBranchId], atomically.
+  ///
+  /// Only that one placement moves. The game's other branches are untouched:
+  /// a game may live on many branches, and "move" means "from here to there",
+  /// never "off everything else".
+  Future<void> moveGame(int igdbId,
+          {required int fromBranchId, required int toBranchId}) =>
+      _db.transaction((txn) async {
+        await txn.delete('placements',
+            where: 'branch_id = ? AND igdb_id = ?',
+            whereArgs: [fromBranchId, igdbId]);
+        await txn.insert(
+          'placements',
+          {'branch_id': toBranchId, 'igdb_id': igdbId, 'position': 0},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      });
 
   /// The user's chosen roadmap order, as igdb_id -> position. Games with no row
   /// are simply absent; the store orders them after the ones that have a
