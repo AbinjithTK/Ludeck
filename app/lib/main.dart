@@ -831,6 +831,15 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   // on top of the sheet rather than instead of it.
                   onSelect: _openStatusSheet,
                   onHold: _openStatusSheet,
+                  // The one-shot draw-line creation animation, driven by the
+                  // real store event: upsert/addShared flags a genuinely new
+                  // igdbId, the connector draws to that node, it pops in, and
+                  // onAddedDone clears the flag so it never replays.
+                  justAddedIgdbId: store.justAdded,
+                  onAddedDone: () {
+                    store.consumeJustAdded();
+                    if (mounted) setState(() {});
+                  },
                 ),
 
                 // A fade under the add control. Padding alone only fixes where

@@ -179,7 +179,35 @@ class LudeckStore extends ChangeNotifier {
   /// The repository's upsert deliberately does not overwrite an existing entry:
   /// re-adding a game the user already owns must not reset its progress or its
   /// rating.
-  Future<void> upsert(TreeItem item) => _write(() => _repo.upsert(item));
+  Future<void> upsert(TreeItem item) => _write(() async {
+        _markIfNew(item.game.igdbId);
+        await _repo.upsert(item);
+      });
+
+  /// The igdbId of a game that was JUST added to the collection for the first
+  /// time, or null. The roadmap reads it to play the one-shot draw-line
+  /// creation animation on the new node, then calls [consumeJustAdded] so it
+  /// plays once and never replays on a later rebuild. Set only for a genuinely
+  /// new id -- re-adding an existing game animates nothing.
+  int? _justAdded;
+  int? get justAdded => _justAdded;
+
+  /// Read-and-clear the just-added id. Returns it once, then null.
+  int? consumeJustAdded() {
+    final id = _justAdded;
+    _justAdded = null;
+    return id;
+  }
+
+  /// Flags [igdbId] as just-added when it is not already in the loaded
+  /// collection. Called before the write, read after the re-read by the view.
+  /// A game already present (a re-share, a re-add) sets nothing: the node is
+  /// already on the roadmap, so there is no line to draw.
+  void _markIfNew(int igdbId) {
+    final present =
+        _items?.any((i) => i.game.igdbId == igdbId) ?? false;
+    if (!present) _justAdded = igdbId;
+  }
 
   /// Adds a shared game AND records where it came from, with ONE re-read.
   ///
@@ -191,6 +219,7 @@ class LudeckStore extends ChangeNotifier {
   /// The source is still written when the game was already present. That is the
   /// point: re-encountering a game is information, and the entry is left alone.
   Future<void> addShared(TreeItem item, Source source) => _write(() async {
+        _markIfNew(item.game.igdbId);
         await _repo.upsert(item);
         await _repo.addSource(source);
       });

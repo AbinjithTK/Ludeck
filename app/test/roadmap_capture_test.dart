@@ -107,4 +107,62 @@ void main() {
       game(5, 'Finished', Ownership.owned, Progress.finished),
     ]);
   });
+
+  // The settled end state of the draw-line creation from the REAL RoadmapView:
+  // the new node popped in with its connector fully drawn. A headless widget
+  // test cannot reliably FREEZE an animation mid-frame (real-time controller vs
+  // the test clock), so the progressive-draw MECHANISM is proven separately by
+  // roadmap_draw_test.dart (partial path length grows with t), and the live
+  // motion is captured on-device in Stage 6. This frame proves the end result.
+  testWidgets('draw-line creation: settled', (tester) async {
+    final key = GlobalKey();
+    tester.view.devicePixelRatio = 2.0;
+    tester.view.physicalSize = const Size(412 * 2, 900 * 2);
+    addTearDown(tester.view.reset);
+
+    const addedId = 99;
+    final items = [
+      game(1, 'First', Ownership.owned, Progress.finished),
+      game(2, 'Second', Ownership.owned, Progress.playing),
+      game(addedId, 'New game', Ownership.spotted, Progress.untouched),
+    ];
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            backgroundColor: Tokens.cosmos.deep.first,
+            body: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: Tokens.cosmos.deep,
+                ),
+              ),
+              child: RepaintBoundary(
+                key: key,
+                child: RoadmapView(
+                  items: items,
+                  animateArrivals: false,
+                  justAddedIgdbId: addedId,
+                  onSelect: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+
+      final boundary =
+          key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+      final dir = Directory('../docs/shots');
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      File('${dir.path}/roadmap-draw-settled.png')
+          .writeAsBytesSync(bytes!.buffer.asUint8List());
+    });
+  });
 }

@@ -38,6 +38,8 @@ class RoadmapView extends StatefulWidget {
     this.bottomInset = 0,
     this.animateArrivals = true,
     this.interactive = true,
+    this.justAddedIgdbId,
+    this.onAddedDone,
   });
 
   final List<TreeItem> items;
@@ -60,11 +62,109 @@ class RoadmapView extends StatefulWidget {
   /// False on the portrait: no scrolling, no taps, fitted into its box.
   final bool interactive;
 
+  /// The igdbId of a game JUST added, or null. When set and present, the
+  /// connector into that node draws progressively, the view follows the drawing
+  /// head, and the node pops in at the end. One-shot: [onAddedDone] fires when
+  /// the sequence finishes so the caller clears the signal.
+  final int? justAddedIgdbId;
+
+  /// Called when the draw-line creation animation finishes.
+  final VoidCallback? onAddedDone;
+
   @override
   State<RoadmapView> createState() => _RoadmapViewState();
 }
 
-class _RoadmapViewState extends State<RoadmapView> {
+class _RoadmapViewState extends State<RoadmapView>
+    with SingleTickerProviderStateMixin {
+  final ScrollController _scroll = ScrollController();
+
+  /// Drives the connector-draw fraction 0->1 for a just-added node.
+  late final AnimationController _draw;
+
+  /// The index of the node currently being drawn in (the just-added one), or
+  /// null when nothing is animating. Its incoming link strokes to [_draw].value
+  /// and the node itself pops in when the draw completes.
+  int? _drawingIndex;
+
+  /// True once the draw has completed and the node should pop in.
+  bool _popNode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _draw = AnimationController(vsync: this, duration: Tokens.motion.harvest)
+      ..addListener(() => setState(() {}));
+  }
+
+  @override
+  void didUpdateWidget(RoadmapView old) {
+    super.didUpdateWidget(old);
+    final added = widget.justAddedIgdbId;
+    if (added != null && added != old.justAddedIgdbId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _runAddSequence(added));
+    }
+  }
+
+  @override
+  void dispose() {
+    _draw.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Draw the incoming connector while following the head, then pop the node.
+  ///
+  /// Reduced motion collapses the whole thing: the node lands at once, no draw,
+  /// no scroll animation -- but [onAddedDone] still fires so the signal clears.
+  Future<void> _runAddSequence(int igdbId) async {
+    final games = _visible;
+    final index = games.indexWhere((g) => g.game.igdbId == igdbId);
+    if (index < 0 || !mounted) {
+      widget.onAddedDone?.call();
+      return;
+    }
+
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+    setState(() {
+      _drawingIndex = index;
+      _popNode = false;
+    });
+
+    // Bring the new node into view first, so the draw happens on screen. The
+    // new node is the last one, so scroll to the bottom.
+    if (_scroll.hasClients) {
+      await _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: reduce ? Duration.zero : Tokens.motion.swap,
+        curve: Tokens.motion.easeOut,
+      );
+    }
+
+    // Draw the connector. For the FIRST node there is no incoming link, so the
+    // draw is a no-op and only the pop plays.
+    if (!reduce && index > 0) {
+      _draw.duration = Tokens.motion.harvest;
+      await _draw.forward(from: 0);
+    } else {
+      _draw.value = 1;
+    }
+
+    if (!mounted) return;
+    // Pop the node in.
+    setState(() => _popNode = true);
+    await Future<void>.delayed(reduce ? Duration.zero : Tokens.motion.grow);
+
+    if (!mounted) return;
+    setState(() {
+      _drawingIndex = null;
+      _popNode = false;
+      _draw.value = 0;
+    });
+    widget.onAddedDone?.call();
+  }
+
   /// Games shown on the roadmap, in roadmap order.
   ///
   /// Shelved rows are dropped: the roadmap is the active journey. Order is the
@@ -120,11 +220,16 @@ class _RoadmapViewState extends State<RoadmapView> {
               // it is "walked" when node i+1 is within the walked range.
               Positioned.fill(
                 child: CustomPaint(
-                  painter: _RoadPainter(
+                  painter: RoadPainter(
                     links: layout.links,
                     walkedColour: Tokens.cosmos.trail,
                     aheadColour: Tokens.cosmos.trailDim,
                     walkedThroughLink: walked - 1,
+                    // The link INTO the drawing node is index-1 (node i's
+                    // incoming link is link i-1). While drawing, stroke it to
+                    // the draw fraction; -1 disables partial draw.
+                    drawingLink: _drawingIndex == null ? -1 : _drawingIndex! - 1,
+                    drawProgress: _draw.value,
                   ),
                 ),
               ),
@@ -138,7 +243,7 @@ class _RoadmapViewState extends State<RoadmapView> {
           return FittedBox(fit: BoxFit.contain, child: board);
         }
 
-        return SingleChildScrollView(child: board);
+        return SingleChildScrollView(controller: _scroll, child: board);
       },
     );
   }
@@ -159,20 +264,31 @@ class _RoadmapViewState extends State<RoadmapView> {
         ? node.centre.dx - d / 2
         : node.centre.dx - d / 2 - titleWidth - Tokens.space.sm;
 
+    // While this node's incoming connector is still drawing, keep the node
+    // hidden; the moment the draw completes it pops in. A node not being added
+    // is simply visible (its arrival pop already played when it first mounted).
+    final isDrawingTarget = _drawingIndex == node.index;
+    final hidden = isDrawingTarget && !_popNode;
+
     return Positioned(
       left: rowLeft,
       top: node.centre.dy - d / 2,
-      child: RoadmapNode(
-        item: item,
-        diameter: d,
-        titleSide: titleSide,
-        titleWidth: titleWidth,
-        animateIn: widget.animateArrivals,
-        coverCache: widget.coverCache,
-        onCoverFound: widget.onCoverFound,
-        onTap: () => widget.onSelect?.call(item),
-        onLongPress:
-            widget.onHold == null ? null : () => widget.onHold!.call(item),
+      child: Opacity(
+        opacity: hidden ? 0 : 1,
+        child: RoadmapNode(
+          item: item,
+          diameter: d,
+          titleSide: titleSide,
+          titleWidth: titleWidth,
+          // Pop the just-added node in when the draw finishes; other nodes use
+          // the view's normal arrival setting.
+          animateIn: isDrawingTarget ? _popNode : widget.animateArrivals,
+          coverCache: widget.coverCache,
+          onCoverFound: widget.onCoverFound,
+          onTap: () => widget.onSelect?.call(item),
+          onLongPress:
+              widget.onHold == null ? null : () => widget.onHold!.call(item),
+        ),
       ),
     );
   }
@@ -184,12 +300,14 @@ class _RoadmapViewState extends State<RoadmapView> {
 /// (two points) is one line; an elbow (four points) is drawn segment by segment
 /// with a quarter-circle arc at each interior corner, so the bend is a true
 /// rounded corner rather than a chamfer.
-class _RoadPainter extends CustomPainter {
-  _RoadPainter({
+class RoadPainter extends CustomPainter {
+  RoadPainter({
     required this.links,
     required this.walkedColour,
     required this.aheadColour,
     required this.walkedThroughLink,
+    this.drawingLink = -1,
+    this.drawProgress = 1,
   });
 
   final List<RoadLink> links;
@@ -198,6 +316,12 @@ class _RoadPainter extends CustomPainter {
 
   /// Highest link index that is "walked" (bright). -1 means none are.
   final int walkedThroughLink;
+
+  /// The link currently drawing in (partial stroke), or -1 for none.
+  final int drawingLink;
+
+  /// How much of [drawingLink] to stroke, 0..1.
+  final double drawProgress;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -208,7 +332,14 @@ class _RoadPainter extends CustomPainter {
         ..strokeWidth = 5
         ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round;
-      canvas.drawPath(_pathFor(links[i]), paint);
+      final full = _pathFor(links[i]);
+      if (i == drawingLink && drawProgress < 1) {
+        // Partial stroke: walk the path metric to drawProgress of its length,
+        // so the line appears to draw from the from-node toward the new node.
+        canvas.drawPath(partialPath(full, drawProgress), paint);
+      } else {
+        canvas.drawPath(full, paint);
+      }
     }
   }
 
@@ -253,11 +384,13 @@ class _RoadPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_RoadPainter old) =>
+  bool shouldRepaint(RoadPainter old) =>
       old.links != links ||
       old.walkedColour != walkedColour ||
       old.aheadColour != aheadColour ||
-      old.walkedThroughLink != walkedThroughLink;
+      old.walkedThroughLink != walkedThroughLink ||
+      old.drawingLink != drawingLink ||
+      old.drawProgress != drawProgress;
 }
 
 /// The empty state: no games yet. A dimmed start node on the spine with a line

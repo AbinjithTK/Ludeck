@@ -16,7 +16,7 @@
 // straight lines" the design calls for.
 
 import 'dart:math' as math;
-import 'dart:ui' show Offset, Size;
+import 'dart:ui' show Offset, Path, Size;
 
 /// Which side of the centre line a node sits on.
 enum RoadSide { left, centre, right }
@@ -169,4 +169,29 @@ RoadLink _linkBetween(
   final hLeg = (to.dx - from.dx).abs();
   final maxR = math.min(vLeg, hLeg) / 2;
   return RoadLink(points: points, radius: math.min(radius, maxR));
+}
+
+
+/// The first [t] fraction (0..1) of [path]'s length, as a new path.
+///
+/// Used by the draw-line creation animation: strokes progressively more of a
+/// connector as the fraction rises. Pure -- takes a Path, returns a Path -- so
+/// the draw mechanism is unit-testable (the returned length is t of the input's)
+/// without a canvas or an animation clock.
+Path partialPath(Path path, double t) {
+  final clamped = t.clamp(0.0, 1.0);
+  final out = Path();
+  for (final metric in path.computeMetrics()) {
+    out.addPath(metric.extractPath(0, metric.length * clamped), Offset.zero);
+  }
+  return out;
+}
+
+/// The total length of [path], summed across its contours.
+double pathLength(Path path) {
+  var total = 0.0;
+  for (final metric in path.computeMetrics()) {
+    total += metric.length;
+  }
+  return total;
 }
