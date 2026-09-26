@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ludeck — branch tree, three options</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Every value below is copied from app/lib/ui/tokens.dart (palette + the active
+   `biolume` TreeSkin + type/space/radius). No new colours. */
+:root{
+  --bg:#0E0F11; --surface:#181A1D; --text:#F2F3F5; --dim:#8B9099; --accent:#E8B84B; --danger:#D4553F;
+  --barkShade:#2A1E33; --barkMid:#5A3E52; --barkLit:#9C7A6E;
+  --leafNear:#1FB89A; --leafFar:#15707E; --leafLit:#6BF0C8;
+  --ground:#0F1A2E; --groundLit:#1E3A5C;
+  --sky0:#04121F; --sky1:#0A2438; --sky2:#123A4A; --glow:rgba(71,240,200,.5);
+  --panel:rgba(255,255,255,.18); --panelEdge:rgba(255,255,255,.24); --panelDeep:rgba(18,15,38,.54);
+  --display:28px; --title:20px; --body:15px; --caption:13px;
+  --xxs:4px; --xs:8px; --sm:12px; --md:16px; --lg:24px; --xl:32px;
+  --card:10px; --rpanel:20px; --pill:999px; --control:52px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:var(--body)/1.45 Roboto,"Segoe UI",system-ui,sans-serif;padding:var(--xl)}
+h1{font-size:var(--display);letter-spacing:-.56px;line-height:1.05;margin:0 0 var(--xs)}
+h2{font-size:var(--title);letter-spacing:-.2px;margin:var(--xl) 0 var(--xxs)}
+p.lede{color:var(--dim);max-width:900px;margin:0 0 var(--md)}
+.row{display:flex;gap:var(--lg);flex-wrap:wrap;align-items:flex-start}
+.cap{width:360px;color:var(--dim);font-size:var(--caption);margin-top:var(--xs)}
+.cap b{color:var(--text);font-weight:600}
+.phone{position:relative;width:360px;height:740px;border-radius:36px;overflow:hidden;
+  background:linear-gradient(180deg,var(--sky0),var(--sky1) 55%,var(--sky2));border:1px solid var(--panelEdge)}
+.phone svg.art{position:absolute;inset:0}
+.status{position:absolute;top:10px;left:24px;right:24px;display:flex;justify-content:space-between;font-size:var(--caption);font-weight:600}
+.hdr{position:absolute;top:40px;left:var(--md);right:var(--md);display:flex;justify-content:space-between;align-items:center}
+.hdr .t{font-size:var(--title);font-weight:700;letter-spacing:-.2px}
+.hdr .s{font-size:var(--caption);color:var(--dim)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 var(--md);border-radius:var(--pill);
+  background:var(--panel);border:1px solid var(--panelEdge);color:var(--text);font-size:var(--caption);font-weight:600;white-space:nowrap}
+.btn.primary{background:var(--leafNear);border-color:var(--leafLit);color:var(--bg)}
+.btn.big{height:var(--control);font-size:var(--body);width:100%}
+.label{position:absolute;font-size:var(--caption);font-weight:600;padding:3px 10px;border-radius:var(--pill);
+  background:var(--panelDeep);border:1px solid var(--panelEdge);white-space:nowrap;transform:translate(-50%,-50%)}
+.label small{color:var(--dim);font-weight:400;margin-left:4px}
+.label.sel{border-color:var(--leafLit);box-shadow:0 0 0 3px var(--glow)}
+.chip{position:absolute;width:34px;height:45px;border-radius:6px;border:1.5px solid rgba(255,255,255,.5);
+  transform:translate(-50%,-50%);box-shadow:0 4px 10px rgba(0,0,0,.5);font-size:9px;font-weight:700;display:flex;align-items:flex-end;padding:3px;line-height:1}
+.chip.lg{width:60px;height:80px;font-size:11px;border-radius:var(--card)}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:var(--rpanel) var(--rpanel) 0 0;
+  padding:var(--md);border-top:1px solid var(--panelEdge)}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--dim);margin:0 auto var(--sm);opacity:.6}
+.pills{display:flex;gap:var(--xs);flex-wrap:wrap}
+.pill{padding:6px 12px;border-radius:var(--pill);background:var(--panel);border:1px solid var(--panelEdge);font-size:var(--caption)}
+.pill.on{background:var(--leafFar);border-color:var(--leafLit)}
+.field{height:48px;border-radius:var(--card);background:var(--bg);border:1.5px solid var(--leafLit);display:flex;align-items:center;padding:0 var(--sm);font-size:var(--body)}
+.field i{width:2px;height:20px;background:var(--leafLit);margin-left:2px}
+.toast{position:absolute;left:var(--md);right:var(--md);bottom:88px;height:48px;border-radius:var(--card);background:var(--text);color:var(--bg);
+  display:flex;align-items:center;justify-content:space-between;padding:0 var(--md);font-size:var(--caption);font-weight:600}
+.toast b{color:var(--leafFar)}
+.nav{position:absolute;left:var(--md);right:var(--md);bottom:var(--md);height:56px;border-radius:var(--pill);background:var(--panelDeep);
+  border:1px solid var(--panelEdge);display:flex;justify-content:space-around;align-items:center;font-size:var(--caption);color:var(--dim)}
+.nav .on{color:var(--text);font-weight:700}
+.tray{position:absolute;left:var(--md);right:var(--md);bottom:84px;border-radius:var(--rpanel);background:var(--panelDeep);border:1px dashed var(--leafLit);
+  padding:var(--sm);font-size:var(--caption)}
+.tray .covers{display:flex;gap:6px;margin-top:6px}
+.tray .covers .chip{position:static;transform:none}
+.note{position:absolute;font-size:11px;color:var(--leafLit);font-weight:600}
+.drawer{margin:0 var(--md) var(--xs);border-radius:var(--rpanel);background:var(--panelDeep);border:1px solid var(--panelEdge);padding:var(--sm) var(--md)}
+.drawer .top{display:flex;justify-content:space-between;align-items:center}
+.drawer .nm{font-weight:700}
+.drawer .ct{color:var(--dim);font-size:var(--caption)}
+.stack{display:flex;margin-top:var(--xs)}
+.stack .chip{position:static;transform:none;margin-right:-8px}
+.card{position:absolute;inset:0;background:linear-gradient(180deg,var(--sky0),var(--sky2))}
+.verdict{margin-top:var(--xl);max-width:1150px;border:1px solid var(--panelEdge);border-radius:var(--rpanel);padding:var(--md) var(--lg);background:var(--surface)}
+.verdict li{margin:4px 0}
+</style>
+</head>
+<body>
+<h1>Ludeck — the branch tree, three ways</h1>
+<p class="lede">Every colour, size and type step comes from <code>tokens.dart</code> (palette plus the shipped <code>biolume</code> skin). The drawing style follows the Liven reference: smooth tapered branches, small teardrop leaves, two tones. It has been adapted to Ludeck's dark sky and to its rule that leaves never brown or fall. Leaves are decoration. Games are the small cover chips at branch tips. Same data in every option: 5 branches, 2 of them nested.</p>
+
+<h2>A · Vine: a vertical tree that expands in place</h2>
+<p class="lede">The trunk runs down the left edge and each named branch curls out to the right. Tapping a branch grows its sub-branches and leaves right there on the screen, like a file tree drawn as a plant. It scrolls like a list.</p>
+<div class="row">
+  <div><div class="phone" id="A1"></div><div class="cap"><b>Home, "Couch co-op" open.</b> Its two sub-branches and their games are grown in place. The tray says <b>3 games need a branch</b>, so new finds don't disappear.</div></div>
+  <div><div class="phone" id="A2"></div><div class="cap"><b>Create and name a branch.</b> Tap "+ branch" and a twig sprouts with the name field already focused. The starter chips come from the Stage 1 research (mood, session length, who with).</div></div>
+  <div><div class="phone" id="A3"></div><div class="cap"><b>Move a game.</b> Long-press a cover and drag it onto any branch, which lights up as a target. Drop it and choose Move or Also add here. The toast has Undo. Haptic tick on pick-up and on drop.</div></div>
+</div>
+
+<h2>B · Canopy: a radial tree you zoom into</h2>
+<p class="lede">It looks like the Liven picture. The trunk rises from the bottom and named branches fan out upward. Tapping a branch zooms into it, so that branch becomes the trunk and its sub-branches fan out the same way. The home screen is also the share image.</p>
+<div class="row">
+  <div><div class="phone" id="B1"></div><div class="cap"><b>Home.</b> The whole library at a glance, labels on every branch, cover chips at the tips. Up to 6 branches show and extras fold into a "+2" twig. "What should I play?" sits at the root.</div></div>
+  <div><div class="phone" id="B2"></div><div class="cap"><b>Zoomed into "Couch co-op".</b> Its sub-branches fan out and the covers are bigger. Breadcrumb back to the root. Pick, Share and Add sit on this branch because this is where you're looking.</div></div>
+  <div><div class="phone" id="B3"></div><div class="cap"><b>Pick from this branch.</b> This runs the unused <code>choosePick</code>. The branch rustles once (a 600 ms response to the tap, never idle motion) and one cover rises. You get "Play this" or "Another", and the reason is shown.</div></div>
+</div>
+
+<h2>C · Trunk and drawers: a list with a painted spine</h2>
+<p class="lede">The most conventional of the three. A drawn trunk runs down the left side, and each branch is a drawer card hanging off it. Opening a drawer shows sub-branch pills and a grid of covers. It is the easiest to read and the least likely to be shared.</p>
+<div class="row">
+  <div><div class="phone" id="C1"></div><div class="cap"><b>Home.</b> Drawers show the name, a count and stacked covers. It reads instantly and scales to 30 branches.</div></div>
+  <div><div class="phone" id="C2"></div><div class="cap"><b>Drawer open.</b> Sub-branch pills act as filters, games show as a grid, and you add a game or sub-branch inline. You get more done here but it looks less like a tree.</div></div>
+</div>
+
+<h2>Shared by all three · sharing a branch</h2>
+<p class="lede">What gets shared is a branch, not one game. The card only carries what the privacy rule allows: title, cover, status, rating and branch name. It never includes notes, "recommended by" or the channel.</p>
+<div class="row">
+  <div><div class="phone" id="S1"></div><div class="cap"><b>Story card, 9:16.</b> The branch drawn in the same art style, with its covers and one line of text. The link opens the branch.</div></div>
+  <div><div class="phone" id="S2"></div><div class="cap"><b>A friend opens it.</b> They see the branch and one button: <b>Grow this on my tree</b>. The copy keeps credit ("from @abin"), and games they already own merge in instead of duplicating.</div></div>
+</div>
+
+<div class="verdict">
+<h2 style="margin-top:0">Recommendation: B, Canopy, with A's in-place naming and drag</h2>
+<ul>
+<li><b>B wins on the thing that makes Ludeck different.</b> The home screen and the share image are the same drawing. A and C are good file browsers, and plenty of apps already have one.</li>
+<li><b>B's real risk is reading at a glance.</b> Radial layouts fall apart past about 6 branches. The fix is built into the design: at most 6 visible, extras fold into a "+N" twig, and every level is its own zoomed canopy, so no screen ever has more than 6 labels. Plus a "list" toggle in the header that falls back to C for power users.</li>
+<li><b>Borrowed from A:</b> sprouting-twig naming and drag-to-branch with Move or Also add, which work the same on a canopy.</li>
+<li><b>Difference from the Liven image:</b> no falling or amber leaves. <code>DECISIONS.md</code> says foliage never browns or sheds, and nothing moves at rest. The teal leaves are the <code>biolume</code> skin's.</li>
+<li><b>Cost:</b> B is the hardest to build (tapered-Bézier painter, radial layout, zoom transition). About 1.5× A. It's worth it only if the render passes a check by eye on the device, which is the Stage 4 gate.</li>
+</ul>
+</div>
+
+<script>
+// ---------- art helpers: tapered Bézier branches + teardrop leaves ----------
+const NS='http://www.w3.org/2000/svg';
+const C={bark:'#5A3E52',barkLit:'#9C7A6E',barkShade:'#2A1E33',near:'#1FB89A',far:'#15707E',lit:'#6BF0C8',
+  covers:['#C85A3C','#3B2F75','#E8B84B','#1B2A6B','#7A2A5A','#4FA83E','#D4553F','#15707E','#5B4A82','#B98A54']};
+function bez(p,t){const u=1-t;return[u*u*u*p[0][0]+3*u*u*t*p[1][0]+3*u*t*t*p[2][0]+t*t*t*p[3][0],
+  u*u*u*p[0][1]+3*u*u*t*p[1][1]+3*u*t*t*p[2][1]+t*t*t*p[3][1]]}
+function tan(p,t){const u=1-t;return[3*u*u*(p[1][0]-p[0][0])+6*u*t*(p[2][0]-p[1][0])+3*t*t*(p[3][0]-p[2][0]),
+  3*u*u*(p[1][1]-p[0][1])+6*u*t*(p[2][1]-p[1][1])+3*t*t*(p[3][1]-p[2][1])]}
+function el(tag,attrs,parent){const e=document.createElementNS(NS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);parent&&parent.appendChild(e);return e}
+// Filled polygon whose width lerps w0 -> w1 along the curve: the Liven taper.
+function branch(svg,p,w0,w1,color,glow){
+  const L=[],R=[];for(let i=0;i<=40;i++){const t=i/40,[x,y]=bez(p,t),[dx,dy]=tan(p,t),n=Math.hypot(dx,dy)||1,w=(w0+(w1-w0)*Math.pow(t,.8))/2;
+    L.push([x-dy/n*w,y+dx/n*w]);R.push([x+dy/n*w,y-dx/n*w]);}
+  const d='M'+L.map(q=>q.join(',')).join('L')+'L'+R.reverse().map(q=>q.join(',')).join('L')+'Z';
+  const g=el('path',{d,fill:color||C.bark},svg);if(glow)g.setAttribute('filter','url(#gl)');return g}
+function leaf(svg,x,y,ang,s,col){const g=el('g',{transform:`translate(${x},${y}) rotate(${ang}) scale(${s})`},svg);
+  el('path',{d:'M0,0 C4,-5 12,-6 18,0 C12,6 4,5 0,0Z',fill:col||C.near},g);el('path',{d:'M1,0 L15,0',stroke:C.far,'stroke-width':.8},g)}
+// Sprinkle leaves along a curve, alternating sides, never on the last 12% (the tip holds games).
+function leaves(svg,p,n,seed,scale){let r=seed||1;const rnd=()=>(r=(r*9301+49297)%233280)/233280;
+  for(let i=0;i<n;i++){const t=.12+.76*(i+rnd()*.5)/n,[x,y]=bez(p,t),[dx,dy]=tan(p,t),a=Math.atan2(dy,dx)*180/Math.PI,side=i%2?1:-1;
+    leaf(svg,x,y,a+side*(45+rnd()*25),(scale||1)*(.7+rnd()*.5),rnd()<.3?C.lit:(rnd()<.5?C.near:C.far));}}
+function canvas(id){const ph=document.getElementById(id);
+  const svg=el('svg',{class:'art',viewBox:'0 0 360 740',width:360,height:740},ph);
+  const defs=el('defs',{},svg),f=el('filter',{id:'gl',x:'-20%',y:'-20%',width:'140%',height:'140%'},defs);
+  el('feGaussianBlur',{stdDeviation:3,result:'b'},f);const m=el('feMerge',{},f);el('feMergeNode',{in:'b'},m);el('feMergeNode',{in:'SourceGraphic'},m);
+  ph.insertAdjacentHTML('beforeend','<div class="status"><span>9:41</span><span>● ● ▮</span></div>');return[ph,svg]}
+function html(ph,s){ph.insertAdjacentHTML('beforeend',s)}
+function chip(x,y,i,t,cls){return `<div class="chip ${cls||''}" style="left:${x}px;top:${y}px;background:linear-gradient(160deg,${C.covers[i%10]},#0E0F11)">${t||''}</div>`}
+function label(x,y,t,n,cls){return `<div class="label ${cls||''}" style="left:${x}px;top:${y}px">${t}${n!=null?`<small>${n}</small>`:''}</div>`}
+const nav=`<div class="nav"><span class="on">Tree</span><span>Library</span><span>Friends</span><span>You</span></div>`;
+
+// ================= A · Vine =================
+function vineBase(svg,open){
+  branch(svg,[[34,740],[20,560],[48,360],[30,100]],26,10,C.bark); // trunk along the left
+  return true}
+(function(){const[ph,svg]=canvas('A1');vineBase(svg);
+  const B=[
+    {y:140,name:'Chill nights',n:4},
+    {y:215,name:'Couch co-op',n:5,open:true},
+    {y:470,name:'20-minute games',n:3},
+    {y:540,name:'Horror October',n:2}];
+  B.forEach((b,k)=>{const p=[[36,b.y+30],[90,b.y+20],[120,b.y-10],[180,b.y]];branch(svg,p,9,3);leaves(svg,p,4,k+3,.8)});
+  // open branch: two sub-branches with games
+  const s1=[[150,225],[180,260],[200,290],[230,300]],s2=[[150,225],[170,330],[210,380],[240,395]];
+  branch(svg,s1,5,2);branch(svg,s2,5,2);leaves(svg,s1,3,9,.7);leaves(svg,s2,3,11,.7);
+  html(ph,`<div class="hdr"><div><div class="t">My tree</div><div class="s">14 games · 5 branches</div></div><span class="btn">✦ What should I play?</span></div>`);
+  B.forEach((b,k)=>html(ph,label(b.open?150:230,b.y,(b.open?'▾ ':'')+b.name,b.n,b.open?'sel':'')));
+  html(ph,label(258,300,'With Sam',2)+label(270,398,'Party',3));
+  html(ph,chip(300,268,0,'ITT')+chip(336,268,1,'DRG')+chip(305,352,2,'OVC')+chip(341,352,3,'JBX')); 
+  html(ph,chip(322,140,5)+chip(322,470,6)+chip(322,540,7));
+  html(ph,`<div class="note" style="left:44px;top:108px">+ branch</div>`);
+  html(ph,`<div class="tray">3 games need a branch <span style="color:var(--dim)">· drag onto the tree</span><div class="covers">${chip(0,0,8,'HAD')}${chip(0,0,9,'')}${chip(0,0,2,'')}</div></div>`+nav)})();
+
+(function(){const[ph,svg]=canvas('A2');vineBase(svg);
+  [[140,'Chill nights',4],[215,'Couch co-op',5]].forEach(([y],k)=>{const p=[[36,y+30],[90,y+20],[120,y-10],[180,y]];branch(svg,p,9,3);leaves(svg,p,4,k+3,.8)});
+  const sp=[[40,300],[70,295],[90,285],[112,280]];branch(svg,sp,7,2,C.barkLit,true);leaf(svg,112,280,-30,.9,C.lit);
+  html(ph,`<div class="hdr"><div><div class="t">My tree</div><div class="s">14 games · 5 branches</div></div></div>`);
+  html(ph,label(230,140,'Chill nights',4)+label(230,215,'Couch co-op',5));
+  html(ph,`<div class="note" style="left:120px;top:270px">a new twig sprouts ↗</div>`);
+  html(ph,`<div class="sheet" style="height:330px"><div class="grab"></div>
+    <div style="font-weight:700;font-size:var(--title);margin-bottom:var(--sm)">Name this branch</div>
+    <div class="field">Sunday RPG<i></i></div>
+    <div style="color:var(--dim);font-size:var(--caption);margin:var(--sm) 0 var(--xs)">Or start from what players group by</div>
+    <div class="pills"><span class="pill">🌙 Wind down</span><span class="pill">⏱ Under 30 min</span><span class="pill">🛋 Couch co-op</span>
+      <span class="pill">🎧 Story nights</span><span class="pill">👥 Friends told me</span><span class="pill">🎃 Seasonal</span></div>
+    <div style="display:flex;gap:var(--xs);margin-top:var(--md)"><span class="btn" style="flex:1">Grow inside “Couch co-op”</span><span class="btn primary" style="flex:1">Grow branch</span></div></div>`)})();
+
+(function(){const[ph,svg]=canvas('A3');vineBase(svg);
+  const B=[[140,'Chill nights',4,1],[215,'Couch co-op',5],[290,'20-minute games',3],[365,'Horror October',2]];
+  B.forEach(([y,,,hot],k)=>{const p=[[36,y+30],[90,y+20],[120,y-10],[180,y]];branch(svg,p,hot?11:9,hot?4:3,hot?C.barkLit:C.bark,hot);leaves(svg,p,4,k+3,.8)});
+  html(ph,`<div class="hdr"><div><div class="t">My tree</div><div class="s">Drop on a branch</div></div></div>`);
+  B.forEach(([y,n,c,hot])=>html(ph,label(230,y,n,c,hot?'sel':'')));
+  html(ph,`<div class="chip lg" style="left:326px;top:190px;transform:translate(-50%,-50%) rotate(-6deg) scale(1.08);box-shadow:0 12px 30px rgba(0,0,0,.7);background:linear-gradient(160deg,${C.covers[8]},#0E0F11)">Hades</div>`);
+  html(ph,`<div class="sheet" style="height:210px"><div class="grab"></div>
+    <div style="font-weight:700;margin-bottom:var(--xs)">Hades → Chill nights</div>
+    <div style="color:var(--dim);font-size:var(--caption);margin-bottom:var(--sm)">It's in “20-minute games” too. A game can live on many branches.</div>
+    <div style="display:flex;gap:var(--xs)"><span class="btn big">Move here</span><span class="btn big primary">Also add here</span></div></div>`);
+  html(ph,`<div class="note" style="left:190px;top:108px">haptic tick on hover ↓</div>`)})();
+
+// ================= B · Canopy =================
+function canopy(svg,spec,trunkW){
+  branch(svg,[[180,740],[176,640],[186,560],[180,470]],trunkW||34,16,C.bark);
+  spec.forEach((s,k)=>{branch(svg,s.p,s.w||14,3,s.hot?C.barkLit:C.bark,s.hot);leaves(svg,s.p,s.leaves||6,k*7+2,1);
+    (s.twigs||[]).forEach((tw,j)=>{branch(svg,tw,5,1.5);leaves(svg,tw,3,k*13+j,.8)})})}
+(function(){const[ph,svg]=canvas('B1');
+  const S=[
+    {p:[[180,480],[120,430],[70,360],[48,300]],twigs:[[[86,380],[60,390],[40,395],[26,392]]]},
+    {p:[[180,480],[150,380],[120,280],[100,210]]},
+    {p:[[180,480],[190,360],[200,250],[214,150]],w:16},
+    {p:[[180,480],[240,400],[280,320],[300,250]],twigs:[[[255,380],[290,390],[315,380],[332,372]]]},
+    {p:[[180,480],[250,470],[300,440],[330,420]],w:10,leaves:4}];
+  canopy(svg,S);
+  html(ph,`<div class="hdr"><div><div class="t">My tree</div><div class="s">14 games · 5 branches</div></div><span class="btn">☰ List</span></div>`);
+  html(ph,label(58,272,'Chill nights',4)+label(96,182,'Story nights',3)+label(216,122,'Couch co-op',5)+label(300,222,'20-minute',3)+label(314,452,'Horror',2));
+  html(ph,chip(30,326,0)+chip(64,318,5)+chip(124,212,1)+chip(196,158,2)+chip(236,158,3)+chip(320,262,4)+chip(334,398,6));
+  html(ph,`<div class="note" style="left:24px;top:410px">sub-branch</div>`+label(340,362,'+2'));
+  html(ph,`<div style="position:absolute;left:var(--md);right:var(--md);bottom:84px;display:flex;gap:var(--xs)"><span class="btn primary" style="flex:1;height:var(--control);font-size:var(--body)">✦ What should I play?</span><span class="btn" style="height:var(--control)">+ Branch</span></div>`);
+  html(ph,`<div class="label" style="left:180px;top:540px;border-style:dashed;border-color:var(--leafLit)">3 new games · tap to file</div>`+nav)})();
+
+(function(){const[ph,svg]=canvas('B2');
+  const S=[
+    {p:[[180,560],[110,500],[70,420],[60,330]],w:16,twigs:[[[90,470],[60,460],[40,450],[24,430]]]},
+    {p:[[180,560],[230,480],[280,400],[300,300]],w:16}];
+  canopy(svg,S,40);
+  html(ph,`<div class="hdr"><div><div class="s">My tree ›</div><div class="t">Couch co-op</div></div><span class="btn">↗ Share</span></div>`);
+  html(ph,label(64,300,'With Sam',2)+label(300,270,'Party',3));
+  html(ph,chip(40,380,0,'It Takes Two','lg')+chip(104,380,1,'Deep Rock','lg'));
+  html(ph,chip(240,340,2,'Overcooked','lg')+chip(306,346,3,'Jackbox','lg')+chip(272,440,9,'Gang Beasts','lg'));
+  html(ph,`<div class="note" style="left:20px;top:452px">+ sub-branch</div>`);
+  html(ph,`<div style="position:absolute;left:var(--md);right:var(--md);bottom:84px;display:flex;gap:var(--xs)"><span class="btn primary" style="flex:1;height:var(--control);font-size:var(--body)">✦ Pick from Couch co-op</span><span class="btn" style="height:var(--control)">+ Game</span></div>`+nav)})();
+
+(function(){const[ph,svg]=canvas('B3');
+  const S=[{p:[[180,560],[110,500],[70,420],[60,330]],w:16,hot:true},{p:[[180,560],[230,480],[280,400],[300,300]],w:16,hot:true}];
+  canopy(svg,S,40);
+  el('circle',{cx:180,cy:250,r:90,fill:'rgba(71,240,200,.18)',filter:'url(#gl)'},svg);
+  html(ph,`<div class="hdr"><div><div class="s">My tree ›</div><div class="t">Couch co-op</div></div></div>`);
+  html(ph,`<div class="chip lg" style="left:180px;top:240px;width:110px;height:147px;font-size:var(--body);border-color:var(--leafLit);box-shadow:0 0 30px var(--glow);background:linear-gradient(160deg,${C.covers[0]},#0E0F11)">It Takes Two</div>`);
+  html(ph,`<div class="sheet" style="height:230px"><div class="grab"></div>
+    <div style="font-size:var(--caption);color:var(--leafLit);font-weight:600">TONIGHT, FROM COUCH CO-OP › WITH SAM</div>
+    <div style="font-size:var(--title);font-weight:700;margin:4px 0">It Takes Two</div>
+    <div style="color:var(--dim);font-size:var(--caption);margin-bottom:var(--md)">You've owned it the longest without starting it · fits a 2-hour evening</div>
+    <div style="display:flex;gap:var(--xs)"><span class="btn big">↻ Another</span><span class="btn big primary">▶ Play this</span></div></div>`)})();
+
+// ================= C · Drawers =================
+function spine(svg){branch(svg,[[22,740],[14,500],[30,300],[20,130]],16,8,C.bark)}
+(function(){const[ph,svg]=canvas('C1');spine(svg);
+  const D=[['Chill nights',4,[0,5,2]],['Couch co-op',5,[1,3,4],'2 sub-branches'],['Story nights',3,[8,6]],['20-minute games',3,[7,9,0]],['Horror October',2,[6,4]]];
+  D.forEach((d,k)=>{const y=150+k*96;branch(svg,[[22,y+40],[30,y+36],[34,y+34],[40,y+34]],6,3);leaf(svg,26,y+22,-120,.8)});
+  let s=`<div class="hdr"><div><div class="t">My tree</div><div class="s">14 games · 5 branches</div></div><span class="btn">✦ Pick</span></div><div style="position:absolute;top:110px;left:20px;right:0">`;
+  D.forEach(d=>{s+=`<div class="drawer"><div class="top"><div><div class="nm">${d[0]}</div><div class="ct">${d[1]} games${d[3]?' · '+d[3]:''}</div></div><span style="color:var(--dim)">›</span></div><div class="stack">${d[2].map(i=>chip(0,0,i)).join('')}</div></div>`});
+  html(ph,s+'</div>'+nav)})();
+(function(){const[ph,svg]=canvas('C2');spine(svg);
+  let s=`<div class="hdr"><div><div class="s">My tree ›</div><div class="t">Couch co-op</div></div><span class="btn">↗ Share</span></div>
+  <div style="position:absolute;top:110px;left:36px;right:var(--md)">
+   <div class="pills" style="margin-bottom:var(--md)"><span class="pill on">All 5</span><span class="pill">With Sam 2</span><span class="pill">Party 3</span><span class="pill">+ sub-branch</span></div>
+   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--sm)">`;
+  ['It Takes Two','Deep Rock','Overcooked','Jackbox','Gang Beasts','+ Add game'].forEach((t,i)=>{s+= i<5?`<div class="chip lg" style="position:static;transform:none;width:auto;height:120px;background:linear-gradient(160deg,${C.covers[i]},#0E0F11)">${t}</div>`
+    :`<div style="height:120px;border-radius:var(--card);border:1.5px dashed var(--leafLit);display:flex;align-items:center;justify-content:center;color:var(--leafLit);font-size:var(--caption);font-weight:600">${t}</div>`});
+  html(ph,s+`</div></div><div style="position:absolute;left:var(--md);right:var(--md);bottom:84px"><span class="btn primary big">✦ Pick from Couch co-op</span></div>`+nav)})();
+
+// ================= Shared: story card + clone =================
+(function(){const[ph,svg]=canvas('S1');
+  const S=[{p:[[180,560],[110,490],[70,400],[60,300]],w:16,leaves:8},{p:[[180,560],[190,430],[200,330],[190,230]],w:18,leaves:8},{p:[[180,560],[240,480],[280,400],[300,310]],w:16,leaves:8}];
+  canopy(svg,S,40);
+  html(ph,`<div style="position:absolute;top:60px;left:var(--lg);right:var(--lg)"><div style="font-size:var(--caption);color:var(--leafLit);font-weight:600;letter-spacing:.08em">A BRANCH FROM @ABIN'S TREE</div>
+    <div style="font-size:var(--display);font-weight:800;letter-spacing:-.56px;line-height:1.05;margin-top:6px">Couch co-op</div>
+    <div style="color:var(--dim);font-size:var(--caption);margin-top:4px">5 games · 2 finished ★ 4.5 avg</div></div>`);
+  html(ph,chip(56,290,0,'','lg')+chip(190,216,1,'','lg')+chip(300,300,2,'','lg'));
+  html(ph,`<div class="label" style="left:180px;top:690px;color:var(--dim)">ludeck.app/b/couch-co-op · <span style="color:var(--accent)">Ludeck</span></div>`)})();
+(function(){const[ph,svg]=canvas('S2');
+  const S=[{p:[[180,470],[120,420],[80,350],[70,280]],w:12},{p:[[180,470],[240,410],[270,340],[290,270]],w:12}];
+  canopy(svg,S,30);
+  html(ph,`<div class="hdr"><div><div class="s">Shared by @abin</div><div class="t">Couch co-op</div></div></div>`);
+  html(ph,chip(70,260,0)+chip(106,262,1)+chip(282,250,2)+chip(318,258,3)+chip(300,300,9));
+  html(ph,`<div class="sheet" style="height:250px"><div class="grab"></div>
+    <div style="font-weight:700;margin-bottom:4px">5 games · 2 you already own</div>
+    <div style="color:var(--dim);font-size:var(--caption);margin-bottom:var(--md)">Grows as a new branch on your tree, labelled “from @abin”. The 2 you own join it instead of duplicating. Abin's notes stay private.</div>
+    <span class="btn big primary">🌱 Grow this on my tree</span>
+    <div style="text-align:center;color:var(--dim);font-size:var(--caption);margin-top:var(--sm)">Just look</div></div>`)})();
+</script>
+</body>
+</html>
