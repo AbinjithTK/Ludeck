@@ -119,32 +119,33 @@ reads "9 harvested · 2 seeds" and never "0 harvested", because a zero there
 reads as a reproach and an omission does not. The active filter, when there is
 one, appends to the same line.
 
-### Rendering: Rive artboards in parallax layers
+### Rendering: one procedural `CustomPainter`, 3D coming
 
-The original decision here was a single `CustomPainter` with 2.5D depth cues,
-chosen over three.js and `flutter_scene`. The reasoning against those still
-holds and is worth keeping:
+The Rive parallax path described here originally was **removed in the Stage-2
+rebuild** (2026-09-25): `tree_scene.dart` and the five authored artboards are
+gone, `rive` is no longer a dependency, and nothing in `lib` imports it. What
+ships now is a single procedural `CustomPainter` (`tree_painter.dart`) driven by
+`procedural_tree.dart`: filled tapered stems shaded as cylinders, a blurred
+foliage canopy, and real `GameNode` widgets hung on top for the covers. Colour
+comes from the active `TreeSkin` (see `DECISIONS.md` §`Tokens.canopy`).
 
-- three.js does not exist in Flutter. Reaching it means a `WebView`, which costs
-  a platform view, breaks gesture arenas, and adds a visible seam between the
-  web surface and the Flutter chrome.
-- `flutter_scene` is experimental and Impeller-only, which is a poor bet for a
-  v1.
-- A real 3D scene in a collection app usually reads as a tech demo.
+The reasoning that once ranked `flutter_scene` last no longer holds: the Stage-1
+gate (2026-09-26) cleared Flutter 3.47.5 and flutter_scene 0.23.0, rendered a
+tapered branch mesh and a tappable embedded cover on Impeller, and `tree_mesh.dart`
+is production code with 22 invariants. A true 3D `SceneView` is the planned tree
+renderer, painter kept as the fallback.
 
-**What actually shipped is the Rive path described in §12**, which replaced the
-painter's drawing while keeping its arithmetic. Depth comes from scale, opacity
-and parallax across five authored layers. The painter survives as the fallback
-for unharvested fruit and as the fallback when a Rive layer fails to load.
+Gesture behaviour TODAY: only **tap a cover** is wired. There is no orbit, no
+zoom, no pan on the current painter -- the parallax-orbit gesture went with the
+Rive layers. `Tokens.motion.zoomMin/zoomMax/rubberBand` exist and are unused; they
+are reserved for the 3D stage, which restores:
 
-Gesture behaviour:
-
-- **Horizontal drag to orbit** shifts the layers against each other. Not true 3D
-  rotation; the illusion is sufficient and it cannot break. Past one unit of
-  rotation the response is damped rather than clamped, so the gesture never
-  feels like it hit a wall, and release hands the real velocity to a spring.
-- **Pinch to zoom** is 1:1 with the gesture, rubber-banded at both bounds.
-- **Vertical drag to pan** is bounded by the tree's own extent, rubber-banded.
+- **Horizontal drag to orbit** a true perspective camera, damped past its bounds
+  with a spring on release. Covers billboard to stay upright, so a title never
+  tilts -- which is the answer to the old "rotated limb angles the title"
+  objection that kept rotation out.
+- **Pinch to zoom**, 1:1, rubber-banded at both bounds.
+- **Vertical drag to pan**, bounded by the tree's extent.
 
 ### The list is a first-class equal, not a fallback
 

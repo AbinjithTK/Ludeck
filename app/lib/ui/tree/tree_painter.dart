@@ -206,10 +206,13 @@ class ProceduralTreePainter extends CustomPainter {
     required this.tree,
     required this.foliage,
     this.groundVisible = true,
-  });
+  }) : skinName = Tokens.canopy.name;
 
   final ProceduralTree tree;
   final List<FoliageBlob> foliage;
+
+  /// The active skin at construction, so a colour-direction swap repaints.
+  final String skinName;
 
   /// False for a small portrait, where a ground plane crops awkwardly and the
   /// tree reads better floating.
@@ -278,6 +281,23 @@ class ProceduralTreePainter extends CustomPainter {
   }
 
   void _paintFoliage(Canvas canvas, {double minDepth = 0.0, double maxDepth = 1.1}) {
+    // An ambient bloom on the NEAR canopy before the leaf mass, so a lit skin
+    // reads as glowing from within rather than as flatly brighter foliage. Only
+    // on the near pass (a bloom behind the trunk would be invisible) and only
+    // where the skin actually carries glow alpha, so `midnight` is unchanged.
+    if (minDepth < 0.5 && Tokens.canopy.glow.a > 0) {
+      for (final b in foliage) {
+        if (b.depth >= 0.5 || !b.lit) continue;
+        canvas.drawCircle(
+          b.centre,
+          b.radius * 2.1,
+          Paint()
+            ..color = Tokens.canopy.glow
+            ..maskFilter = ui.MaskFilter.blur(BlurStyle.normal, b.radius * 1.3),
+        );
+      }
+    }
+
     for (final b in foliage) {
       if (b.depth < minDepth || b.depth >= maxDepth) continue;
       final base = b.lit
@@ -399,5 +419,6 @@ class ProceduralTreePainter extends CustomPainter {
       old.tree.seed != tree.seed ||
       old.tree.canvas != tree.canvas ||
       old.tree.fruitCount != tree.fruitCount ||
+      old.skinName != skinName ||
       old.groundVisible != groundVisible;
 }

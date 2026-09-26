@@ -138,10 +138,37 @@ text, a status, a control or a count -- it colours bark and leaf and nothing els
 every foreground value painted on top still resolves through `_Palette`, and gold
 keeps its single meaning of harvested. It inherits two rules rather than
 renegotiating them: foliage never browns, thins or sheds (the metaphor may not
-wither), and nothing in it animates at rest (§Motion rejects idle leaf sway). The
-hues are pulled toward the indigo sky rather than being naturalistic daylight
-brown and green, because the tree is lit by a night sky and a saturated leaf green
-fights indigo outright.
+wither), and nothing in it animates at rest (§Motion rejects idle leaf sway).
+
+**The tree is COLOURFUL, and it is a SKIN, decided 2026-09-26.** Abin reversed
+the muted-tree call: his words were the tree is "very boring" and he wants it
+"colourful" and "gaming themed". The muted hues (`skins.midnight`) were chosen so
+foliage would not fight the indigo sky, and they produced a tree the colour of a
+disabled UI surface. So `Tokens.canopy` is no longer a fixed group; it resolves
+through `Tokens.activeSkin`, one of several `TreeSkin`s, each carrying its own
+bark, foliage, ground, glow AND sky (a saturated foliage set needs a sky chosen
+for it). The skins still obey every fence above -- material and light only, gold
+untouched.
+
+The active skin is **`biolume`**, a bioluminescent night garden: glowing teal
+foliage, warm bark, deep aquatic navy sky. It was chosen from four real
+device-size renders at empty / 8 / 13 games, not from description. `twilight`
+(sunset orchard) lost cover-card contrast against its bright sky, and covers are
+the point of the tree; `neon` (synthwave) made the bark vanish into the dark and
+its hot-pink foliage competed with harvest gold for "look here", which this file
+reserves for gold alone. Both remain in `tokens.dart` for a one-line revert.
+Colour is on its own axis: the render at 13 games confirmed it does NOT fix the
+composition defect (covers crowd the middle band, lower trunk bare) -- that is
+the foliage/light stage and the 3D stage, deliberately separate.
+
+**The tree WILL rotate, decided 2026-09-26.** The old rule ("no rotation, the
+user rejected a rotating tree twice") is superseded by Abin's own request for a
+rotatable tree. The two prior rejections were of a FAKE parallax orbit (five Rive
+layers sliding), not of a true perspective camera, and that path is now buildable
+(the Stage-1 flutter_scene gate cleared). The real objection that still stands --
+"a rotated limb puts every game title at an angle" -- is answered by billboarding:
+covers become `WidgetComponent`s that always face the camera while the wood turns,
+so titles stay upright. This is built in the 3D stage, not on the painter.
 
 **`shelved` replaces delete.** Nothing the user has recorded is ever destroyed by a
 normal action.

@@ -73,7 +73,27 @@ class Tokens {
   ///    autumn or dead value here, so that state is not reachable by accident.
   ///  - Nothing here animates at rest. `DESIGN.md` §7 rejects idle leaf sway
   ///    outright as a vestibular trigger seen every launch.
-  static const canopy = _Canopy();
+  /// The tree's material and light, resolved through the ACTIVE skin.
+  ///
+  /// Every call site reads `Tokens.canopy.barkMid` and so on unchanged. What
+  /// changed on 2026-09-26 is that the values behind it are one of several
+  /// `TreeSkin`s rather than a fixed group, so a colour direction is chosen by
+  /// pointing `activeSkin` at a different skin -- no call site edits, and the
+  /// colour-literal rule stays satisfied because every skin lives in this file.
+  static TreeSkin get canopy => activeSkin;
+
+  /// The candidate looks. `skins.midnight` is what shipped before this change.
+  static const skins = _Skins();
+
+  /// The skin the app renders with. Chosen on 2026-09-26 from four real
+  /// device-size renders (`skin-*` captures): `biolume`, the bioluminescent
+  /// night garden. It keeps the dark sky that gives cover art its contrast and
+  /// keeps gold as the one reward colour, while the glowing teal foliage answers
+  /// Abin's "boring / not colourful" verdict. `twilight` lost cover contrast
+  /// against its bright sky; `neon` made the bark vanish and its pink foliage
+  /// competed with harvest gold. The render harness still swaps this per
+  /// capture; the other three remain for a one-line revert.
+  static TreeSkin activeSkin = skins.biolume;
 
   /// Four type sizes. A fifth means the hierarchy is unclear, not that a size
   /// is missing.
@@ -194,35 +214,160 @@ class _Cosmos {
 /// fill makes it a flat ribbon no matter how well the outline is shaped; the
 /// unlit-to-lit ramp across its width is what makes it round, and it is the
 /// cheapest depth cue in the file.
-class _Canopy {
-  const _Canopy();
+/// A complete look for the tree: bark, foliage, ground, and the sky it stands
+/// against.
+///
+/// ### Why this is a swappable type and not a fixed group
+///
+/// It used to be a single `const _Canopy()`. On 2026-09-26 Abin reversed the
+/// muted-tree decision -- his words were the tree is "very boring" and he wants
+/// it "colourful" and "gaming themed". The muted hues below (`midnight`) were
+/// chosen so foliage would not fight the indigo sky; that was a defensible call
+/// and it produced a tree the colour of a disabled UI surface. Rather than
+/// argue three colour directions in prose, they are three real `TreeSkin`
+/// values rendered at device size and judged from pixels.
+///
+/// A skin therefore carries its OWN sky, because a saturated foliage set that
+/// reads well needs a sky chosen for it: the same bark against two different
+/// skies is two different pictures, and judging a colourful tree against the
+/// muted `_Cosmos.deep` would judge the wrong one.
+///
+/// Everything a skin inherits from the old `_Canopy` still holds: nothing here
+/// colours text, a status, a control or a count; harvest stays `palette.accent`
+/// gold with its single meaning; foliage never browns or sheds; nothing
+/// animates at rest. A skin is a material and a light, not a new content
+/// palette.
+class TreeSkin {
+  const TreeSkin({
+    required this.name,
+    required this.barkShade,
+    required this.barkMid,
+    required this.barkLit,
+    required this.foliageNear,
+    required this.foliageFar,
+    required this.foliageLit,
+    required this.ground,
+    required this.groundLit,
+    required this.sky,
+    required this.glow,
+  });
+
+  /// A stable id for captures, tests and the recorded decision.
+  final String name;
 
   /// The shaded side of a stem, away from the light.
-  final Color barkShade = const Color(0xFF241B2A);
+  final Color barkShade;
 
   /// The body of the bark.
-  final Color barkMid = const Color(0xFF3E2F3A);
+  final Color barkMid;
 
-  /// The lit side, catching the sky. Cool rather than warm, for the same
-  /// reason: the light source here is the night sky itself.
-  final Color barkLit = const Color(0xFF6B5668);
+  /// The lit side, catching the sky.
+  final Color barkLit;
 
   /// Leaf mass at the front of the canopy.
-  final Color foliageNear = const Color(0xFF2E5A4E);
+  final Color foliageNear;
 
-  /// Leaf mass set back, and the mass behind the trunk. Darker and bluer, which
-  /// is aerial perspective doing the work rather than plain opacity.
-  final Color foliageFar = const Color(0xFF1B3A3C);
+  /// Leaf mass set back, and the mass behind the trunk. Darker, for aerial
+  /// perspective rather than plain opacity.
+  final Color foliageFar;
 
-  /// The highlight on the crown where the sky hits it hardest.
-  final Color foliageLit = const Color(0xFF4A7F63);
+  /// The highlight on the crown where the light hits it hardest.
+  final Color foliageLit;
 
   /// The mound the tree stands on.
-  final Color ground = const Color(0xFF191426);
+  final Color ground;
 
-  /// The lit lip of that mound, which is what stops the ground reading as a
-  /// hole rather than as a surface.
-  final Color groundLit = const Color(0xFF2A2140);
+  /// The lit lip of that mound, which stops the ground reading as a hole.
+  final Color groundLit;
+
+  /// The sky this skin stands against, top-to-bottom. A skin is judged against
+  /// its own sky, never against a shared default.
+  final List<Color> sky;
+
+  /// An ambient bloom colour the crown catches, low alpha. This is what makes a
+  /// "lit" tree read as lit rather than as flatly brighter. Never a fill.
+  final Color glow;
+}
+
+/// The three candidate looks, all defined here so `check.ps1` rule 1 stays
+/// mechanical: a colour lives in this file or it does not ship.
+class _Skins {
+  const _Skins();
+
+  /// WHAT SHIPS TODAY. The muted night tree. Kept as the safe fallback and the
+  /// regression baseline, so a skin swap can be reverted to exactly this.
+  final TreeSkin midnight = const TreeSkin(
+    name: 'midnight',
+    barkShade: Color(0xFF241B2A),
+    barkMid: Color(0xFF3E2F3A),
+    barkLit: Color(0xFF6B5668),
+    foliageNear: Color(0xFF2E5A4E),
+    foliageFar: Color(0xFF1B3A3C),
+    foliageLit: Color(0xFF4A7F63),
+    ground: Color(0xFF191426),
+    groundLit: Color(0xFF2A2140),
+    sky: [Color(0xFF0B0A1C), Color(0xFF16112E), Color(0xFF241A3D)],
+    glow: Color(0x00000000),
+  );
+
+  /// A · BIOLUMINESCENT NIGHT GARDEN. Still a night tree, but the foliage
+  /// glows: teal-cyan leaves lit from within, warm amber bark, against a deep
+  /// aquatic navy. The gaming read is "magical night biome" -- Ori, Gris,
+  /// Hollow Knight's brighter zones. Closest to what ships, so the lowest-risk
+  /// step up in colour, and the glow does real work rather than just raising
+  /// saturation.
+  final TreeSkin biolume = const TreeSkin(
+    name: 'biolume',
+    barkShade: Color(0xFF2A1E33),
+    barkMid: Color(0xFF5A3E52),
+    barkLit: Color(0xFF9C7A6E),
+    foliageNear: Color(0xFF1FB89A),
+    foliageFar: Color(0xFF15707E),
+    foliageLit: Color(0xFF6BF0C8),
+    ground: Color(0xFF0F1A2E),
+    groundLit: Color(0xFF1E3A5C),
+    sky: [Color(0xFF04121F), Color(0xFF0A2438), Color(0xFF123A4A)],
+    glow: Color(0x8047F0C8),
+  );
+
+  /// B · VIVID TWILIGHT ORCHARD. A real tree at golden hour on an alien world:
+  /// warm sienna bark, saturated green-to-lime foliage, a magenta-to-orange
+  /// sunset sky. The most naturalistic and the most broadly appealing -- reads
+  /// as a lush fantasy world (Fortnite, Sky, Genshin) rather than a UI element.
+  /// The risk is that a sunset sky is bright, so a cover card has less contrast
+  /// against it than against near-black.
+  final TreeSkin twilight = const TreeSkin(
+    name: 'twilight',
+    barkShade: Color(0xFF3A2118),
+    barkMid: Color(0xFF6E4A2E),
+    barkLit: Color(0xFFB98A54),
+    foliageNear: Color(0xFF4FA83E),
+    foliageFar: Color(0xFF2E6B3A),
+    foliageLit: Color(0xFFBFE84B),
+    ground: Color(0xFF2E1A2A),
+    groundLit: Color(0xFF5C2E48),
+    sky: [Color(0xFF2B1140), Color(0xFF7A2A5A), Color(0xFFC85A3C)],
+    glow: Color(0x80F0A24B),
+  );
+
+  /// C · ARCADE NEON. The tree as a synthwave object: near-black bark with an
+  /// electric magenta rim, hot-pink-to-cyan foliage, a grid-purple sky. The
+  /// most overtly "gaming" and the most divisive -- unmistakably a game screen
+  /// (Tron, Hades' neon, retrowave), but it pushes furthest from a tree and the
+  /// pink foliage risks competing with harvest gold for "look here".
+  final TreeSkin neon = const TreeSkin(
+    name: 'neon',
+    barkShade: Color(0xFF1A0F26),
+    barkMid: Color(0xFF3D1F52),
+    barkLit: Color(0xFFE84BC8),
+    foliageNear: Color(0xFFFF4FB0),
+    foliageFar: Color(0xFF7A2E9C),
+    foliageLit: Color(0xFF4FE8FF),
+    ground: Color(0xFF160B24),
+    groundLit: Color(0xFF6B1FA8),
+    sky: [Color(0xFF0A0620), Color(0xFF1F0F3D), Color(0xFF3D1F6B)],
+    glow: Color(0x80FF4FE8),
+  );
 }
 
 class _Type {

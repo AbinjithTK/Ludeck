@@ -77,7 +77,10 @@ Future<void> _pumpTree(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
-              colors: Tokens.cosmos.deep,
+              // Each skin stands against its OWN sky. Judging a colourful tree
+              // against the muted default sky would be judging the wrong
+              // picture, which the first capture pass in this project did.
+              colors: Tokens.canopy.sky,
             ),
           ),
           child: ProceduralTreeView(
@@ -487,32 +490,44 @@ void main() {
         const [],
         const {},
       );
-      await shoot(
-        'tree-no-branches',
-        [for (var i = 0; i < 8; i++) _item(100 + i, 'Game $i', harvested: i == 1)],
-        const [],
-        const {},
-      );
-      await shoot(
-        'tree-loaded',
-        [
-          for (var i = 0; i < 12; i++)
-            _item(200 + i, 'Game $i', harvested: i % 5 == 0),
-          for (var i = 0; i < 5; i++) _item(300 + i, 'Seed $i', seed: true),
-        ],
-        [
-          _branch(1, 'Cozy', 0),
-          _branch(2, 'Someday', 1),
-          _branch(3, 'Finished', 2),
-          _branch(4, 'Co-op', 3),
-        ],
-        const {
-          1: [200, 201, 202],
-          2: [203, 204, 205],
-          3: [206, 207],
-          4: [208],
-        },
-      );
+
+      // STAGE 1: the colour directions, each at empty / 8 games / 13 games so
+      // colour cannot hide the composition defect. Each renders against its own
+      // sky (see `_pumpTree`). Restored to the shipped skin in the finally, so a
+      // normal suite run is unaffected.
+      final original = Tokens.activeSkin;
+      final directions = [
+        Tokens.skins.midnight,
+        Tokens.skins.biolume,
+        Tokens.skins.twilight,
+        Tokens.skins.neon,
+      ];
+      final eight =
+          [for (var i = 0; i < 8; i++) _item(100 + i, 'Game $i', harvested: i == 1)];
+      final thirteen = [
+        for (var i = 0; i < 9; i++) _item(200 + i, 'Game $i', harvested: i % 4 == 0),
+        for (var i = 0; i < 4; i++) _item(300 + i, 'Rec $i', seed: true),
+      ];
+      final branches13 = [
+        _branch(1, 'Cozy', 0),
+        _branch(2, 'Someday', 1),
+        _branch(3, 'Finished', 2),
+      ];
+      const placements13 = {
+        1: [200, 201, 202, 203],
+        2: [204, 205],
+        3: [206, 207],
+      };
+      try {
+        for (final skin in directions) {
+          Tokens.activeSkin = skin;
+          await shoot('skin-${skin.name}-empty', const [], const [], const {});
+          await shoot('skin-${skin.name}-8', eight, const [], const {});
+          await shoot('skin-${skin.name}-13', thirteen, branches13, placements13);
+        }
+      } finally {
+        Tokens.activeSkin = original;
+      }
     });
   });
 }
