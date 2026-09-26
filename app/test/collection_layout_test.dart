@@ -42,6 +42,7 @@ import 'package:ludeck/state/ludeck_store.dart';
 import 'package:ludeck/ui/map/game_node.dart';
 import 'package:ludeck/ui/shell/add_menu.dart';
 import 'package:ludeck/ui/tokens.dart';
+import 'package:ludeck/ui/canopy/canopy_view.dart';
 import 'package:ludeck/ui/roadmap/roadmap_view.dart';
 
 void main() {
@@ -101,6 +102,11 @@ void main() {
     );
   }
 
+  /// Whichever home view is showing: the canopy by default, or the roadmap.
+  final homeView = find.byWidgetPredicate(
+      (w) => w is RoadmapView || w is CanopyView,
+      description: 'the home tree view');
+
   /// Every cover currently on the tree.
   List<Rect> covers(WidgetTester tester) => [
         for (final e in find.byType(GameNode).evaluate())
@@ -111,7 +117,7 @@ void main() {
     await pump(tester);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final tree = tester.getRect(find.byType(RoadmapView));
+    final tree = tester.getRect(homeView);
 
     // The canvas must begin at or below the header's painted bottom. This is
     // structural now -- they are siblings in a Column -- and the assertion exists
@@ -132,7 +138,7 @@ void main() {
     await pump(tester, textScale: 2.0);
 
     final header = tester.getRect(find.byKey(const Key('screen-header')));
-    final tree = tester.getRect(find.byType(RoadmapView));
+    final tree = tester.getRect(homeView);
 
     expect(tree.top, greaterThanOrEqualTo(header.bottom));
   });
@@ -184,7 +190,7 @@ void main() {
     await pump(tester);
 
     final scrim = tester.getRect(find.byKey(const Key('scrim-bottom')));
-    final tree = tester.getRect(find.byType(RoadmapView));
+    final tree = tester.getRect(homeView);
     final addMenu = tester.getRect(find.byType(AddMenu));
 
     // The scrim must reach at least as high as the add control it softens, and

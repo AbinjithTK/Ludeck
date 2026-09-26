@@ -28,6 +28,8 @@ import 'ui/shell/nav_pill.dart';
 import 'ui/shell/tree_header.dart';
 import 'ui/gamified/primitives.dart';
 import 'ui/roadmap/roadmap_view.dart';
+import 'ui/canopy/canopy_view.dart';
+import 'domain/pick.dart';
 
 Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
@@ -218,6 +220,10 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// here: the profile is an existing pushed detail with its own back arrow, and
   /// re-architecting it to live inside the shell is not what this stage is for.
   NavDestination _place = NavDestination.tree;
+
+  /// Home draws the canopy (the branch tree) by default; the roadmap path is
+  /// kept one tap away while the canopy proves itself on devices.
+  bool _canopy = true;
 
   void _goTo(NavDestination d) {
     if (d == NavDestination.you) {
@@ -498,6 +504,99 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   void _openBranches() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const BranchScreen()),
+    );
+  }
+
+  /// Names and grows a branch from the canopy, under [parentId] or the trunk.
+  ///
+  /// A plain dialog for now; Stage 5 replaces it with naming in place on the
+  /// sprouting twig, plus starter templates.
+  Future<void> _growBranch(LudeckStore store, int? parentId) async {
+    final controller = TextEditingController();
+    final parent = parentId == null
+        ? null
+        : store.branches.where((b) => b.id == parentId).firstOrNull;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: Tokens.palette.surface,
+        title: Text(parent == null
+            ? 'Name this branch'
+            : 'Name a branch inside ${parent.name}'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: Repository.maxNameLength,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(hintText: 'e.g. Couch co-op'),
+          onSubmitted: (v) => Navigator.of(dialog).pop(v),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(dialog).pop(),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.of(dialog).pop(controller.text),
+              child: const Text('Grow it')),
+        ],
+      ),
+    );
+    controller.dispose();
+    if (name == null || name.trim().isEmpty) return;
+    await store.createBranch(name, parentId: parentId);
+  }
+
+  /// "What should I play?" over the games in view: the root, or one branch
+  /// and everything under it. The first surface `choosePick` has ever had.
+  void _showPick(List<TreeItem> pool, Branch? from) {
+    final pick = choosePick(pool);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Tokens.palette.surface,
+      builder: (sheet) => SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(Tokens.space.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                from == null ? 'TONIGHT' : 'TONIGHT, FROM ${from.name.toUpperCase()}',
+                style: TextStyle(
+                    fontSize: Tokens.type.caption,
+                    fontWeight: FontWeight.w600,
+                    color: Tokens.canopy.foliageLit),
+              ),
+              SizedBox(height: Tokens.space.xxs),
+              Text(
+                pick?.item.game.title ?? 'Nothing here is ready to play',
+                style: TextStyle(
+                    fontSize: Tokens.type.title,
+                    fontWeight: FontWeight.w700,
+                    color: Tokens.palette.text),
+              ),
+              SizedBox(height: Tokens.space.xxs),
+              Text(
+                pick?.reason ??
+                    'Every game here is finished, shelved or only spotted.',
+                style: TextStyle(
+                    fontSize: Tokens.type.caption,
+                    color: Tokens.palette.textDim),
+              ),
+              if (pick != null) ...[
+                SizedBox(height: Tokens.space.md),
+                FilledButton(
+                  onPressed: () {
+                    Navigator.of(sheet).pop();
+                    _openStatusSheet(pick.item);
+                  },
+                  child: const Text('Open it'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -816,6 +915,27 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             child: Stack(
               fit: StackFit.expand,
               children: [
+                if (_canopy)
+                  CanopyView(
+                    items: items,
+                    branches: store.branches,
+                    placements: store.placements,
+                    unfiledCount: _unfiledCount(items, store),
+                    coverCache: widget.coverCache,
+                    onCoverFound: store.applyCoverUrl,
+                    onSelect: _openStatusSheet,
+                    onHold: _openStatusSheet,
+                    onCreateBranch: (parent) => _growBranch(store, parent),
+                    onBranchHold: (_) => _openBranches(),
+                    onPick: _showPick,
+                    onUnfiledTap: () =>
+                        setState(() => _place = NavDestination.library),
+                    onSwitchView: () => setState(() => _canopy = false),
+                    bottomInset: chrome.bottom - Tokens.space.md,
+                    // Leaves the add control's corner free.
+                    rightInset: Tokens.size.navPill + Tokens.space.md,
+                  )
+                else
                 RoadmapView(
                   items: items,
                   branches: store.branches,
@@ -859,6 +979,20 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                 // reads as a rendering fault. IgnorePointer is load bearing: a
                 // scrim that took pointer events would make the bottom band of
                 // the screen dead to touch.
+                if (!_canopy)
+                  Positioned(
+                    top: Tokens.space.xs,
+                    right: Tokens.space.md,
+                    child: TextButton.icon(
+                      onPressed: () => setState(() => _canopy = true),
+                      icon: Icon(Icons.park_outlined,
+                          size: 16, color: Tokens.palette.textDim),
+                      label: Text('Tree view',
+                          style: TextStyle(
+                              fontSize: Tokens.type.caption,
+                              color: Tokens.palette.textDim)),
+                    ),
+                  ),
                 _Scrim(extent: chrome.bottom),
 
                 // Bottom RIGHT, and lifted clear of the navigation pill.
