@@ -33,11 +33,18 @@ Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
   WidgetsFlutterBinding.ensureInitialized();
   final repo = await Repository.open();
-  // No URL/key configured on this build yet -- resolves instantly to the fake
-  // in local-only mode. Once a Supabase project exists (docs/DEPLOY-PROXY.md),
-  // its URL and publishable key are passed here, and publishing starts leaving
-  // the device instead of staying local.
-  final social = await resolveSocialBackend();
+  // The Supabase URL and publishable key are supplied at build time with
+  //   --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_PUBLISHABLE_KEY=...
+  // (see docs/DEPLOY-PROXY.md). With neither defined -- the default on a plain
+  // build -- both read as empty and resolveSocialBackend falls back to the fake
+  // in local-only mode, so publishing stays on the device. This is the supply
+  // mechanism the resolver always accepted but nothing fed until now.
+  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  const supabaseKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
+  final social = await resolveSocialBackend(
+    supabaseUrl: supabaseUrl.isEmpty ? null : supabaseUrl,
+    supabasePublishableKey: supabaseKey.isEmpty ? null : supabaseKey,
+  );
   runApp(LudeckApp(repo: repo, social: social));
 }
 
