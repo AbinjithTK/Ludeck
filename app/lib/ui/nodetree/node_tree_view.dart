@@ -18,7 +18,6 @@ import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
 import '../../services/cover_art_cache.dart';
 import '../tokens.dart';
-import 'node_tree_layout.dart';
 
 class NodeTreeView extends StatefulWidget {
   const NodeTreeView({
@@ -84,11 +83,12 @@ class NodeTreeViewState extends State<NodeTreeView> {
     final byId = {for (final i in widget.items) i.game.igdbId: i};
     final live = [for (final i in widget.items) if (!i.entry.shelved) i.game.igdbId];
 
+    // Effective collapsed = persisted `collapsed` XOR the optimistic override,
+    // so a tap flips a branch instantly and the store write reconciles it.
     final collapsed = <int>{
-      for (final b in widget.branches) if (b.collapsed) b.id,
-      ..._optimisticCollapsed,
-    }..removeWhere((id) => widget.branches
-        .any((b) => b.id == id && !b.collapsed && !_optimisticCollapsed.contains(id)));
+      for (final b in widget.branches)
+        if (b.collapsed ^ _optimisticCollapsed.contains(b.id)) b.id,
+    };
 
     return LayoutBuilder(builder: (context, box) {
       // The floating control stack: CTA row (control height) + its bottom
@@ -111,7 +111,6 @@ class NodeTreeViewState extends State<NodeTreeView> {
         );
       }
 
-      final rows = flattenTree(tree, collapsedIds: collapsed);
       final pool = widget.items.where((i) => !i.entry.shelved).toList();
 
       return Stack(children: [
@@ -151,35 +150,26 @@ class NodeTreeViewState extends State<NodeTreeView> {
                   },
                 )
               else
-                SliverList.builder(
-                  itemCount: rows.length,
-                  itemBuilder: (c, i) {
-                    final r = rows[i];
-                    if (r.isBranch) {
-                      return _BranchNodeRow(
-                        row: r,
-                        tree: tree,
-                        byId: byId,
-                        onToggle: () => _toggle(r.branch!),
-                        onMore: widget.onBranchHold == null
-                            ? null
-                            : () => widget.onBranchHold!(r.branch!),
-                        onAdd: widget.onCreateBranch == null
-                            ? null
-                            : () => widget.onCreateBranch!(r.branch!.id),
-                      );
-                    }
-                    final item = byId[r.gameId];
-                    if (item == null) return const SizedBox.shrink();
-                    return _GameNodeRow(
-                      item: item,
-                      depth: r.depth,
-                      isLast: r.isLastChild,
-                      onTap: () => widget.onSelect?.call(item),
-                      coverCache: widget.coverCache,
-                      onCoverFound: widget.onCoverFound,
-                    );
-                  },
+                SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (final b in tree.roots)
+                        _BranchSubtree(
+                          branch: b,
+                          tree: tree,
+                          byId: byId,
+                          depth: 0,
+                          collapsedIds: collapsed,
+                          onToggle: _toggle,
+                          onSelectGame: widget.onSelect,
+                          onBranchHold: widget.onBranchHold,
+                          onCreateBranch: widget.onCreateBranch,
+                          coverCache: widget.coverCache,
+                          onCoverFound: widget.onCoverFound,
+                        ),
+                    ],
+                  ),
                 ),
               SliverToBoxAdapter(child: SizedBox(height: bottomClear + 48)),
             ],
@@ -239,10 +229,11 @@ class NodeTreeViewState extends State<NodeTreeView> {
 
   void _toggle(Branch b) {
     setState(() {
+      // Effective state = persisted `collapsed` XOR an optimistic override.
+      // One tap flips the override so the animation starts instantly; the
+      // store write then makes it durable and the override is reconciled on
+      // the next rebuild.
       if (_optimisticCollapsed.contains(b.id)) {
-        _optimisticCollapsed.remove(b.id);
-      } else if (b.collapsed) {
-        // currently folded (persisted) -> unfold optimistically by NOT adding
         _optimisticCollapsed.remove(b.id);
       } else {
         _optimisticCollapsed.add(b.id);
@@ -278,36 +269,143 @@ Color _branchTint(BranchTree tree, int branchId, Map<int, TreeItem> byId) {
 const double _indentStep = 20;
 const double _railWidth = 3;
 
+/// One branch and everything under it, drawn recursively. The children
+/// (sub-branches, then game rows) live inside an `AnimatedSize` + `ClipRect`
+/// so folding the branch animates its height to zero instead of a hard cut.
+class _BranchSubtree extends StatelessWidget {
+  const _BranchSubtree({
+    required this.branch,
+    required this.tree,
+    required this.byId,
+    required this.depth,
+    required this.collapsedIds,
+    required this.onToggle,
+    this.onSelectGame,
+    this.onBranchHold,
+    this.onCreateBranch,
+    this.coverCache,
+    this.onCoverFound,
+  });
+
+  final Branch branch;
+  final BranchTree tree;
+  final Map<int, TreeItem> byId;
+  final int depth;
+  final Set<int> collapsedIds;
+  final ValueChanged<Branch> onToggle;
+  final ValueChanged<TreeItem>? onSelectGame;
+  final ValueChanged<Branch>? onBranchHold;
+  final ValueChanged<int?>? onCreateBranch;
+  final CoverArtCache? coverCache;
+  final void Function(int igdbId, String coverUrl)? onCoverFound;
+
+  @override
+  Widget build(BuildContext context) {
+    final subBranches = tree.childrenOf(branch.id);
+    final games = tree.gamesOn(branch.id);
+    final hasChildren = subBranches.isNotEmpty || games.isNotEmpty;
+    final collapsed = collapsedIds.contains(branch.id);
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+
+    // The children column, built regardless of fold so AnimatedSize has a
+    // stable child to grow to / shrink from.
+    final children = <Widget>[
+      for (final sb in subBranches)
+        _BranchSubtree(
+          branch: sb,
+          tree: tree,
+          byId: byId,
+          depth: depth + 1,
+          collapsedIds: collapsedIds,
+          onToggle: onToggle,
+          onSelectGame: onSelectGame,
+          onBranchHold: onBranchHold,
+          onCreateBranch: onCreateBranch,
+          coverCache: coverCache,
+          onCoverFound: onCoverFound,
+        ),
+      for (var i = 0; i < games.length; i++)
+        if (byId[games[i]] != null)
+          _GameNodeRow(
+            item: byId[games[i]]!,
+            depth: depth,
+            isLast: i == games.length - 1,
+            onTap: () => onSelectGame?.call(byId[games[i]]!),
+            coverCache: coverCache,
+            onCoverFound: onCoverFound,
+          ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _BranchNodeRow(
+          branch: branch,
+          depth: depth,
+          childCount: tree.gamesUnder(branch.id).length,
+          hasChildren: hasChildren,
+          collapsed: collapsed,
+          tint: _branchTint(tree, branch.id, byId),
+          onToggle: () => onToggle(branch),
+          onMore: onBranchHold == null ? null : () => onBranchHold!(branch),
+          onAdd:
+              onCreateBranch == null ? null : () => onCreateBranch!(branch.id),
+        ),
+        // Collapse to zero height when folded; ClipRect stops children
+        // spilling during the shrink.
+        ClipRect(
+          child: AnimatedSize(
+            duration: reduce ? Duration.zero : Tokens.motion.swap,
+            curve: Tokens.motion.easeInOut,
+            alignment: Alignment.topCenter,
+            child: (collapsed || !hasChildren)
+                ? const SizedBox(width: double.infinity, height: 0)
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: children,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// A branch node: rounded panel with a lifecycle rail, name, count, chevron.
 class _BranchNodeRow extends StatelessWidget {
   const _BranchNodeRow({
-    required this.row,
-    required this.tree,
-    required this.byId,
+    required this.branch,
+    required this.depth,
+    required this.childCount,
+    required this.hasChildren,
+    required this.collapsed,
+    required this.tint,
     required this.onToggle,
     this.onMore,
     this.onAdd,
   });
 
-  final NodeRow row;
-  final BranchTree tree;
-  final Map<int, TreeItem> byId;
+  final Branch branch;
+  final int depth;
+  final int childCount;
+  final bool hasChildren;
+  final bool collapsed;
+  final Color tint;
   final VoidCallback onToggle;
   final VoidCallback? onMore;
   final VoidCallback? onAdd;
 
   @override
   Widget build(BuildContext context) {
-    final b = row.branch!;
-    final tint = _branchTint(tree, b.id, byId);
-    final indent = row.depth * _indentStep;
+    final b = branch;
+    final indent = depth * _indentStep;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
           Tokens.space.md + indent, Tokens.space.xxs, Tokens.space.md, Tokens.space.xxs),
       child: Semantics(
-        label: '${b.name}, ${row.childCount} games'
-            '${row.hasChildren ? (row.collapsed ? ', collapsed' : ', expanded') : ''}',
+        label: '${b.name}, $childCount games'
+            '${hasChildren ? (collapsed ? ', collapsed' : ', expanded') : ''}',
         button: true,
         child: Material(
           color: Tokens.cosmos.panel,
@@ -317,13 +415,12 @@ class _BranchNodeRow extends StatelessWidget {
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            onTap: row.hasChildren ? onToggle : onAdd,
+            onTap: hasChildren ? onToggle : onAdd,
             onLongPress: onMore,
             child: Padding(
               padding: EdgeInsets.symmetric(
                   horizontal: Tokens.space.sm, vertical: Tokens.space.sm),
               child: Row(children: [
-                // Lifecycle rail.
                 Container(
                   width: _railWidth,
                   height: 24,
@@ -333,13 +430,16 @@ class _BranchNodeRow extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: Tokens.space.sm),
-                if (row.hasChildren)
-                  Icon(
-                    row.collapsed
-                        ? Icons.chevron_right
-                        : Icons.keyboard_arrow_down,
-                    size: 20,
-                    color: Tokens.palette.textDim,
+                if (hasChildren)
+                  AnimatedRotation(
+                    turns: collapsed ? 0 : 0.25,
+                    duration: (MediaQuery.maybeDisableAnimationsOf(context) ??
+                            false)
+                        ? Duration.zero
+                        : Tokens.motion.swap,
+                    curve: Tokens.motion.easeInOut,
+                    child: Icon(Icons.chevron_right,
+                        size: 20, color: Tokens.palette.textDim),
                   )
                 else
                   Icon(Icons.add, size: 18, color: Tokens.palette.textDim),
@@ -358,7 +458,7 @@ class _BranchNodeRow extends StatelessWidget {
                 ),
                 SizedBox(width: Tokens.space.xs),
                 Text(
-                  '${row.childCount}',
+                  '$childCount',
                   style: TextStyle(
                       color: Tokens.palette.textDim,
                       fontSize: Tokens.type.caption),

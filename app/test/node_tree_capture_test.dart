@@ -155,6 +155,14 @@ void main() {
       }));
   testWidgets('empty — first run',
       (t) => capture(t, 'empty', bs: const [], pl: const {}, it: const []));
+  testWidgets('collapsed — Couch co-op folded', (t) => capture(t, 'collapsed', bs: [
+        br(1, 'Chill nights', order: 0),
+        br(2, 'Story nights', order: 1),
+        br(3, 'Couch co-op', order: 2, collapsed: true),
+        br(31, 'With Sam', parent: 3, order: 0),
+        br(32, 'Party', parent: 3, order: 1),
+        br(4, '20-minute games', order: 3),
+      ]));
 
   group('layout rules', () {
     final tree = BranchTree(branches, placements);
