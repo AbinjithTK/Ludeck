@@ -3,17 +3,18 @@
 Source of truth is tree/source/tree-demo.riv (the designer's file). This script
   1. decodes it and converts it to RML (tool/riv_decode.py, tool/riv_to_rml.py)
   2. replaces its deprecated number input with a view model, TreeDiscovery:
-       found     0..6   how many games the search has found (host sets it)
+       grown     0..6   tree size; the host only ever RAISES it
+       found     0..6   how many cards hang (host sets it; may reset to 0)
        selected  -1..5  which card the user tapped (the file writes it)
        cover1..6        cover images (host swaps them at runtime)
-     `found` drives the tree through a converter chain: 0..6 -> growth 20..100,
-     eased over GROW_SECONDS, so each found game grows the tree one step
-     instead of jumping.
+     `grown` drives the tree through a converter chain: 0..6 -> growth 20..100,
+     eased over GROW_SECONDS. Growth and cards are separate so a new result
+     set can re-pop its cards without the tree ever shrinking (DECISIONS.md).
   3. re-frames the 500x500 artboard as a 412x732 portrait scene on Ludeck's sky
   4. adds six game cards that hang from the canopy and pop in as `found` rises
 
 Run from anywhere:  python rive/tree/build_tree.py [--debug]
-Then:               rive rive --artboard=TreeDiscovery --data=found=6 ...
+Then:               rive rive/tree --data=grown=6 --data=found=6 ...
 """
 import argparse
 import os
@@ -81,9 +82,13 @@ def debug_markers():
 def build(debug):
     rml = convert()
 
-    # -- view model: the old `input` number becomes `found` -----------------
+    # -- view model: the old `input` number becomes `grown` ------------------
+    # Growth and cards are separate on purpose. `grown` sets the tree's size
+    # and the host only ever raises it (DECISIONS.md: the metaphor never
+    # shrinks). `found` shows cards and may drop to 0 to re-pop a new result
+    # set, while the tree stays the size it reached.
     rml = rml.replace('<ViewModelPropertyNumber name="input"',
-                      '<ViewModelPropertyNumber name="found"')
+                      '<ViewModelPropertyNumber name="grown"')
 
     # -- every read of it goes through the growth converter ------------------
     n_binds = rml.count('propertyKey="636"/>')
@@ -180,10 +185,10 @@ def splice_discovery(rml):
     rml = rml[:j] + D.card_layers() + D.listeners() + "\n        " + rml[j:]
 
     # view model
-    found_prop = f'<ViewModelPropertyNumber name="found" id="{D.P_FOUND}"/>'
-    rml = insert_after(rml, found_prop, D.vm_properties())
-    found_val = f'viewModelPropertyId="{D.P_FOUND}"/>'
-    rml = insert_after(rml, found_val, D.vm_values())
+    grown_prop = f'<ViewModelPropertyNumber name="grown" id="{D.P_GROWN}"/>'
+    rml = insert_after(rml, grown_prop, D.vm_properties())
+    grown_val = f'viewModelPropertyId="{D.P_GROWN}"/>'
+    rml = insert_after(rml, grown_val, D.vm_values())
     return rml
 
 

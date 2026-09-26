@@ -21,7 +21,8 @@ fixed offset from a small sapling.
 CENTER, RIGHT, LEFT = "5:1232", "5:1215", "5:1201"
 ANIM_IN, ANIM_OUT = "5:9110", "5:9101"   # blend poses at growth 0 and 100
 VM = "5:9900"
-P_FOUND = "5:9901"
+P_GROWN = "5:9901"       # tree size 0..6 (the converted tree's old input)
+P_FOUND = "5:9959"       # cards shown 0..6
 P_SELECTED = "5:9960"
 P_COVER0 = 9961          # cover1..6 = 5:9961..5:9966
 P_RUSTLE = "5:9970"
@@ -372,7 +373,8 @@ def listeners():
 
 # --------------------------------------------------------------- view model
 def vm_properties():
-    p = [f'<ViewModelPropertyNumber name="selected" id="{P_SELECTED}"/>']
+    p = [f'<ViewModelPropertyNumber name="found" id="{P_FOUND}"/>',
+         f'<ViewModelPropertyNumber name="selected" id="{P_SELECTED}"/>']
     p += [f'<ViewModelPropertyAssetImage name="cover{i + 1}" id="5:{P_COVER0 + i}"/>'
           for i in range(len(CARDS))]
     p.append(f'<ViewModelPropertyBoolean name="rustle" id="{P_RUSTLE}"/>')
@@ -380,7 +382,8 @@ def vm_properties():
 
 
 def vm_values():
-    v = [f'<ViewModelInstanceNumber propertyValue="-1" viewModelPropertyId="{P_SELECTED}"/>']
+    v = [f'<ViewModelInstanceNumber propertyValue="0" viewModelPropertyId="{P_FOUND}"/>',
+         f'<ViewModelInstanceNumber propertyValue="-1" viewModelPropertyId="{P_SELECTED}"/>']
     v += [f'<ViewModelInstanceAssetImage propertyValue="5:{9981 + i}" viewModelPropertyId="5:{P_COVER0 + i}"/>'
           for i in range(len(CARDS))]
     v.append(f'<ViewModelInstanceBoolean propertyValue="false" viewModelPropertyId="{P_RUSTLE}"/>')

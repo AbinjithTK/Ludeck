@@ -82,9 +82,13 @@ class _DiscoveryTreeState extends State<DiscoveryTree> {
   }
 
   rv.ViewModelInstance? _vm;
+  rv.ViewModelInstanceNumber? _grown;
   rv.ViewModelInstanceNumber? _found;
   rv.ViewModelInstanceNumber? _selected;
   Timer? _regrow;
+
+  /// The size the tree has reached. Only ever rises (see [nextGrown]).
+  double _grownTo = 0;
 
   /// Bumped per result set, so a slow cover from an old search never lands
   /// on a card that now shows a different game.
@@ -98,8 +102,9 @@ class _DiscoveryTreeState extends State<DiscoveryTree> {
     final before = old.games.take(kDiscoverySlots).map((g) => g.igdbId).toList();
     final after = _shown.map((g) => g.igdbId).toList();
     if (_listEquals(before, after)) return;
-    // A new result set: fold the tree back, then grow it again so the new
-    // games are discovered fresh rather than swapped onto old cards.
+    // A new result set: the old cards step aside and the new ones pop in
+    // fresh. Only the CARDS reset; the tree keeps the size it has reached,
+    // because the metaphor never shrinks (DECISIONS.md).
     _generation++;
     _selected?.value = -1;
     _found?.value = 0;
@@ -111,6 +116,7 @@ class _DiscoveryTreeState extends State<DiscoveryTree> {
     final vm = state.viewModelInstance;
     if (vm == null) return;
     _vm = vm;
+    _grown = vm.number('grown');
     _found = vm.number('found');
     _selected = vm.number('selected');
     _selected?.addListener(_onSelected);
@@ -125,6 +131,8 @@ class _DiscoveryTreeState extends State<DiscoveryTree> {
       final url = games[i].coverUrl;
       if (url != null && url.isNotEmpty) _loadCover(i, url, gen);
     }
+    _grownTo = nextGrown(_grownTo, games.length);
+    _grown?.value = _grownTo;
     _found?.value = games.length.toDouble();
   }
 
@@ -183,6 +191,15 @@ class _DiscoveryTreeState extends State<DiscoveryTree> {
       }),
     );
   }
+}
+
+/// The tree's next size after a result set of [count] games arrives.
+///
+/// Never below [current]: a narrower search shows fewer cards on a tree that
+/// stays as big as it got. DECISIONS.md: the metaphor may never shrink.
+double nextGrown(double current, int count) {
+  final want = count.clamp(0, kDiscoverySlots).toDouble();
+  return want > current ? want : current;
 }
 
 /// Vertical alignment that puts the grown canopy at the top of a [w]x[h] box

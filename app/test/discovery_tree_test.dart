@@ -6,6 +6,31 @@ import 'package:ludeck/ui/add/discovery_tree.dart';
 Game _g(int id) => Game(igdbId: id, title: 'Game $id');
 
 void main() {
+  group('nextGrown (the tree never shrinks)', () {
+    test('grows to the result count', () {
+      expect(nextGrown(0, 3), 3);
+      expect(nextGrown(3, 5), 5);
+    });
+
+    test('a smaller result set does not shrink it', () {
+      expect(nextGrown(5, 2), 5);
+      expect(nextGrown(5, 0), 5);
+    });
+
+    test('caps at the number of card slots', () {
+      expect(nextGrown(0, 40), kDiscoverySlots.toDouble());
+    });
+
+    test('any sequence of searches is monotonic', () {
+      var g = 0.0;
+      for (final n in [4, 1, 6, 0, 2, 9, 3]) {
+        final next = nextGrown(g, n);
+        expect(next, greaterThanOrEqualTo(g));
+        g = next;
+      }
+    });
+  });
+
   group('canopyAlignment', () {
     test('a phone-width box shows the canopy from the top', () {
       // 412 wide: scale 1, a 300-tall window, canopy top at artboard y 185.

@@ -95,8 +95,12 @@ screen's results.
   targets per growth level.
 
 Host contract:
-- set `found` 0..6 as games arrive. Each step grows the tree, then card
-  `found` pops (staggered if several arrive at once). Lowering it hides cards.
+- set `grown` 0..6 for the tree's size and ONLY EVER RAISE IT (DECISIONS.md:
+  the metaphor never shrinks). The app enforces this with `nextGrown` in
+  `discovery_tree.dart`, which is unit-tested.
+- set `found` 0..6 for how many cards hang. Card `found` pops (staggered if
+  several arrive at once). Lowering it hides cards, never the tree, so a new
+  result set resets `found` to 0 and back up to re-pop its cards.
 - read `selected` (-1 none, 0..5 = card). Tapping a card sets it; tapping
   the sky or the canopy clears it. Tapping the canopy also rustles the tree.
 - set `cover1`..`cover6` to 240x320 images (runtime image property).
