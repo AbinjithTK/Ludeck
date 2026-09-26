@@ -34,7 +34,7 @@ double dist(Color a, Color b) =>
 
 void main() {
   test('a solid vivid image returns that colour', () {
-    final c = dominantColor(buf(16, 16, (_, __) => [220, 30, 40, 255]), 16, 16);
+    final c = dominantColor(buf(16, 16, (_, _) => [220, 30, 40, 255]), 16, 16);
     expect(c, isNotNull);
     // Red-dominant, low green and blue.
     expect(c!.r, greaterThan(0.7));
@@ -43,13 +43,13 @@ void main() {
   });
 
   test('a fully transparent image returns null, not a colour', () {
-    final c = dominantColor(buf(16, 16, (_, __) => [200, 50, 50, 0]), 16, 16);
+    final c = dominantColor(buf(16, 16, (_, _) => [200, 50, 50, 0]), 16, 16);
     expect(c, isNull);
   });
 
   test('a uniformly grey image returns null, not mud', () {
     // Grey has zero saturation, so no pixel contributes weight.
-    final c = dominantColor(buf(16, 16, (_, __) => [128, 128, 128, 255]), 16, 16);
+    final c = dominantColor(buf(16, 16, (_, _) => [128, 128, 128, 255]), 16, 16);
     expect(c, isNull);
   });
 
@@ -94,7 +94,7 @@ void main() {
       (gold.b * 255).round(),
       255,
     ];
-    final c = dominantColor(buf(16, 16, (_, __) => goldish), 16, 16);
+    final c = dominantColor(buf(16, 16, (_, _) => goldish), 16, 16);
     expect(c, isNotNull);
     // It must NOT still read as gold -- gold is the one reward signal.
     expect(dist(c!, gold), greaterThan(0.28),
@@ -107,7 +107,7 @@ void main() {
 
   test('a non-gold vivid colour is left alone', () {
     // Vivid teal is nowhere near gold, so the guard must not touch it.
-    final c = dominantColor(buf(16, 16, (_, __) => [20, 200, 190, 255]), 16, 16);
+    final c = dominantColor(buf(16, 16, (_, _) => [20, 200, 190, 255]), 16, 16);
     expect(c, isNotNull);
     expect(c!.g, greaterThan(0.5));
     expect(c.b, greaterThan(0.5));

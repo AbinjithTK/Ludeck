@@ -43,13 +43,13 @@ const _pages = [
     icon: Icons.park_outlined,
     title: 'Your games, as a tree',
     body: 'Every game you own or want to play lives on your tree. '
-        'Harvested games glow gold -- that is the only thing this app marks. '
+        'Harvested games glow gold. That is the only thing this app marks. '
         "Nothing is ever shown as locked, overdue, or behind.",
   ),
   _Page(
     icon: Icons.call_split,
     title: 'Branches are yours to name',
-    body: 'Group games however makes sense to you -- "Cozy", "Co-op with '
+    body: 'Group games however makes sense to you: "Cozy", "Co-op with '
         'Dev", "Bought in a sale, no regrets". Branches are not genres or '
         'platforms. They are your own categories.',
   ),
@@ -62,7 +62,7 @@ const _pages = [
   _Page(
     icon: Icons.ios_share,
     title: 'Share your tree, or visit someone else\'s',
-    body: 'Publish your tree to get a link -- private by default, and only '
+    body: 'Publish your tree to get a link. It is private by default, and only '
         'title, cover, status and rating are ever shared, never your notes '
         'or who recommended a game. Visit a friend\'s tree to see their '
         'branches and plant anything that catches your eye.',
