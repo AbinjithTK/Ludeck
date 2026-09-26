@@ -15,11 +15,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../data/enums.dart';
 import '../../services/social/social_backend.dart';
 import '../gamified/primitives.dart';
 import '../tokens.dart';
 import '../visit/visit_screen.dart';
+import 'roadmap_story_card.dart';
 
 /// The card plus its actions. Reachable whether or not the tree ended up
 /// public -- a private save still confirms and still offers "copy link" is
@@ -80,7 +80,7 @@ class _ShareCardScreenState extends State<ShareCardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _ShareCard(games: widget.games, level: widget.level),
+                  RoadmapStoryCard(games: widget.games, level: widget.level),
                   SizedBox(height: Tokens.space.md),
                   if (_hasLink)
                     Column(
@@ -146,100 +146,4 @@ class _ShareCardScreenState extends State<ShareCardScreen> {
           ),
         ),
       );
-}
-
-/// The generated card itself: tree summary, a sample game, light branding.
-/// Fixed 4:5 aspect -- the same ratio ProfileBody's `_Portrait` uses, since
-/// FEATURES.md calls this the same artifact as the profile avatar.
-class _ShareCard extends StatelessWidget {
-  const _ShareCard({required this.games, required this.level});
-
-  final List<PublishedGame> games;
-  final int level;
-
-  @override
-  Widget build(BuildContext context) {
-    final harvested = games.where((g) => g.status == Progress.finished).length;
-    // The sample game: the highest-rated harvested game, or just the first game
-    // if nothing is rated yet. A card with zero games still renders -- an empty
-    // tree is a real, nameable state, not an error.
-    PublishedGame? sample;
-    for (final g in games) {
-      if (sample == null) {
-        sample = g;
-        continue;
-      }
-      if ((g.rating ?? -1) > (sample.rating ?? -1)) sample = g;
-    }
-
-    return AspectRatio(
-      aspectRatio: 4 / 5,
-      child: SoftCard(
-        deep: true,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                GlowOrb(diameter: 40, glow: 0.7, child: Text('$level')),
-                SizedBox(width: Tokens.space.sm),
-                Expanded(
-                  child: Text(
-                    'Level $level  ·  $harvested harvested',
-                    style: TextStyle(
-                      fontSize: Tokens.type.body,
-                      fontWeight: FontWeight.w600,
-                      color: Tokens.palette.text,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (sample != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    sample.title,
-                    style: TextStyle(
-                      fontSize: Tokens.type.title,
-                      fontWeight: FontWeight.w700,
-                      color: Tokens.palette.text,
-                    ),
-                  ),
-                  if (sample.rating != null)
-                    Text(
-                      '${sample.rating}/5',
-                      style: TextStyle(
-                        fontSize: Tokens.type.caption,
-                        color: Tokens.palette.textDim,
-                      ),
-                    ),
-                ],
-              )
-            else
-              // Reached when the tree carries no games at all, not when
-              // nothing has been harvested -- a tree with unharvested games
-              // renders a sample above instead. The old wording said
-              // "Nothing harvested yet", which described the wrong fact and
-              // read as a bug on a tree that genuinely had games.
-              Text(
-                'Nothing on your tree yet.',
-                style: TextStyle(
-                    fontSize: Tokens.type.body, color: Tokens.palette.textDim),
-              ),
-            Text(
-              'Ludeck',
-              style: TextStyle(
-                fontSize: Tokens.type.caption,
-                color: Tokens.palette.textDim,
-                letterSpacing: Tokens.type.trackingTitle,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
