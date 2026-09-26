@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import 'data/enums.dart';
 import 'data/models.dart';
+import 'ui/common/name_dialog.dart';
 import 'data/repository.dart';
 import 'services/catalog_service.dart';
 import 'services/share_intake.dart';
@@ -513,37 +514,18 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// A plain dialog for now; Stage 5 replaces it with naming in place on the
   /// sprouting twig, plus starter templates.
   Future<void> _growBranch(LudeckStore store, int? parentId) async {
-    final controller = TextEditingController();
     final parent = parentId == null
         ? null
         : store.branches.where((b) => b.id == parentId).firstOrNull;
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        backgroundColor: Tokens.palette.surface,
-        title: Text(parent == null
-            ? 'Name this branch'
-            : 'Name a branch inside ${parent.name}'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: Repository.maxNameLength,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(hintText: 'e.g. Couch co-op'),
-          onSubmitted: (v) => Navigator.of(dialog).pop(v),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(dialog).pop(),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.of(dialog).pop(controller.text),
-              child: const Text('Grow it')),
-        ],
-      ),
+    final name = await showNameDialog(
+      context,
+      title: parent == null
+          ? 'Name this branch'
+          : 'Name a branch inside ${parent.name}',
+      confirmLabel: 'Grow it',
+      hint: 'e.g. Couch co-op',
     );
-    controller.dispose();
-    if (name == null || name.trim().isEmpty) return;
+    if (name == null) return;
     await store.createBranch(name, parentId: parentId);
   }
 
@@ -617,34 +599,14 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
 
   /// Rename in place. A plain dialog, prefilled with the current name.
   Future<void> _renameBranch(LudeckStore store, Branch branch) async {
-    final controller = TextEditingController(text: branch.name);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        backgroundColor: Tokens.palette.surface,
-        title: const Text('Rename branch'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLength: Repository.maxNameLength,
-          textCapitalization: TextCapitalization.sentences,
-          onSubmitted: (v) => Navigator.of(dialog).pop(v),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(dialog).pop(),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () => Navigator.of(dialog).pop(controller.text),
-              child: const Text('Rename')),
-        ],
-      ),
+    final name = await showNameDialog(
+      context,
+      title: 'Rename branch',
+      confirmLabel: 'Rename',
+      initial: branch.name,
     );
-    controller.dispose();
-    if (name == null || name.trim().isEmpty || name.trim() == branch.name) {
-      return;
-    }
-    await store.renameBranch(branch.id, name.trim());
+    if (name == null || name == branch.name) return;
+    await store.renameBranch(branch.id, name);
   }
 
   /// Delete a branch, with an undo that re-creates it and re-files the games
