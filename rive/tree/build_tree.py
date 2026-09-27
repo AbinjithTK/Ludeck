@@ -41,6 +41,40 @@ OUT = os.path.join(HERE, "scene.rml")
 W, H = 412, 732
 TREE_X, TREE_Y, TREE_SCALE = 180, 668, 0.94
 
+# Headless preview of the app's night sky (orchard_view.dart `_NightSky`),
+# same colours as Tokens.cosmos.night / hill*. Never in the shipped file.
+HILL_W = 980                 # the ridge is a shallow arc much wider than the screen
+PREVIEW_SKY = f'''
+        <Shape x="{TREE_X}" y="{TREE_Y + HILL_W * 0.09}" name="PvHill">
+            <Ellipse width="{HILL_W}" height="{HILL_W * 0.18}" name="P"/>
+            <Fill name="F">
+                <LinearGradient startX="0" startY="{-HILL_W * 0.09}" endX="0" endY="60" name="G">
+                    <GradientStop colorValue="FF1A1531" position="0"/>
+                    <GradientStop colorValue="FF0D0A1C" position="1"/>
+                </LinearGradient>
+            </Fill>
+            <Stroke thickness="1" name="S"><SolidColor colorValue="2EE3A9C6" name="C"/></Stroke>
+        </Shape>
+        <Shape x="{TREE_X + 10}" y="400" name="PvHalo">
+            <Ellipse width="520" height="520" name="P"/>
+            <Fill name="F">
+                <RadialGradient startX="0" startY="0" endX="260" endY="0" name="G">
+                    <GradientStop colorValue="24C77BA6" position="0"/>
+                    <GradientStop colorValue="00C77BA6" position="1"/>
+                </RadialGradient>
+            </Fill>
+        </Shape>
+        <Shape name="PvSky">
+            <Rectangle originX="0" originY="0" width="{W}" height="{H}" name="P"/>
+            <Fill name="F">
+                <LinearGradient startX="0" startY="0" endX="0" endY="{H}" name="G">
+                    <GradientStop colorValue="FF0B0A1C" position="0"/>
+                    <GradientStop colorValue="FF171230" position="0.55"/>
+                    <GradientStop colorValue="FF2B1F47" position="1"/>
+                </LinearGradient>
+            </Fill>
+        </Shape>'''
+
 GROW_SECONDS = 0.9      # each found game eases the tree up over this long
 GROWTH_MIN, GROWTH_MAX = 20, 100
 
@@ -62,8 +96,44 @@ def convert():
     doc = riv_decode.decode(SRC)
     schema = json.load(open(os.path.join(ROOT, "tool", "rive_schema.json"),
                             encoding="utf-8"))
-    return riv_to_rml.Conv(doc, "5", "TreeDiscovery", schema,
-                           vm="TreeDiscovery").run()
+    return retint(riv_to_rml.Conv(doc, "5", "TreeDiscovery", schema,
+                                  vm="TreeDiscovery").run())
+
+
+# The source art's grass. It becomes the hill's silhouette colour, so the
+# tufts read as grass on the ridge instead of a teal strip pasted under it.
+GRASS_SRC = "30E1A6"
+HILL_TOP = "FF1A1531"   # = Tokens.cosmos.hillTop (app/lib/ui/tokens.dart)
+
+
+def _tone(argb):
+    """Pull the source's neon magentas into a blossom rose that sits in the
+    violet night: saturation capped by lightness, hue nudged toward rose.
+    Darks (bark, shadow) and non-pink hues pass through untouched."""
+    import colorsys
+    a, rgb = argb[:2], argb[2:]
+    r, g, b = (int(rgb[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    h, l, s = colorsys.rgb_to_hls(r, g, b)
+    deg = h * 360
+    if 150 <= deg <= 200 and s > 0.25:  # every grass teal in the source
+        return a + HILL_TOP[2:]
+    if not (285 <= deg or deg < 12) or l < 0.22:
+        return argb
+    cap = 0.42 + 0.25 * l               # light petals keep more colour
+    s = min(s, cap)
+    deg = deg + (338 - deg) * 0.35 if deg >= 285 else deg + (338 - 360 - deg) * 0.35
+    l = min(l, 0.70) * 0.96 + 0.02      # nothing brighter than a petal highlight
+    r, g, b = colorsys.hls_to_rgb((deg % 360) / 360, l, s)
+    return a + "".join(f"{round(v * 255):02X}" for v in (r, g, b))
+
+
+def retint(rml):
+    rml = re.sub(r'colorValue="([0-9A-Fa-f]{8})"',
+                 lambda m: f'colorValue="{_tone(m.group(1))}"', rml)
+    # Most of the canopy's colour is animated (the leaf steps ramp it), so the
+    # keyframes need the same treatment as the static fills.
+    return re.sub(r'(<KeyFrameColor [^>]*value=")([0-9A-Fa-f]{8})"',
+                  lambda m: f'{m.group(1)}{_tone(m.group(2))}"', rml)
 
 
 def debug_markers():
@@ -112,27 +182,21 @@ def build(debug, test_hooks=False):
     assert style in rml
     rml = rml.replace(style, style + front, 1)
 
-    # -- back layer: the sky, declared after the tree -------------------------
+    # -- back layer: the sky's HIT AREA only, declared after the tree ---------
+    # The app paints the sky, the hill and the glow (orchard_view.dart
+    # `_NightSky`) because a phone is taller than the artboard: a sky drawn
+    # here stops at the artboard edge and leaves a seam, and on the emulator's
+    # renderer this gradient came out in five hard bands. The shape stays,
+    # fully transparent, because tapping the sky clears the selection.
     sky = f'''
         <Shape name="Sky" id="5:20100">
             <Rectangle originX="0" originY="0" width="{W}" height="{H}" name="P"/>
-            <Fill name="F">
-                <LinearGradient startX="0" startY="0" endX="0" endY="{H}" name="G">
-                    <GradientStop colorValue="FF0B0A1C" position="0"/>
-                    <GradientStop colorValue="FF16112E" position="0.55"/>
-                    <GradientStop colorValue="FF241A3D" position="1"/>
-                </LinearGradient>
-            </Fill>
-        </Shape>
-        <Shape x="{TREE_X}" y="{TREE_Y + 6}" name="GroundGlow">
-            <Ellipse width="360" height="70" name="P"/>
-            <Fill name="F">
-                <RadialGradient startX="0" startY="0" endX="180" endY="0" name="G">
-                    <GradientStop colorValue="405B4A82" position="0"/>
-                    <GradientStop colorValue="005B4A82" position="1"/>
-                </RadialGradient>
-            </Fill>
+            <Fill name="F"><SolidColor colorValue="00000000" name="C"/></Fill>
         </Shape>'''
+    if os.environ.get("TREE_PREVIEW_SKY"):
+        # Headless renders only: the app's sky, so a render judges the tree
+        # against what it will actually stand in.
+        sky = PREVIEW_SKY + sky
     first_anim = rml.index("<LinearAnimation")
     rml = rml[:first_anim] + sky.strip() + "\n        " + rml[first_anim:]
 

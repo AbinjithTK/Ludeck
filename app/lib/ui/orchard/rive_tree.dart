@@ -8,6 +8,7 @@
 // outright on this project before (every layer reported RiveFailed).
 
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -76,6 +77,21 @@ Future<rv.File?> loadTreeFile() => _treeFile ??= () async {
 double nextGrown(double current, int target) {
   final want = target.clamp(0, kTreeSlots).toDouble();
   return want > current ? want : current;
+}
+
+/// Growth-curve exponent. MUST equal SHAPE in rive/tree/fit.py: the fruit
+/// placement is solved against the canopy at exactly these sizes.
+const double kTreeGrowthShape = 1.8;
+
+/// The file's `grown` value for a tree holding [games] games.
+///
+/// Front-loaded: the first games grow the tree most (a tree holding 3 already
+/// has 40% of its size, not 25%), because early on every game should visibly
+/// change the tree, and by the tenth the canopy is full and the fruit is the
+/// story. Monotonic, so the only-grow rule of [nextGrown] survives it.
+double treeSize(double games) {
+  final t = (games / kTreeSlots).clamp(0.0, 1.0);
+  return kTreeSlots * (1 - math.pow(1 - t, kTreeGrowthShape).toDouble());
 }
 
 /// Imperative handle for the few things that are events, not state.
@@ -202,7 +218,7 @@ class _RiveTreeState extends State<RiveTree> {
       if (url != null && url.isNotEmpty) _loadCover(i, url, gen);
     }
     _grownTo = nextGrown(_grownTo, widget.grownTarget);
-    _setNumber('grown', _grownTo);
+    _setNumber('grown', treeSize(_grownTo));
     _setNumber('found', hung.length.toDouble());
   }
 

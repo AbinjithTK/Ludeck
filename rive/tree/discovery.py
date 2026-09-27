@@ -40,10 +40,6 @@ GROUND_Y = TREE_Y - 58   # where a dropped fruit comes to rest (card centre)
 CLUSTER_IDS = {"center": "5:1232", "right": "5:1215", "left": "5:1201"}
 ANIM_IN, ANIM_OUT = "5:9110", "5:9101"   # the tree's growth blend poses (0, 100)
 
-# Cluster targets at full growth, measured by tree/measure.py.
-with open(os.path.join(HERE, "canopy.json")) as fh:
-    _FULL = json.load(fh)["6"]["targets"]
-
 CARD_W, CARD_H = 40, 53  # 3:4. 12 of them cover ~32% of the full canopy
 
 
@@ -53,38 +49,24 @@ def hang(c):
 
 IMG_W = 240              # cover pixels the host supplies (240x320)
 
-# Card centres on the FULL canopy (artboard px). Hand-placed scatter, not a
-# grid: a grid reads as a spreadsheet. Every pair is >= 55px apart
-# (checked by min_spacing()), with stems of varied length and a slight
-# resting tilt so no two fruit hang identically.
-_PTS = [(192, 258), (148, 300), (236, 296), (192, 344), (96, 332), (282, 340),
-        (138, 386), (212, 404), (338, 318), (270, 408), (72, 384), (326, 392)]
-_CENTROID = (205, 335)
+# Where each fruit hangs, solved by tree/fit.py against the real canopy at
+# every game count (stem inside the leaves, no two cards touching, weighted
+# to the lower canopy). `a` is the stem-top offset from its cluster in the
+# sapling pose, `b` in the full pose; the tree's growth blend moves between
+# them. Order is pop order: the first fruit hangs near the middle.
+_FRUIT_PATH = os.path.join(HERE, "fruit.json")
+_FRUIT = (json.load(open(_FRUIT_PATH)) if os.path.exists(_FRUIT_PATH)
+          else {"early_scale": 0.62, "cards": []})   # fit.py's first measuring pass
+EARLY_SCALE = _FRUIT["early_scale"]
+CARDS = [{"cluster": c["cluster"], "a": tuple(c["a"]), "b": tuple(c["b"]),
+          "stem": c["stem"], "tilt": c["tilt"], "pos": tuple(c["pos"])}
+         for c in _FRUIT["cards"]]
+SLOTS = 12
 
 
 def min_spacing():
-    return min(math.hypot(a[0] - b[0], a[1] - b[1])
-               for n, a in enumerate(_PTS) for b in _PTS[n + 1:])
-
-
-def _slots():
-    pts = sorted(_PTS, key=lambda p: math.hypot(p[0] - _CENTROID[0], p[1] - _CENTROID[1]))
-    out = []
-    for n, (x, y) in enumerate(pts):
-        name = min(_FULL, key=lambda k: math.hypot(x - _FULL[k][0], y - _FULL[k][1]))
-        tx, ty = _FULL[name]
-        stem = 9 + (n * 5) % 9                       # 9..17px
-        tilt = ((n * 7) % 5 - 2) * 0.03              # -0.06..0.06 rad
-        out.append({"cluster": CLUSTER_IDS[name], "pos": (x, y), "stem": stem,
-                    "tilt": round(tilt, 3),
-                    "off": (round(x - tx, 1), round(y - ty, 1))})
-    return out
-
-
-CARDS = _slots()
-SLOTS = len(CARDS)
-EARLY = 0.40             # offsets at growth 0; wide enough that a half-grown
-EARLY_SCALE = 0.55       #   tree's smaller fruit never overlap
+    return min(math.hypot(a["pos"][0] - b["pos"][0], a["pos"][1] - b["pos"][1])
+               for n, a in enumerate(CARDS) for b in CARDS[n + 1:])
 
 EASE_OUT = '<CubicEaseInterpolator x1="0.23" y1="1" x2="0.32" y2="1"/>'
 EASE_IO = '<CubicEaseInterpolator x1="0.77" y1="0" x2="0.175" y2="1"/>'
@@ -210,10 +192,10 @@ def card_components():
     s = CARD_W / IMG_W
     for i in reversed(range(SLOTS)):
         c = CARDS[i]
-        ox, oy = c["off"]
+        ax, ay = c["a"]
         h, stem = hang(c), c["stem"]
         out.append(f'''
-        <Node x="{ox * EARLY:.1f}" y="{(oy - h) * EARLY:.1f}" scaleX="{EARLY_SCALE}" scaleY="{EARLY_SCALE}" name="Game{i + 1}" id="{cid(i, 0)}">
+        <Node x="{ax}" y="{ay}" scaleX="{EARLY_SCALE}" scaleY="{EARLY_SCALE}" name="Game{i + 1}" id="{cid(i, 0)}">
             <TranslationConstraint targetId="{c['cluster']}" offset="true" name="FollowCanopy"/>
             <Node scaleX="0" scaleY="0" name="Pop" id="{cid(i, 1)}">
                 <Node y="{h}" name="Lift" id="{cid(i, 2)}">
@@ -317,12 +299,10 @@ def growth_keys():
     """Keys for the tree's growth blend poses: fruit rides and scales with it."""
     kin, kout = [], []
     for i, c in enumerate(CARDS):
-        ox, oy = c["off"]
-        h = hang(c)
-        kin.append(keyed(cid(i, 0), [(13, [key(0, f"{ox * EARLY:.2f}")]),
-                                    (14, [key(0, f"{(oy - h) * EARLY:.2f}")]),
+        (ax, ay), (bx, by) = c["a"], c["b"]
+        kin.append(keyed(cid(i, 0), [(13, [key(0, ax)]), (14, [key(0, ay)]),
                                     (16, [key(0, EARLY_SCALE)]), (17, [key(0, EARLY_SCALE)])]))
-        kout.append(keyed(cid(i, 0), [(13, [key(0, ox)]), (14, [key(0, round(oy - h, 2))]),
+        kout.append(keyed(cid(i, 0), [(13, [key(0, bx)]), (14, [key(0, by)]),
                                      (16, [key(0, 1)]), (17, [key(0, 1)])]))
     return "".join(kin), "".join(kout)
 

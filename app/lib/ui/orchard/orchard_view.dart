@@ -27,6 +27,7 @@ import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
 import '../common/name_dialog.dart';
 import '../tokens.dart';
+import 'night_sky.dart';
 import 'rive_tree.dart';
 
 /// Top-level branches, in the user's order. These are the trees.
@@ -512,12 +513,11 @@ class _PatchPage extends StatelessWidget {
 /// The sky a tree stands in, full screen, with the artboard placed so its soil
 /// line sits [groundFromBottom] above the bottom edge.
 ///
-/// The artboard is 412x732 and a phone is taller, so the file's own sky cannot
-/// reach the screen edges. Above the artboard the sky is continued in its top
-/// colour and below it in its bottom colour -- the same stops the file uses
-/// (`Tokens.cosmos.deep`) -- so there is no seam where the file ends and the
-/// controls begin. [zoom] eases (interruptibly: the tween retargets from the
-/// value on screen) whenever the tree's size changes.
+/// The tree file draws only the tree; the night, the blossom's halo and the
+/// hill are painted here ([NightSkyPainter]) at the screen's own size, so there
+/// is no edge where the artboard ends. [zoom] eases (interruptibly: the tween
+/// retargets from the value on screen) whenever the tree's size changes, and
+/// the halo rides the same frame as the tree.
 class _Stage extends StatelessWidget {
   const _Stage(
       {required this.groundFromBottom, required this.zoom, required this.child});
@@ -528,7 +528,6 @@ class _Stage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reduce = MediaQuery.disableAnimationsOf(context);
-    final sky = Tokens.cosmos.deep;
     return LayoutBuilder(builder: (context, box) {
       final size = box.biggest;
       final groundY = size.height - groundFromBottom;
@@ -540,14 +539,10 @@ class _Stage extends StatelessWidget {
         builder: (context, z, child) {
           final r = treeFrame(size, groundY, z);
           return Stack(clipBehavior: Clip.hardEdge, children: [
-            Positioned.fill(child: ColoredBox(color: sky.last)),
-            Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                // One px of overlap so no hairline shows at the join.
-                height: (r.top + 1).clamp(0.0, size.height),
-                child: ColoredBox(color: sky.first)),
+            Positioned.fill(
+                child: RepaintBoundary(
+                    child: CustomPaint(
+                        painter: NightSkyPainter(tree: r, groundY: groundY)))),
             Positioned.fromRect(rect: r, child: child!),
           ]);
         },

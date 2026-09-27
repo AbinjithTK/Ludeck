@@ -180,6 +180,31 @@ class _Cosmos {
   /// starfields vary in brightness, not in hue.
   final Color star = const Color(0xFFFFFFFF);
 
+  /// The orchard's night, top to bottom. `deep` with a warmer, lighter foot so
+  /// the sky reads as having a horizon behind the hill instead of ending.
+  /// Painted by the app, not the tree file: a phone is taller than the
+  /// artboard, and the file's own gradient banded on the device renderer.
+  /// rive/tree/build_tree.py PREVIEW_SKY mirrors these for headless renders.
+  final List<Color> night = const [
+    Color(0xFF0B0A1C),
+    Color(0xFF171230),
+    Color(0xFF2B1F47),
+  ];
+
+  /// The hill a tree stands on. Its ridge is the colour the tree file's grass
+  /// tufts were retinted to (build_tree.py HILL_TOP), so the grass reads as a
+  /// silhouette on the ridge rather than a strip pasted under the trunk.
+  final Color hillTop = const Color(0xFF1A1531);
+  final Color hillDeep = const Color(0xFF0D0A1C);
+
+  /// The ridge's rim light: the blossom, faintly, catching the hill's edge.
+  final Color hillRim = const Color(0x2EE3A9C6);
+
+  /// The light the blossom throws on the sky behind it. Used only as the
+  /// centre of a radial gradient that fades to [haloClear].
+  final Color halo = const Color(0x24C77BA6);
+  final Color haloClear = const Color(0x00C77BA6);
+
   /// The path a roadmap travels along, where it has been walked.
   final Color trail = const Color(0x59FFFFFF);
 
