@@ -18,7 +18,7 @@ void main() {
     });
 
     test('caps at the number of card slots', () {
-      expect(nextGrown(0, 40), kDiscoverySlots.toDouble());
+      expect(nextGrown(0, 40), kTreeSlots.toDouble());
     });
 
     test('any sequence of searches is monotonic', () {

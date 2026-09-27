@@ -79,7 +79,7 @@ def debug_markers():
     return "".join(out)
 
 
-def build(debug):
+def build(debug, test_hooks=False):
     rml = convert()
 
     # -- view model: the old `input` number becomes `grown` ------------------
@@ -142,7 +142,7 @@ def build(debug):
         <DataConverterGroupItem converterId="5:20002"/>
         <DataConverterGroupItem converterId="5:20003"/>
     </DataConverterGroup>
-    <DataConverterRangeMapper minInput="0" maxInput="6" minOutput="{GROWTH_MIN}" maxOutput="{GROWTH_MAX}"
+    <DataConverterRangeMapper minInput="0" maxInput="{D.SLOTS}" minOutput="{GROWTH_MIN}" maxOutput="{GROWTH_MAX}"
                               clampLower="true" clampUpper="true" name="FoundToGrowthRange" id="5:20002"/>
     <DataConverterInterpolator interpolationType="cubic" duration="{GROW_SECONDS}" name="GrowEase" id="5:20003">
         <CubicEaseInterpolator x1="0.23" y1="1" x2="0.32" y2="1"/>
@@ -151,7 +151,7 @@ def build(debug):
     rml = rml.replace("</Rive>", converters + D.image_assets() + "\n</Rive>")
 
     if not debug:
-        rml = splice_discovery(rml)
+        rml = splice_discovery(rml, test_hooks)
     return rml, n_binds
 
 
@@ -165,10 +165,11 @@ def close_of(rml, open_anchor, close_tag):
     return rml.index(close_tag, i)
 
 
-def splice_discovery(rml):
+def splice_discovery(rml, test_hooks=False):
+    hook_comp, hook_lst = D.test_hooks() if test_hooks else ("", "")
     # cards + canopy tap target: front of everything, cards above the tap area
     style = '<LayoutComponentStyle name="Artboard Style" id="5:9099"/>'
-    rml = insert_after(rml, style, D.card_components() + D.canopy_hit())
+    rml = insert_after(rml, style, hook_comp + D.card_components() + D.planting_components() + D.canopy_hit())
 
     # card placement rides the tree's growth blend poses
     kin, kout = D.growth_keys()
@@ -178,11 +179,11 @@ def splice_discovery(rml):
 
     # new timelines, before the state machine
     j = rml.index("<StateMachine ")
-    rml = rml[:j] + D.card_animations().strip() + "\n        " + rml[j:]
+    rml = rml[:j] + (D.card_animations() + D.tree_animations()).strip() + "\n        " + rml[j:]
 
     # layers + listeners at the end of the state machine
     j = rml.index("</StateMachine>")
-    rml = rml[:j] + D.card_layers() + D.listeners() + "\n        " + rml[j:]
+    rml = rml[:j] + D.card_layers() + D.tree_layers() + D.listeners() + hook_lst + "\n        " + rml[j:]
 
     # view model
     grown_prop = f'<ViewModelPropertyNumber name="grown" id="{D.P_GROWN}"/>'
@@ -195,8 +196,10 @@ def splice_discovery(rml):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--debug", action="store_true")
+    ap.add_argument("--test-hooks", action="store_true",
+                    help="add a corner tap that sets drop=0 (headless capture only; never ship)")
     a = ap.parse_args()
-    rml, n = build(a.debug)
+    rml, n = build(a.debug, a.test_hooks)
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         f.write(rml)
     print(f"wrote {OUT}  ({rml.count(chr(10))} lines, {n} growth binds)")
