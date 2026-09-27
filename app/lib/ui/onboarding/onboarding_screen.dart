@@ -40,24 +40,24 @@ class _Page {
 
 const _pages = [
   _Page(
-    icon: Icons.route_outlined,
-    title: 'Your games, as a roadmap',
-    body: 'Every game you own or want to play becomes a node on your roadmap. '
+    icon: Icons.park_outlined,
+    title: 'Your games, as an orchard',
+    body: 'Every game you own or want to play hangs on a tree as a cover. '
         'Finished games glow gold. That is the only thing this app marks. '
         "Nothing is ever shown as locked, overdue, or behind.",
   ),
   _Page(
     icon: Icons.call_split,
-    title: 'Branches are yours to name',
+    title: 'Trees are yours to name',
     body: 'Group games however makes sense to you: "Cozy", "Co-op with '
-        'Dev", "Bought in a sale, no regrets". Branches are not genres or '
+        'Dev", "Bought in a sale, no regrets". Trees are not genres or '
         'platforms. They are your own categories.',
   ),
   _Page(
     icon: Icons.touch_app_outlined,
-    title: 'Press and hold to reorder',
-    body: 'Press and hold a node, then drag it along the roadmap to reorder '
-        'your journey. A plain tap opens that game\'s status instead.',
+    title: 'Swipe, tap, hold',
+    body: 'Swipe between trees. Tap a cover to open that game. Press and '
+        'hold a cover, then drop it on another tree\'s dot to move it there.',
   ),
   _Page(
     icon: Icons.ios_share,

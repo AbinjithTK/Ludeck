@@ -17,8 +17,6 @@ import 'services/social/social_service.dart';
 import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
 import 'ui/add/add_screen.dart';
-import 'ui/branches/branch_screen.dart';
-import 'ui/chrome_metrics.dart';
 import 'ui/friends/friends_screen.dart';
 import 'ui/harvest/rating_sheet.dart';
 import 'ui/library/library_screen.dart';
@@ -27,11 +25,10 @@ import 'ui/profile/profile_screen.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
 import 'ui/shell/nav_pill.dart';
-import 'ui/shell/tree_header.dart';
-import 'ui/gamified/primitives.dart';
-import 'ui/roadmap/roadmap_view.dart';
-import 'ui/nodetree/node_tree_view.dart';
-import 'domain/pick.dart';
+// The orchard replaced the node tree / roadmap / canopy as home. Those views
+// stay on disk (and in git) unimported, so reverting is one import away.
+import 'ui/orchard/orchard_view.dart';
+import 'domain/branch_tree.dart';
 
 Future<void> main() async {
   // Required before any plugin call, and Repository.open touches path_provider.
@@ -222,10 +219,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// here: the profile is an existing pushed detail with its own back arrow, and
   /// re-architecting it to live inside the shell is not what this stage is for.
   NavDestination _place = NavDestination.tree;
-
-  /// Home draws the canopy (the branch tree) by default; the roadmap path is
-  /// kept one tap away while the canopy proves itself on devices.
-  bool _canopy = true;
 
   void _goTo(NavDestination d) {
     if (d == NavDestination.you) {
@@ -497,18 +490,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     await store.setRating(item.game.igdbId, choice.rating);
   }
 
-  /// Opens the branches screen.
-  ///
-  /// A pushed route rather than a sheet: create, rename, reorder and delete is
-  /// more than one decision, and a sheet that tall is just a screen with a worse
-  /// back gesture. The store is provided above `MaterialApp`, so the pushed route
-  /// reads the same state this screen does with no argument passing.
-  void _openBranches() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const BranchScreen()),
-    );
-  }
-
   /// Names and grows a branch from the canopy, under [parentId] or the trunk.
   ///
   /// A plain dialog for now; Stage 5 replaces it with naming in place on the
@@ -661,150 +642,32 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Drop a game on a branch: the user chooses MOVE (take it off its current
-  /// branch) or ALSO ADD (a game can hang on several). Both end with an undo.
-  Future<void> _dropGameOnBranch(
-      LudeckStore store, TreeItem item, Branch target) async {
+  /// A fruit dragged from one tree onto another tree's dot: a MOVE. The drag
+  /// already said where it goes, so no move-vs-also-add question interrupts
+  /// it. The game may hang on a sub-branch of its tree, so the branch it
+  /// actually leaves is looked up under [fromTree]. Ends with an undo.
+  Future<void> _moveBetweenTrees(
+      LudeckStore store, TreeItem item, int fromTree, int toTree) async {
     final id = item.game.igdbId;
-    final currentBranches = <int>[
-      for (final b in store.branches)
-        if ((store.placements[b.id] ?? const <int>[]).contains(id)) b.id,
-    ];
-    if (currentBranches.contains(target.id)) return; // already here
-    HapticFeedback.mediumImpact();
-
-    // If the game is already on exactly one other branch, offer move vs also-add.
-    // If it is on the trunk (no branch), just place it -- there is nothing to
-    // move it off.
-    var alsoAdd = true;
-    if (currentBranches.length == 1) {
-      final choice = await showModalBottomSheet<String>(
-        context: context,
-        backgroundColor: Tokens.palette.surface,
-        builder: (sheet) => SafeArea(
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Padding(
-              padding: EdgeInsets.all(Tokens.space.md),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('${item.game.title} → ${target.name}',
-                    style: TextStyle(
-                        color: Tokens.palette.text,
-                        fontSize: Tokens.type.body,
-                        fontWeight: FontWeight.w700)),
-              ),
-            ),
-            ListTile(
-              leading: Icon(Icons.drive_file_move_outline,
-                  color: Tokens.palette.text),
-              title: Text('Move it here',
-                  style: TextStyle(color: Tokens.palette.text)),
-              subtitle: Text('Takes it off its current branch',
-                  style: TextStyle(
-                      color: Tokens.palette.textDim,
-                      fontSize: Tokens.type.caption)),
-              onTap: () => Navigator.of(sheet).pop('move'),
-            ),
-            ListTile(
-              leading:
-                  Icon(Icons.library_add_outlined, color: Tokens.palette.text),
-              title: Text('Also add it here',
-                  style: TextStyle(color: Tokens.palette.text)),
-              subtitle: Text('Keeps it on both branches',
-                  style: TextStyle(
-                      color: Tokens.palette.textDim,
-                      fontSize: Tokens.type.caption)),
-              onTap: () => Navigator.of(sheet).pop('add'),
-            ),
-          ]),
-        ),
-      );
-      if (choice == null) return; // dismissed
-      alsoAdd = choice == 'add';
-    }
-
-    if (alsoAdd) {
-      await store.place(id, target.id);
-    } else {
-      await store.moveGame(id,
-          fromBranchId: currentBranches.first, toBranchId: target.id);
-    }
+    final shape = BranchTree(store.branches, store.placements);
+    final under = {fromTree, ...shape.descendantsOf(fromTree).map((b) => b.id)};
+    final from = under.firstWhere(
+        (b) => (store.placements[b] ?? const <int>[]).contains(id),
+        orElse: () => fromTree);
+    await store.moveGame(id, fromBranchId: from, toBranchId: toTree);
     if (!mounted) return;
+    final name = shape[toTree]?.name ?? 'that tree';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Tokens.palette.surface,
         duration: const Duration(seconds: 3),
-        content: Text(
-          alsoAdd
-              ? '${item.game.title} also added to "${target.name}".'
-              : '${item.game.title} moved to "${target.name}".',
-          style: TextStyle(color: Tokens.palette.text),
-        ),
+        content: Text('${item.game.title} moved to $name.',
+            style: TextStyle(color: Tokens.palette.text)),
         action: SnackBarAction(
           label: 'Undo',
           textColor: Tokens.palette.accent,
-          onPressed: () async {
-            if (alsoAdd) {
-              await store.unplace(id, target.id);
-            } else {
-              await store.moveGame(id,
-                  fromBranchId: target.id, toBranchId: currentBranches.first);
-            }
-          },
-        ),
-      ),
-    );
-  }
-
-  /// "What should I play?" over the games in view: the root, or one branch
-  /// and everything under it. The first surface `choosePick` has ever had.
-  void _showPick(List<TreeItem> pool, Branch? from) {
-    final pick = choosePick(pool);
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Tokens.palette.surface,
-      builder: (sheet) => SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(Tokens.space.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                from == null ? 'TONIGHT' : 'TONIGHT, FROM ${from.name.toUpperCase()}',
-                style: TextStyle(
-                    fontSize: Tokens.type.caption,
-                    fontWeight: FontWeight.w600,
-                    color: Tokens.canopy.foliageLit),
-              ),
-              SizedBox(height: Tokens.space.xxs),
-              Text(
-                pick?.item.game.title ?? 'Nothing here is ready to play',
-                style: TextStyle(
-                    fontSize: Tokens.type.title,
-                    fontWeight: FontWeight.w700,
-                    color: Tokens.palette.text),
-              ),
-              SizedBox(height: Tokens.space.xxs),
-              Text(
-                pick?.reason ??
-                    'Every game here is finished, shelved or only spotted.',
-                style: TextStyle(
-                    fontSize: Tokens.type.caption,
-                    color: Tokens.palette.textDim),
-              ),
-              if (pick != null) ...[
-                SizedBox(height: Tokens.space.md),
-                FilledButton(
-                  onPressed: () {
-                    Navigator.of(sheet).pop();
-                    _openStatusSheet(pick.item);
-                  },
-                  child: const Text('Open it'),
-                ),
-              ],
-            ],
-          ),
+          onPressed: () =>
+              store.moveGame(id, fromBranchId: toTree, toBranchId: from),
         ),
       ),
     );
@@ -815,60 +678,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   void _openProfile() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ProfileScreen()),
-    );
-  }
-
-  /// Explains a nonzero skipped count when the user taps the notice.
-  ///
-  /// States what happened, that nothing else was touched, and gives one
-  /// concrete thing to do. What it does not do is apologise or speculate about
-  /// cause: this is a rare failure mode with one honest description, and
-  /// dressing it up as either a disaster or a shrug would both be lies.
-  void _showSkippedNotice() {
-    final n = context.read<LudeckStore>().skipped;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Tokens.palette.surface,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(Tokens.space.md),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                n == 1
-                    ? 'One game could not be read'
-                    : '$n games could not be read',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              SizedBox(height: Tokens.space.sm),
-              Text(
-                'Its saved status did not match anything this version of the '
-                'app understands. This can happen after an update changes what '
-                'a status can be.',
-                style: TextStyle(
-                    fontSize: Tokens.type.body, color: Tokens.palette.text),
-              ),
-              SizedBox(height: Tokens.space.sm),
-              Text(
-                'Nothing was deleted. Every other game on the tree is exactly '
-                'as you left it.',
-                style: TextStyle(
-                    fontSize: Tokens.type.body, color: Tokens.palette.text),
-              ),
-              SizedBox(height: Tokens.space.sm),
-              Text(
-                'Updating to the latest version usually fixes this. If it '
-                'keeps happening after that, it is worth reporting.',
-                style: TextStyle(
-                    fontSize: Tokens.type.body, color: Tokens.palette.textDim),
-              ),
-              SizedBox(height: Tokens.space.md),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -1057,11 +866,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       return const Scaffold(body: SizedBox.shrink());
     }
 
-    // Only the bottom band needs a number now. The header's height is settled
-    // by layout rather than arithmetic; see ChromeMetrics for why the previous
-    // computed top inset was wrong on a device.
-    final chrome = ChromeMetrics.of(context);
-
     // Everything not on the tree is a different PLACE, reached from the pill.
     // Library and Friends are full screens in their own right; they are hosted
     // here rather than pushed so the pill stays visible and moving between the
@@ -1084,159 +888,40 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
 
     return _withPill(
       Scaffold(
-      // The header is a real layout sibling ABOVE the content, not an overlay
-      // floating over it.
-      //
-      // It used to float, because the Rive tree wants to fill the whole screen
-      // behind the chrome. With the plain-Flutter collection standing in for the
-      // tree, floating text over a scrolling list is simply wrong: rows slid
-      // under the headline and the status-bar clock, and the inset that was
-      // supposed to prevent it assumed a single-line header. A header that can
-      // wrap cannot be cleared by any fixed number, so the fix is structural.
-      // When the tree returns it goes back into a Stack beneath this column.
-      body: CosmosBackdrop(
-        sky: Sky.deep,
-        child: LayoutBuilder(
-          builder: (context, constraints) => Column(
-        // Stretch, not the default centre. A Column centres its children on the
-        // cross axis, which shrink-wraps the header to its text width and centres
-        // the block -- the header is specified top-LEFT.
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          TreeHeader(
-            total: items.length,
-            harvested: items.where((i) => i.isHarvested).length,
-            seeds: items.where((i) => i.isSeed).length,
-            branches: store.branches.length,
-            skipped: store.skipped,
-            onSkippedTap: _showSkippedNotice,
-            onBranchesTap: _openBranches,
-            onProfileTap: _openProfile,
-            // 45% of the real available height. A LayoutBuilder rather than
-            // MediaQuery so the number is the space this Column actually has,
-            // which is also what makes it correct inside a test that injects a
-            // MediaQuery with no size.
-            maxHeight: constraints.maxHeight * 0.45,
-          ),
-
-          // The content layer, with the add control floating over it. Only this
-          // part is a Stack, so nothing can overlap the header.
-          Expanded(
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (_canopy)
-                  NodeTreeView(
-                    items: items,
-                    branches: store.branches,
-                    placements: store.placements,
-                    unfiledCount: _unfiledCount(items, store),
-                    coverCache: widget.coverCache,
-                    onCoverFound: store.applyCoverUrl,
-                    onSelect: _openStatusSheet,
-                    onHold: _openStatusSheet,
-                    onCreateBranch: (parent) => _growBranch(store, parent),
-                    onBranchHold: (b) => _branchMenu(store, b),
-                    onToggleCollapse: (b) =>
-                        store.setBranchCollapsed(b.id, !b.collapsed),
-                    onMoveGame: (item, target) =>
-                        _dropGameOnBranch(store, item, target),
-                    onPick: _showPick,
-                    onUnfiledTap: () =>
-                        setState(() => _place = NavDestination.library),
-                    onSwitchView: () => setState(() => _canopy = false),
-                    bottomInset: chrome.bottom - Tokens.space.md,
-                    // Leaves the add control's corner free.
-                    rightInset: Tokens.size.navPill + Tokens.space.md,
-                  )
-                else
-                RoadmapView(
-                  items: items,
-                  branches: store.branches,
-                  placements: store.placements,
-                  coverCache: widget.coverCache,
-                  onCoverFound: store.applyCoverUrl,
-                  // The header already supplies the gap above; the roadmap only
-                  // needs to clear the control at the bottom.
-                  topInset: 0,
-                  bottomInset: chrome.bottom,
-                  // Tap and hold both open the status sheet, which is also where
-                  // a game is filed onto a branch. Stage 4 adds drag-to-reorder
-                  // on top of the sheet rather than instead of it.
-                  onSelect: _openStatusSheet,
-                  onHold: _openStatusSheet,
-                  // The one-shot draw-line creation animation, driven by the
-                  // real store event: upsert/addShared flags a genuinely new
-                  // igdbId, the connector draws to that node, it pops in, and
-                  // onAddedDone clears the flag so it never replays.
-                  justAddedIgdbId: store.justAdded,
-                  onAddedDone: () {
-                    store.consumeJustAdded();
-                    if (mounted) setState(() {});
-                  },
-                  // Drag-to-reorder, persisted through the store.
-                  roadmapOrder: store.roadmapOrder,
-                  onReorder: store.reorderRoadmap,
-                  // The one-shot harvest burst on the real transition-to-finished
-                  // event, over the harvested node.
-                  burstIgdbId: store.justHarvested,
-                  burstLevelUp: store.harvestLevelledUp,
-                  onBurstDone: () {
-                    store.consumeJustHarvested();
-                    if (mounted) setState(() {});
-                  },
-                ),
-
-                // A fade under the add control. Padding alone only fixes where
-                // the list comes to REST; while it is being dragged, rows travel
-                // behind the button, and a row half-visible under a solid circle
-                // reads as a rendering fault. IgnorePointer is load bearing: a
-                // scrim that took pointer events would make the bottom band of
-                // the screen dead to touch.
-                if (!_canopy)
-                  Positioned(
-                    top: Tokens.space.xs,
-                    right: Tokens.space.md,
-                    child: TextButton.icon(
-                      onPressed: () => setState(() => _canopy = true),
-                      icon: Icon(Icons.park_outlined,
-                          size: 16, color: Tokens.palette.textDim),
-                      label: Text('Tree view',
-                          style: TextStyle(
-                              fontSize: Tokens.type.caption,
-                              color: Tokens.palette.textDim)),
-                    ),
-                  ),
-                _Scrim(extent: chrome.bottom),
-
-                // Bottom RIGHT, and lifted clear of the navigation pill.
-                //
-                // It used to sit bottom-left "where a thumb already rests", which
-                // was right when the bottom of the screen was empty. The pill now
-                // spans that width, so left or right no longer decides thumb
-                // reach -- clearing the pill does. Right keeps it off the Tree
-                // label, which is the destination a user is most likely to aim at
-                // while adding.
-                SafeArea(
-                  child: Align(
-                    alignment: Alignment.bottomRight,
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        right: Tokens.space.md,
-                        bottom: NavPill.heightFor(context) + Tokens.space.md,
-                      ),
-                      child: AddMenu(onAction: _onAdd),
-                    ),
-                  ),
-                ),
-              ],
+        // The orchard fills the screen; the Rive file draws its own sky. Only
+        // the add control floats, lifted clear of the navigation pill.
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            OrchardView(
+              items: items,
+              branches: store.branches,
+              placements: store.placements,
+              onOpenGame: _openStatusSheet,
+              onPlantTree: (name) => store.createBranch(name),
+              onMoveGame: (item, fromTree, toTree) =>
+                  _moveBetweenTrees(store, item, fromTree, toTree),
+              onRenameTree: (tree) => _branchMenu(store, tree),
+              unfiled: _unfiled(items, store),
+              onUnfiledTap: () =>
+                  setState(() => _place = NavDestination.library),
+              bottomInset: NavPill.heightFor(context) + Tokens.space.md,
             ),
-          ),
-        ],
-        ),
+            SafeArea(
+              child: Align(
+                alignment: Alignment.bottomRight,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    right: Tokens.space.md,
+                    bottom: NavPill.heightFor(context) + Tokens.space.md,
+                  ),
+                  child: AddMenu(onAction: _onAdd),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
-    ),
       toPlace: _unfiledCount(items, store),
     );
   }
@@ -1247,13 +932,17 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// drawn outside `RoadmapView` and asking the view for a number would
   /// mean building the tree a second time. Buds count: a recommendation can be
   /// filed like anything else now.
-  int _unfiledCount(List<TreeItem> items, LudeckStore store) {
+  int _unfiledCount(List<TreeItem> items, LudeckStore store) =>
+      _unfiled(items, store).length;
+
+  /// The games on no branch (and not shelved), for the orchard's ground pile.
+  List<TreeItem> _unfiled(List<TreeItem> items, LudeckStore store) {
     final filed = <int>{
       for (final ids in store.placements.values) ...ids,
     };
     return items
         .where((i) => !i.entry.shelved && !filed.contains(i.game.igdbId))
-        .length;
+        .toList();
   }
 
   /// Puts the navigation pill under whatever place is showing.
@@ -1328,44 +1017,3 @@ class _LoadFailure extends StatelessWidget {
   }
 }
 
-/// The top of the screen: headline, subline, and the unreadable-rows notice.
-///
-/// An ordinary layout child with its own natural height, which is the whole
-/// point. It previously floated over the content inside a Stack, and the content
-/// padded itself by a guessed header height; that guess assumed one line of
-/// display type and was short by the subline on a real device. Text wraps at
-/// large text scales and on narrow screens, so no constant could have been
-/// right. Laid out in sequence, an overlap is not expressible.
-/// the reserved band cannot fall out of step.
-class _Scrim extends StatelessWidget {
-  const _Scrim({required this.extent});
-
-  final double extent;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = Tokens.palette.bg;
-    return Positioned(
-      key: const Key('scrim-bottom'),
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: extent,
-      child: IgnorePointer(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
-              // Solid for most of the band, then a short fade. Fading across the
-              // whole height would leave the control sitting over a half-visible
-              // row, which is the artefact this exists to remove.
-              colors: [bg, bg, bg.withValues(alpha: 0)],
-              stops: const [0, 0.65, 1],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

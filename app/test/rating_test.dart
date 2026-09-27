@@ -80,12 +80,18 @@ void main() {
     /// LongPressDraggable won the gesture arena and stopped the drag starting at
     /// all. Filing now lives in this very sheet, so tap and hold both open it.
     Future<void> openStatusSheet(WidgetTester tester, String title) async {
-      final target = find.bySemanticsLabel(RegExp('^$title,'));
-      // The roadmap SCROLLS -- unlike the old tree, a later node can sit below
-      // the fold, so tapping its semantics rect derives an off-screen offset and
-      // misses. Every node is built eagerly in the Stack, so the finder already
-      // matches; it just needs scrolling into view (ensureVisible), the same
-      // result a user's scroll produces.
+      // REFRAMED for the orchard home. The seeded fixture has no trees, so its
+      // games are on the ground and the home shows only the planting patch; the
+      // Rive fruit is also not drawn headless (no native library). The route a
+      // user takes to a game on the ground is the ground pile -> the library, so
+      // that is the route here. The intent (a game's status sheet, reached from
+      // the home, drives the harvest trigger) is unchanged.
+      var target = find.bySemanticsLabel(RegExp('^$title,'));
+      if (target.evaluate().isEmpty) {
+        await tester.tap(find.byKey(const Key('orchard-ground')));
+        await tester.pumpAndSettle();
+        target = find.bySemanticsLabel(RegExp('^$title,'));
+      }
       await tester.ensureVisible(target);
       await tester.pumpAndSettle();
       await tester.tap(target);

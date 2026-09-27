@@ -196,7 +196,7 @@ void main() {
     testWidgets('every destination is announced, and the current one says so',
         (tester) async {
       await pumpPill(tester, current: NavDestination.tree);
-      expect(find.bySemanticsLabel('Roadmap, current'), findsOneWidget);
+      expect(find.bySemanticsLabel('Orchard, current'), findsOneWidget);
       expect(find.bySemanticsLabel('Library'), findsOneWidget);
       expect(find.bySemanticsLabel('Friends'), findsOneWidget);
       expect(find.bySemanticsLabel('You'), findsOneWidget);

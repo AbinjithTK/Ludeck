@@ -40,7 +40,7 @@ void main() {
     });
     await tester.pumpAndSettle();
 
-    expect(find.text('Your games, as a roadmap'), findsOneWidget);
+    expect(find.text('Your games, as an orchard'), findsOneWidget);
 
     while (find.text('Next').evaluate().isNotEmpty) {
       await tester.tap(find.text('Next'));
@@ -57,6 +57,6 @@ void main() {
     expect(tester.takeException(), isNull);
 
     // And onboarding is genuinely gone, replaced by the real home screen.
-    expect(find.text('Your games, as a roadmap'), findsNothing);
+    expect(find.text('Your games, as an orchard'), findsNothing);
   });
 }
