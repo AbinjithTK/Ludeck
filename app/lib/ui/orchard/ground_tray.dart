@@ -427,9 +427,12 @@ class _FruitImageState extends State<FruitImage> {
       width: w,
       height: h,
       decoration: BoxDecoration(
-        color: Tokens.cosmos.panelDeep,
+        // Loading: a visible glass card, so a cover still downloading reads
+        // as a card arriving rather than as a gap.
+        color: png == null ? Tokens.cosmos.panel : Tokens.cosmos.panelDeep,
         borderRadius: BorderRadius.circular(widget.radius),
-        border: widget.border,
+        border: widget.border ??
+            (png == null ? Border.all(color: Tokens.cosmos.panelEdge) : null),
         boxShadow: widget.shadow
             ? [
                 BoxShadow(

@@ -606,17 +606,41 @@ class Repository {
   Future<void> reorderBranches(List<int> idsInOrder) =>
       _db.transaction((txn) => _writeOrder(txn, idsInOrder));
 
-  Future<void> place(int igdbId, int branchId, {int position = 0}) => _db.insert(
+  /// Hangs [igdbId] on [branchId]. With no [position] it goes on the END, so
+  /// adding a game never reorders what already hangs there (every placement
+  /// used to write position 0, which sorted a tree by title and made each new
+  /// game re-pop the whole tree's fruit in a new order).
+  Future<void> place(int igdbId, int branchId, {int? position}) async =>
+      _db.insert(
         'placements',
-        {'branch_id': branchId, 'igdb_id': igdbId, 'position': position},
+        {
+          'branch_id': branchId,
+          'igdb_id': igdbId,
+          'position': position ?? await _nextPosition(_db, branchId, igdbId),
+        },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+
+  /// One past the last position on [branchId], or the game's current one if
+  /// it already hangs there (re-placing must not move it).
+  static Future<int> _nextPosition(
+      DatabaseExecutor db, int branchId, int igdbId) async {
+    final have = await db.query('placements',
+        columns: ['position'],
+        where: 'branch_id = ? AND igdb_id = ?',
+        whereArgs: [branchId, igdbId]);
+    if (have.isNotEmpty) return have.first['position'] as int;
+    final r = await db.rawQuery(
+        'SELECT COALESCE(MAX(position), -1) + 1 AS p FROM placements WHERE branch_id = ?',
+        [branchId]);
+    return r.first['p'] as int;
+  }
 
   /// Takes a game off [fromBranchId] and hangs it on [toBranchId], atomically.
   ///
   /// Only that one placement moves. The game's other branches are untouched:
   /// a game may live on many branches, and "move" means "from here to there",
-  /// never "off everything else".
+  /// never "off everything else". It arrives at the END of its new tree.
   Future<void> moveGame(int igdbId,
           {required int fromBranchId, required int toBranchId}) =>
       _db.transaction((txn) async {
@@ -625,7 +649,11 @@ class Repository {
             whereArgs: [fromBranchId, igdbId]);
         await txn.insert(
           'placements',
-          {'branch_id': toBranchId, 'igdb_id': igdbId, 'position': 0},
+          {
+            'branch_id': toBranchId,
+            'igdb_id': igdbId,
+            'position': await _nextPosition(txn, toBranchId, igdbId),
+          },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
       });
