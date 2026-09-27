@@ -214,6 +214,21 @@ going, not where it stopped.
 Reduced motion is honoured by reading `ANIMATOR_DURATION_SCALE`. When it is zero,
 animations resolve instantly rather than being skipped in a way that loses state.
 
+**The meadow moves at rest, decided 2026-09-27.** Abin reversed "nothing animates
+at rest": his words were "the grass and flowers should animate perfectly, wiggle
+or something, make the scenes live". It is fenced so it stays atmosphere: only the
+meadow's grass, the flowers, fireflies and lantern move (one `MeadowClock` in
+`meadow.dart`); blades bend at most `kSwayLean` (0.075 rad) in a slow travelling
+wave, and a swipe blows them the way the ground trails, bounded by `kWindMax`,
+settling in ~0.4s. The sky, the tree, covers, text and controls never move at
+rest, and under reduce motion nothing moves at all.
+
+**A game's state on the tree is a shape, never a colour to learn.** `fruit_look.dart`
+bakes it into the card image: a bud (recommended, not owned) is drained of colour,
+playing carries a play mark, harvested a gold rim and check (gold keeps its one
+meaning), everything else is the plain cover. A game with no cover is a lettered
+card.
+
 ## Rive
 
 The fruit artboard is 240x240. The body Shape sits at (120, 140) with diameter 112,

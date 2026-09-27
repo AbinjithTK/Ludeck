@@ -17,6 +17,7 @@ import 'package:flutter/services.dart';
 import 'package:rive/rive.dart' as rv;
 
 import '../../data/models.dart';
+import 'fruit_look.dart';
 
 /// Fruit slots in the file.
 const int kTreeSlots = 12;
@@ -107,6 +108,10 @@ class RiveTreeController {
 
   /// Which fruit the pointer last went down on, or -1. Read on long-press.
   int get pressed => _state?._readNumber('pressed')?.round() ?? -1;
+
+  /// The tree takes a weight: the canopy's own squash-and-recover, as when
+  /// it is tapped. Played when a game is dropped onto it.
+  void rustle() => _state?._rustle();
 }
 
 class RiveTree extends StatefulWidget {
@@ -120,11 +125,16 @@ class RiveTree extends StatefulWidget {
     this.alignment,
     this.fit = rv.Fit.cover,
     this.asset = kDefaultTreeAsset,
+    this.looks = const [],
   });
 
   /// Fruit, in slot order (slot 0 is the canopy centre). Only the first
   /// [kTreeSlots] hang.
   final List<Game> games;
+
+  /// Each fruit's look (fruit_look.dart), parallel to [games]. Missing
+  /// entries are [FruitLook.plain].
+  final List<FruitLook> looks;
 
   /// How big the tree should be (0..12). Only ever raised internally.
   final int grownTarget;
@@ -217,7 +227,16 @@ class _RiveTreeState extends State<RiveTree> {
     }
     final before = old.games.take(kTreeSlots).map((g) => g.igdbId).toList();
     final after = _hung.map((g) => g.igdbId).toList();
-    if (_sameIds(before, after) && old.grownTarget == widget.grownTarget) return;
+    if (_sameIds(before, after)) {
+      // Same fruit. A game whose state changed (started, finished) repaints
+      // its card in place; nothing re-pops.
+      for (var i = 0; i < after.length; i++) {
+        if (_lookAt(old.looks, i) != _lookAt(widget.looks, i)) {
+          _loadCover(i, _generation);
+        }
+      }
+      if (old.grownTarget == widget.grownTarget) return;
+    }
     if (_isAppend(before, after)) {
       // New fruit on the end: just hang it. Nothing already there re-pops.
       _feed();
@@ -237,24 +256,41 @@ class _RiveTreeState extends State<RiveTree> {
     final hung = _hung;
     final gen = _generation;
     for (var i = 0; i < hung.length; i++) {
-      final url = hung[i].coverUrl;
-      if (url != null && url.isNotEmpty) _loadCover(i, url, gen);
+      _loadCover(i, gen);
     }
     _grownTo = nextGrown(_grownTo, widget.grownTarget);
     _setNumber('grown', treeSize(_grownTo));
     _setNumber('found', hung.length.toDouble());
   }
 
-  Future<void> _loadCover(int slot, String url, int gen) async {
+  static FruitLook _lookAt(List<FruitLook> looks, int i) =>
+      i < looks.length ? looks[i] : FruitLook.plain;
+
+  /// Slot [slot]'s card image: the cover with its look baked in, or a
+  /// lettered card when there is no cover (fruit_look.dart).
+  Future<void> _loadCover(int slot, int gen) async {
+    final hung = _hung;
+    if (slot >= hung.length) return;
+    final game = hung[slot];
     try {
-      final bytes = await NetworkAssetBundle(Uri.parse(url)).load(url);
-      final png = await coverFitPng(bytes.buffer.asUint8List());
+      final png = await fruitPng(game, _lookAt(widget.looks, slot));
       final image = await rv.Factory.rive.decodeImage(png);
       if (!mounted || gen != _generation || image == null) return;
+      if (slot >= _hung.length || _hung[slot].igdbId != game.igdbId) return;
       _vm?.image('cover${slot + 1}')?.value = image;
     } catch (_) {
       // Keep the placeholder art; the game is still named everywhere else.
     }
+  }
+
+  Timer? _rustleOff;
+  void _rustle() {
+    _vm?.boolean('rustle')?.value = true;
+    _rustleOff?.cancel();
+    // The file's rustle is one 440ms beat; clear the flag after it so the
+    // next landing can play it again.
+    _rustleOff = Timer(const Duration(milliseconds: 460),
+        () => _vm?.boolean('rustle')?.value = false);
   }
 
   void _onSelected(double value) {
@@ -271,6 +307,7 @@ class _RiveTreeState extends State<RiveTree> {
   @override
   void dispose() {
     _repop?.cancel();
+    _rustleOff?.cancel();
     if (widget.controller?._state == this) widget.controller?._state = null;
     _selected?.removeListener(_onSelected);
     _controller?.dispose();

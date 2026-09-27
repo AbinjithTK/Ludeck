@@ -14,10 +14,18 @@
 //
 // The ridge crests exactly under each trunk (the soil line) and dips between
 // trees, so trees stand on knolls of one rolling meadow and the ground never
-// ends. The sky and stars are static apart from a slight parallax: the home
-// screen is on screen whenever the app is open, where ambient motion stops
-// being delight and becomes noise.
+// ends. The sky and stars are static apart from a slight parallax.
+//
+// What moves at rest (DECISIONS.md, reversed 2026-09-27 at Abin's request:
+// "the grass and flowers should wiggle, make the scenes live"): the grass,
+// the flowers, the fireflies and the lantern flame, driven by one
+// [MeadowClock]. Bounded so it stays atmosphere, not a show: a slow wave of
+// wind rolls across the meadow, blades bend a few degrees, and a swipe makes
+// the grass trail behind the ground like real grass does, then settle. The
+// sky, the tree, the covers, text and controls never move at rest. Nothing
+// moves at all under the OS reduce-motion setting.
 
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -26,6 +34,53 @@ import 'package:flutter/widgets.dart';
 import '../tokens.dart';
 import 'rive_tree.dart' show kTreeArtW, treeFrame;
 import 'tree_style.dart';
+
+/// Time and wind for everything alive in the meadow. One per orchard.
+class MeadowClock extends ChangeNotifier {
+  /// Off under flutter_test: a clock that never stops would keep every
+  /// `pumpAndSettle` on the home screen from ever settling. A test that wants
+  /// the clock drives [advance] itself.
+  static bool enabled = !Platform.environment.containsKey('FLUTTER_TEST');
+
+  /// Seconds since the orchard opened.
+  double t = 0;
+
+  /// How far the grass is blown by the swipe, in radians of lean. Positive
+  /// leans right. Follows the scroll's velocity through a short low-pass, so
+  /// it rises with the swipe and settles in ~0.4s when the ground stops.
+  double wind = 0;
+
+  double? _lastScroll;
+
+  /// Move time on by [dt] seconds with the pages at [scroll] px.
+  void advance(double dt, double scroll) {
+    if (dt <= 0) return;
+    t += dt;
+    final last = _lastScroll ?? scroll;
+    _lastScroll = scroll;
+    final v = (scroll - last) / dt; // px/s; the ground moves the other way
+    final target = (v / kWindPerLean).clamp(-kWindMax, kWindMax);
+    wind += (target - wind) * (1 - math.exp(-dt / kWindLag));
+    notifyListeners();
+  }
+}
+
+/// Scroll speed (px/s) that bends the grass by one radian, the most it
+/// bends, and how quickly it follows (seconds, low-pass time constant).
+const double kWindPerLean = 5200, kWindMax = 0.32, kWindLag = 0.12;
+
+/// The resting sway: blades bend by this much (radians) as the wave passes,
+/// the wave's speed across the meadow, and how long one gust takes.
+const double kSwayLean = 0.075, kSwaySpeed = 1.5, kGustPeriod = 17;
+
+/// Extra lean for a blade at world x [xw] at time [t], with [wind].
+/// Pure, so a test can pin that it is bounded and that it is 0 when still.
+double swayAt(double xw, double t, double wind, double salt) {
+  if (t == 0 && wind == 0) return 0;
+  final gust = 0.55 + 0.45 * math.sin(2 * math.pi * t / kGustPeriod + xw * 0.0015);
+  return kSwayLean * gust * math.sin(xw * 0.016 - t * kSwaySpeed + salt * 1.3) +
+      wind;
+}
 
 /// Where the blossom's light is centred, in artboard units, and its reach.
 const Offset kHaloCentre = Offset(190, 400);
@@ -71,7 +126,9 @@ void _paintGrass(Canvas canvas, Size size,
     required double sink,
     required int salt,
     required List<Color> shades,
-    Color? rim}) {
+    Color? rim,
+    double time = 0,
+    double wind = 0}) {
   final paths = List.generate(shades.length, (_) => Path());
   final rimPath = Path();
   final first = ((scroll - maxH) / spacing).floor();
@@ -83,7 +140,7 @@ void _paintGrass(Canvas canvas, Size size,
     final base = ridgeY(xw, size.width, groundY) + sink;
     var h = minH + (maxH - minH) * r1 * r1;
     if (r3 > 0.93) h *= 1.5; // the odd tall stem
-    final lean = (r2 - 0.5) * 0.9;
+    final lean = (r2 - 0.5) * 0.9 + swayAt(xw, time, wind, r3);
     final w = 1.6 + r3 * 1.4;
     final tip = Offset(x + math.sin(lean) * h, base - math.cos(lean) * h);
     final bend = Offset(x + math.sin(lean) * h * 0.35, base - h * 0.55);
@@ -143,7 +200,7 @@ class MeadowBackPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final s = scroll.value;
     final groundY = size.height - groundFromBottom;
-    final c = Tokens.cosmos, o = Tokens.orchard;
+    final c = Tokens.cosmos;
 
     canvas.drawRect(
         Offset.zero & size,
@@ -193,7 +250,32 @@ class MeadowBackPainter extends CustomPainter {
             colors: [c.hillTop, c.hillDeep],
           ).createShader(
               Rect.fromLTRB(0, groundY - kRidgeDip * size.width, size.width, size.height)));
+  }
 
+  @override
+  bool shouldRepaint(MeadowBackPainter old) =>
+      old.scroll != scroll ||
+      old.groundFromBottom != groundFromBottom ||
+      !listEquals(old.halos, halos);
+}
+
+/// The back grass and the ridge's rim, on their own layer: they sway with
+/// [clock] every frame, and the sky, stars and halos under them do not need
+/// repainting for that.
+class MeadowGrassPainter extends CustomPainter {
+  MeadowGrassPainter(
+      {required this.scroll, required this.groundFromBottom, this.clock})
+      : super(repaint: Listenable.merge([scroll, clock]));
+
+  final ValueListenable<double> scroll;
+  final double groundFromBottom;
+  final MeadowClock? clock;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = scroll.value;
+    final groundY = size.height - groundFromBottom;
+    final c = Tokens.cosmos, o = Tokens.orchard;
     // Back grass: dense, tall, standing just behind the ridge line.
     _paintGrass(canvas, size,
         scroll: s,
@@ -204,8 +286,14 @@ class MeadowBackPainter extends CustomPainter {
         sink: 1.5,
         salt: 11,
         shades: [o.grassBack, Color.lerp(o.grassBack, o.grassFront, 0.5)!, o.grassFront],
-        rim: o.grassRim);
+        rim: o.grassRim,
+        time: clock?.t ?? 0,
+        wind: clock?.wind ?? 0);
 
+    final ridge = Path()..moveTo(-1, ridgeY(s - 1, size.width, groundY));
+    for (var x = 0.0; x <= size.width + 6; x += 6) {
+      ridge.lineTo(x, ridgeY(s + x, size.width, groundY));
+    }
     canvas.drawPath(
         ridge,
         Paint()
@@ -215,18 +303,20 @@ class MeadowBackPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(MeadowBackPainter old) =>
+  bool shouldRepaint(MeadowGrassPainter old) =>
       old.scroll != scroll ||
-      old.groundFromBottom != groundFromBottom ||
-      !listEquals(old.halos, halos);
+      old.clock != clock ||
+      old.groundFromBottom != groundFromBottom;
 }
 
 /// Short grass in FRONT of the trees, so each trunk's foot stands in it.
 class MeadowFrontPainter extends CustomPainter {
-  MeadowFrontPainter({required this.scroll, required this.groundFromBottom})
-      : super(repaint: scroll);
+  MeadowFrontPainter(
+      {required this.scroll, required this.groundFromBottom, this.clock})
+      : super(repaint: Listenable.merge([scroll, clock]));
 
   final ValueListenable<double> scroll;
+  final MeadowClock? clock;
 
   /// The soil line's distance from the bottom edge (same for every page).
   final double groundFromBottom;
@@ -243,12 +333,16 @@ class MeadowFrontPainter extends CustomPainter {
         maxH: 13,
         sink: 6,
         salt: 29,
-        shades: [o.grassBack, Color.lerp(o.grassBack, Tokens.cosmos.hillTop, 0.5)!]);
+        shades: [o.grassBack, Color.lerp(o.grassBack, Tokens.cosmos.hillTop, 0.5)!],
+        time: clock?.t ?? 0,
+        wind: clock?.wind ?? 0);
   }
 
   @override
   bool shouldRepaint(MeadowFrontPainter old) =>
-      old.scroll != scroll || old.groundFromBottom != groundFromBottom;
+      old.scroll != scroll ||
+      old.clock != clock ||
+      old.groundFromBottom != groundFromBottom;
 }
 
 /// One tree's light on the sky behind it, in its blossom's colour.
@@ -288,13 +382,20 @@ class DecorPainter extends CustomPainter {
     required this.front,
     required this.groundY,
     required this.pageIndex,
-  });
+    this.clock,
+  }) : super(repaint: clock);
 
   final Rect tree;
   final Set<TreeDecor> decor;
   final bool front;
   final double groundY;
   final int pageIndex;
+
+  /// Flowers nod, fireflies drift and pulse, the lantern flickers. Null or
+  /// stopped: everything is drawn at rest.
+  final MeadowClock? clock;
+  double get _t => clock?.t ?? 0;
+  double get _wind => clock?.wind ?? 0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -360,8 +461,11 @@ class DecorPainter extends CustomPainter {
           ..strokeWidth = 2.2 * s);
     final lamp = Rect.fromCenter(
         center: armEnd + Offset(0, 13 * s), width: 11 * s, height: 14 * s);
-    // Glow first, so the frame draws over its bright core.
-    for (final (r, a) in [(46.0, 0.14), (20.0, 0.22)]) {
+    // Glow first, so the frame draws over its bright core. A candle's
+    // flicker: two incommensurate waves, never more than 12% dimmer.
+    final t = _t;
+    final flame = t == 0 ? 1.0 : 0.94 + 0.06 * math.sin(t * 7.3) * math.sin(t * 3.1 + 1);
+    for (final (r, a) in [(46.0, 0.14 * flame), (20.0, 0.22 * flame)]) {
       c.drawCircle(
           lamp.center,
           r * s,
@@ -442,7 +546,11 @@ class DecorPainter extends CustomPainter {
     for (var i = 0; i < spots.length; i++) {
       final x = trunk + spots[i] * s, y = g(x) + 4;
       final h = (9 + 6 * _hash(i, 3)) * s;
-      final head = Offset(x + (_hash(i, 4) - 0.5) * 4 * s, y - h);
+      // A nod: each flower on its own slow phase, plus the swipe's wind.
+      final nod = 0.10 * math.sin(_t * 1.7 + i * 1.9) * (_t == 0 ? 0 : 1) + _wind;
+      final head = Offset(
+          x + (_hash(i, 4) - 0.5) * 4 * s + math.sin(nod) * h,
+          y - h * math.cos(nod));
       c.drawLine(Offset(x, y), head, stem);
       final petal = Paint()..color = t.petals[i % t.petals.length];
       final r = (2.0 + _hash(i, 5)) * s;
@@ -463,17 +571,23 @@ class DecorPainter extends CustomPainter {
       Offset(210, 648),
     ];
     for (var i = 0; i < at.length; i++) {
-      final p = tree.topLeft + at[i] * s;
+      final t = _t;
+      // A slow wandering loop a few points wide, and a glow that breathes.
+      final drift = t == 0
+          ? Offset.zero
+          : Offset(math.sin(t * 0.55 + i * 2.1) * 5, math.cos(t * 0.41 + i * 1.7) * 4);
+      final pulse = t == 0 ? 1.0 : 0.55 + 0.45 * (0.5 + 0.5 * math.sin(t * 1.25 + i * 2.7));
+      final p = tree.topLeft + (at[i] + drift) * s;
       final r = (7 + 4 * _hash(i, 9)) * s;
       c.drawCircle(
           p,
           r,
           Paint()
             ..shader = RadialGradient(colors: [
-              f.withValues(alpha: 0.30),
+              f.withValues(alpha: 0.30 * pulse),
               f.withValues(alpha: 0),
             ]).createShader(Rect.fromCircle(center: p, radius: r)));
-      c.drawCircle(p, 1.3 * s, Paint()..color = f.withValues(alpha: 0.9));
+      c.drawCircle(p, 1.3 * s, Paint()..color = f.withValues(alpha: 0.9 * pulse));
     }
   }
 
@@ -481,6 +595,7 @@ class DecorPainter extends CustomPainter {
   bool shouldRepaint(DecorPainter old) =>
       old.tree != tree ||
       old.front != front ||
+      old.clock != clock ||
       old.groundY != groundY ||
       old.pageIndex != pageIndex ||
       !setEquals(old.decor, decor);

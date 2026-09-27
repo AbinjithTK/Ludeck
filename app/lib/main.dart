@@ -392,8 +392,9 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   Future<void> _fileGame(
     LudeckStore store,
     TreeItem item,
-    int? toBranchId,
-  ) async {
+    int? toBranchId, {
+    bool quiet = false,
+  }) async {
     final id = item.game.igdbId;
     final from = <int>[
       for (final b in store.branches)
@@ -409,7 +410,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       if (b != toBranchId) await store.unplace(id, b);
     }
 
-    if (!mounted) return;
+    if (!mounted || quiet) return;
 
     // Named feedback, because the tree does not paint branch names: without it
     // the user has no on-screen way to confirm WHICH branch received the game.
@@ -918,6 +919,10 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               onPlantTree: (name) => store.createBranch(name),
               onMoveGame: (item, fromTree, toTree) =>
                   _moveBetweenTrees(store, item, fromTree, toTree),
+              // Dragged up from the ground tray. The flight onto the tree is
+              // the confirmation, so no snackbar on top of it.
+              onFileGame: (item, tree) =>
+                  _fileGame(store, item, tree, quiet: true),
               onRenameTree: (tree) => _branchMenu(store, tree),
               styles: resolveTreeStyles(
                   treesOf(store.branches).map((b) => b.id).toList(),
@@ -927,21 +932,8 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   wood: style.wood.name,
                   decor: style.decorCsv),
               unfiled: _unfiled(items, store),
-              onUnfiledTap: () =>
-                  setState(() => _place = NavDestination.library),
+              addButton: AddMenu(onAction: _onAdd),
               bottomInset: NavPill.heightFor(context) + Tokens.space.md,
-            ),
-            SafeArea(
-              child: Align(
-                alignment: Alignment.bottomRight,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                    right: Tokens.space.md,
-                    bottom: NavPill.heightFor(context) + Tokens.space.md,
-                  ),
-                  child: AddMenu(onAction: _onAdd),
-                ),
-              ),
             ),
           ],
         ),

@@ -47,6 +47,20 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
   bool get _open => _c.value > 0.5;
 
   @override
+  void initState() {
+    super.initState();
+    // The overlay exists only while the menu is open or animating, so a
+    // closed menu adds nothing above the scene.
+    _c.addStatusListener((s) {
+      if (s == AnimationStatus.dismissed) {
+        if (_portal.isShowing) _portal.hide();
+      } else if (!_portal.isShowing) {
+        _portal.show();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _c.dispose();
     super.dispose();
@@ -77,26 +91,43 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    const actions = AddAction.values;
+    // The button alone takes layout space; the pills rise above it in the
+    // overlay, anchored to it. So the button can sit INSIDE another control
+    // (the orchard's ground tray) and the open menu never resizes that
+    // control or gets clipped by it.
+    return CompositedTransformTarget(
+      link: _link,
+      child: OverlayPortal(
+        controller: _portal,
+        overlayChildBuilder: (context) => CompositedTransformFollower(
+          link: _link,
+          targetAnchor: Alignment.topRight,
+          followerAnchor: Alignment.bottomRight,
+          offset: Offset(0, -Tokens.space.xs),
+          child: Align(
+            alignment: Alignment.bottomRight,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.5),
+              child: _pills(),
+            ),
+          ),
+        ),
+        child: _button(),
+      ),
+    );
+  }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // The pills are FLEXIBLE and scrollable; the button below is not.
-        //
-        // The pills grow with the user's text-size setting, and at 2x scale the
-        // open menu is taller than the band it floats in -- a plain Column
-        // overflowed by 51px. A floating menu has to survive its own content
-        // getting bigger rather than assume it always fits. `reverse: true` keeps
-        // the stack anchored to the button when it does have to scroll, so the
-        // pill nearest your thumb is the one that stays put.
-        Flexible(
-          child: SingleChildScrollView(
+  final LayerLink _link = LayerLink();
+  final OverlayPortalController _portal = OverlayPortalController();
+
+  Widget _pills() {
+    const actions = AddAction.values;
+    return SingleChildScrollView(
             reverse: true,
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 for (var i = 0; i < actions.length; i++)
                   AnimatedBuilder(
@@ -126,10 +157,11 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
                   ),
               ],
             ),
-          ),
-        ),
+          );
+  }
 
-        AnimatedBuilder(
+  Widget _button() {
+    return AnimatedBuilder(
           animation: _c,
           builder: (context, child) => Transform.rotate(
             // Forty five degrees turns the plus into a close mark. It is the
@@ -163,9 +195,7 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
               ),
             ),
           ),
-        ),
-      ],
-    );
+        );
   }
 }
 

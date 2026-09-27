@@ -156,6 +156,13 @@ void main() {
       await openStatusSheet(tester, 'Hollow Knight');
       await tapInSheet(tester, 'Harvested');
 
+      // Bounded wait for the sheet, not a fixed one: the write's continuation
+      // shares real time with the ground tray building its fruit images, so
+      // 40ms is not always enough (a fixed-ms wait for a real sqflite write is
+      // this suite's documented flake).
+      for (var i = 0; i < 50 && find.text('How was it? Optional.').evaluate().isEmpty; i++) {
+        await settle(tester);
+      }
       expect(find.text('How was it? Optional.'), findsOneWidget);
     });
 

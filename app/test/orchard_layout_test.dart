@@ -28,6 +28,9 @@ import 'package:ludeck/services/catalog_service.dart';
 import 'package:ludeck/services/share_intake.dart';
 import 'package:ludeck/state/ludeck_store.dart';
 import 'package:ludeck/ui/orchard/orchard_view.dart';
+import 'package:ludeck/ui/orchard/fruit_flight.dart';
+import 'package:ludeck/ui/orchard/ground_tray.dart';
+import 'package:ludeck/ui/orchard/rive_tree.dart';
 import 'package:ludeck/ui/tokens.dart';
 
 void main() {
@@ -89,15 +92,91 @@ void main() {
     expect(find.bySemanticsLabel('Plant a new tree'), findsOneWidget);
   });
 
-  testWidgets('games on no tree show as the ground pile, which opens the library',
+  testWidgets('games on no tree sit in the ground tray, which opens into covers',
       (tester) async {
     await pump(tester);
     final ground = find.byKey(const Key('orchard-ground'));
     expect(ground, findsOneWidget);
+    expect(find.byKey(const Key('ground-strip')), findsNothing,
+        reason: 'the tray starts collapsed');
     await tester.tap(ground);
     await tester.pumpAndSettle();
-    expect(find.byType(OrchardView), findsNothing,
-        reason: 'the ground pile should take you to the library');
+    expect(find.byType(OrchardView), findsOneWidget,
+        reason: 'the tray opens in place; it no longer leaves for the library');
+    expect(find.byKey(const Key('ground-strip')), findsOneWidget);
+    // Every game on the ground is a cover in the strip, spoken with its state.
+    expect(find.bySemanticsLabel(RegExp(r'On the ground\. Hold and drag')),
+        findsWidgets);
+    // A cover opens its game.
+    await tester.tap(find.bySemanticsLabel(RegExp(r'On the ground\. Hold')).first);
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsWidgets);
+  });
+
+  testWidgets('hold a tray cover and drop it on the tree: it hangs there',
+      (tester) async {
+    late int treeId;
+    await tester.runAsync(() async {
+      treeId = await repo.createBranch('Cozy', sortOrder: 0);
+    });
+    await pump(tester);
+    await tester.tap(find.byKey(const Key('orchard-ground')));
+    await tester.pumpAndSettle();
+
+    final cover = find.bySemanticsLabel(RegExp(r'On the ground\. Hold')).first;
+    final title = tester.getSemantics(cover).label.split(',').first;
+    // The tree's frame is the RiveTree's own box (Positioned.fromRect), so
+    // the canopy's middle is a fixed point of the 412x732 artboard in it.
+    final frame = tester.getRect(find.byType(RiveTree).first);
+    final s = frame.width / kTreeArtW;
+    final canopy = frame.topLeft + const Offset(206, 420) * s;
+
+    final g = await tester.startGesture(tester.getCenter(cover));
+    await tester.pump(kLiftDelay + const Duration(milliseconds: 50));
+    // The held card rides kHoldAbove over the finger; put the CARD on the tree.
+    for (var i = 1; i <= 8; i++) {
+      final to = canopy + const Offset(0, kHoldAbove);
+      await g.moveTo(Offset.lerp(tester.getCenter(cover), to, i / 8)!);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await g.up();
+    for (var i = 0; i < 40; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    await tester.pumpAndSettle();
+
+    final placed = await tester.runAsync(() => repo.load());
+    final item = placed!.firstWhere((i) => i.game.title == title);
+    final ids = await tester.runAsync(() => repo.placements());
+    expect(ids![treeId] ?? const <int>[], contains(item.game.igdbId),
+        reason: '$title should hang on the tree it was dropped on');
+    expect(find.byType(FruitFlight), findsNothing, reason: 'the flight ended');
+  });
+
+  testWidgets('a tray cover dropped on nothing goes back to the ground',
+      (tester) async {
+    await tester.runAsync(() async {
+      await repo.createBranch('Cozy', sortOrder: 0);
+    });
+    await pump(tester);
+    await tester.tap(find.byKey(const Key('orchard-ground')));
+    await tester.pumpAndSettle();
+    final cover = find.bySemanticsLabel(RegExp(r'On the ground\. Hold')).first;
+    final g = await tester.startGesture(tester.getCenter(cover));
+    await tester.pump(kLiftDelay + const Duration(milliseconds: 50));
+    // Sky above the canopy: no tree, no dot. The card rides kHoldAbove over
+    // the finger, so it is the CARD that must be in the sky.
+    final frame = tester.getRect(find.byType(RiveTree).first);
+    final s = frame.width / kTreeArtW;
+    final sky = Offset(20, (frame.top + 110 * s).clamp(20.0, 400.0));
+    await g.moveTo(sky + const Offset(0, kHoldAbove));
+    await tester.pump(const Duration(milliseconds: 16));
+    await g.up();
+    await tester.pumpAndSettle();
+    final ids = await tester.runAsync(() => repo.placements());
+    expect(ids!.values.expand((v) => v), isEmpty);
   });
 
   testWidgets('a tree name sits top-left inside the safe area, not centred',

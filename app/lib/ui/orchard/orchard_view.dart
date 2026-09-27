@@ -19,6 +19,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart';
 // Prefixed: rive_native exports its own Animation / Image / Fit names.
 import 'package:rive/rive.dart' as rv;
@@ -27,6 +28,10 @@ import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
 import '../common/name_dialog.dart';
 import '../tokens.dart';
+import 'fruit_flight.dart';
+import 'fruit_look.dart';
+import 'fruit_slots.g.dart';
+import 'ground_tray.dart';
 import 'meadow.dart';
 import 'rive_tree.dart';
 import 'tree_customise_sheet.dart';
@@ -64,11 +69,12 @@ class OrchardView extends StatefulWidget {
     required this.onOpenGame,
     required this.onPlantTree,
     required this.onMoveGame,
+    this.onFileGame,
     this.onRenameTree,
     this.styles = const {},
     this.onStyleTree,
     this.unfiled = const [],
-    this.onUnfiledTap,
+    this.addButton,
     this.bottomInset = 0,
   });
 
@@ -82,6 +88,9 @@ class OrchardView extends StatefulWidget {
 
   /// Move [item] from tree [fromId] to tree [toId].
   final Future<void> Function(TreeItem item, int fromId, int toId) onMoveGame;
+
+  /// Hang [item], from the ground, on tree [treeId].
+  final Future<void> Function(TreeItem item, int treeId)? onFileGame;
   final void Function(Branch tree)? onRenameTree;
 
   /// Each tree's look (`resolveTreeStyles`). A tree missing here gets its
@@ -91,19 +100,26 @@ class OrchardView extends StatefulWidget {
   /// Save [style] as [tree]'s look.
   final Future<void> Function(Branch tree, TreeStyle style)? onStyleTree;
 
-  /// Games on no tree yet. They sit "on the ground": a quiet pile, never a
-  /// nag or a count of what is outstanding (DECISIONS.md).
+  /// Games on no tree yet. They sit "on the ground" in the tray: a quiet
+  /// pile, never a nag or a count of what is outstanding (DECISIONS.md).
   final List<TreeItem> unfiled;
-  final VoidCallback? onUnfiledTap;
 
-  /// Space the app's own bottom chrome takes (nav pill, add button).
+  /// The add control. It is the ground tray's end cap.
+  final Widget? addButton;
+
+  /// Space the app's own bottom chrome takes (nav pill).
   final double bottomInset;
 
   @override
   State<OrchardView> createState() => _OrchardViewState();
 }
 
-class _OrchardViewState extends State<OrchardView> {
+/// How far above the finger a held card's centre sits, so the finger never
+/// hides the cover being placed. And the held card's width.
+const double kHoldAbove = 70, kHeldW = 58;
+
+class _OrchardViewState extends State<OrchardView>
+    with SingleTickerProviderStateMixin {
   final PageController _pages = PageController();
 
   /// Scroll offset in pixels and the fractional page. Notifiers, NOT
@@ -114,15 +130,37 @@ class _OrchardViewState extends State<OrchardView> {
   final ValueNotifier<double> _page = ValueNotifier(0);
   final Map<int, RiveTreeController> _controllers = {};
 
+  /// The meadow's life: grass, flowers, fireflies (meadow.dart).
+  final MeadowClock _clock = MeadowClock();
+  late final Ticker _ambient = createTicker(_onAmbient);
+  Duration _lastAmbient = Duration.zero;
+
   /// A tree planted this session: its page plays the seed -> sapling once.
   int? _sproutId;
 
-  // Drag-to-move state.
+  // ---- the card in your hand -------------------------------------------
   TreeItem? _held;
+
+  /// The tree it came off, or null: it came from the ground tray.
   int? _heldFrom;
   Offset _heldAt = Offset.zero;
+
+  /// Where it was picked up (global): a miss flies back here.
+  Rect? _heldOrigin;
   int? _hoverTarget;
+
+  /// The hover is the current tree's canopy, not a dot.
+  bool _hoverCanopy = false;
   final Map<int, GlobalKey> _dotKeys = {};
+
+  /// Cards flying to where they land, keyed so each keeps its own state.
+  final List<(Key, Widget)> _flights = [];
+
+  /// A tray game that is in flight back to the tray: its gap stays open.
+  TreeItem? _returning;
+
+  /// The soil line's distance from the bottom, from the last layout.
+  double _treeBottom = 0;
 
   @override
   void initState() {
@@ -135,7 +173,30 @@ class _OrchardViewState extends State<OrchardView> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final live = MeadowClock.enabled && !MediaQuery.disableAnimationsOf(context);
+    if (live && !_ambient.isActive) {
+      _lastAmbient = Duration.zero;
+      _ambient.start();
+    } else if (!live && _ambient.isActive) {
+      _ambient.stop();
+      _clock
+        ..t = 0
+        ..wind = 0;
+    }
+  }
+
+  void _onAmbient(Duration elapsed) {
+    final dt = (elapsed - _lastAmbient).inMicroseconds / 1e6;
+    _lastAmbient = elapsed;
+    _clock.advance(dt.clamp(0.0, 0.1), _scroll.value);
+  }
+
+  @override
   void dispose() {
+    _ambient.dispose();
+    _clock.dispose();
     _pages.dispose();
     _scroll.dispose();
     _page.dispose();
@@ -187,46 +248,220 @@ class _OrchardViewState extends State<OrchardView> {
     );
   }
 
-  // ---- drag to move -------------------------------------------------------
-  void _pickUp(Branch tree, List<TreeItem> games, LongPressStartDetails d) {
+  // ---- geometry ----------------------------------------------------------
+  RenderBox? get _box => context.findRenderObject() as RenderBox?;
+
+  List<TreeItem> _gamesOn(Branch tree) => gamesOnTree(
+      tree,
+      BranchTree(widget.branches, widget.placements),
+      {for (final i in widget.items) i.game.igdbId: i});
+
+  /// The tree on screen now, or null on the planting patch.
+  Branch? get _currentTree {
+    final trees = treesOf(widget.branches);
+    final i = _page.value.round();
+    return i >= 0 && i < trees.length ? trees[i] : null;
+  }
+
+  Rect _frameFor(int games) {
+    final size = _box!.size;
+    return treeFrame(size, size.height - _treeBottom, treeZoom(games));
+  }
+
+  /// The current tree's canopy, in global coordinates: where a card is
+  /// "over the tree".
+  Rect? _canopyGlobal(int games) {
+    final box = _box;
+    if (box == null || !box.hasSize) return null;
+    final f = _frameFor(games);
+    final s = f.width / kTreeArtW;
+    final r = Rect.fromLTRB(f.left + 40 * s, f.top + (kCanopyTop - 20) * s,
+        f.right - 40 * s, f.top + (kTreeBaseY - 70) * s);
+    return box.localToGlobal(r.topLeft) & r.size;
+  }
+
+  /// Card [slot]'s centre (global) and width on a tree holding [games].
+  (Offset, double)? _slotGlobal(int games, int slot) {
+    final box = _box;
+    if (box == null || !box.hasSize || games < 1 || games > kTreeSlots) {
+      return null;
+    }
+    if (slot >= kFruitCentres[games - 1].length) return null;
+    final (x, y, sc) = kFruitCentres[games - 1][slot];
+    final f = _frameFor(games);
+    final s = f.width / kTreeArtW;
+    return (box.localToGlobal(f.topLeft + Offset(x, y) * s), 40 * sc * s);
+  }
+
+  Offset _toLocal(Offset global) => _box?.globalToLocal(global) ?? global;
+
+  // ---- lift, carry, land -------------------------------------------------
+  void _liftFromTree(Branch tree, List<TreeItem> games, LongPressStartDetails d) {
     final slot = _controllers[tree.id]?.pressed ?? -1;
     if (slot < 0 || slot >= games.length || slot >= kTreeSlots) return;
+    final at = _slotGlobal(games.length, slot);
+    _lift(games[slot], tree.id,
+        at == null
+            ? null
+            : Rect.fromCenter(center: at.$1, width: at.$2, height: at.$2 * 4 / 3),
+        d.globalPosition);
+  }
+
+  void _lift(TreeItem item, int? fromTree, Rect? origin, Offset at) {
     HapticFeedback.mediumImpact();
+    // Build its image now, so the fruit that pops on the tree already has it.
+    fruitPng(item.game, lookOf(item));
     setState(() {
-      _held = games[slot];
-      _heldFrom = tree.id;
-      _heldAt = d.globalPosition;
+      _held = item;
+      _heldFrom = fromTree;
+      _heldOrigin = origin;
+      _heldAt = at;
       _hoverTarget = null;
+      _hoverCanopy = false;
     });
   }
 
-  void _dragTo(LongPressMoveUpdateDetails d) {
+  void _carry(Offset at) {
     if (_held == null) return;
+    final card = at - const Offset(0, kHoldAbove);
     int? over;
+    var canopy = false;
     for (final e in _dotKeys.entries) {
       final box = e.value.currentContext?.findRenderObject() as RenderBox?;
-      if (box == null || !box.hasSize) continue;
+      if (box == null || !box.hasSize || !box.attached) continue;
       // Generous: the dot's box inflated to a 56pt target.
       final r = (box.localToGlobal(Offset.zero) & box.size).inflate(14);
-      if (r.contains(d.globalPosition) && e.key != _heldFrom) over = e.key;
+      if ((r.contains(card) || r.contains(at)) && e.key != _heldFrom) over = e.key;
     }
-    if (over != _hoverTarget) HapticFeedback.selectionClick();
+    final here = _currentTree;
+    if (over == null && here != null && here.id != _heldFrom) {
+      final r = _canopyGlobal(_gamesOn(here).length);
+      if (r != null && r.contains(card)) {
+        over = here.id;
+        canopy = true;
+      }
+    }
+    if (over != _hoverTarget && over != null) HapticFeedback.selectionClick();
     setState(() {
-      _heldAt = d.globalPosition;
+      _heldAt = at;
       _hoverTarget = over;
+      _hoverCanopy = canopy;
     });
   }
 
-  Future<void> _release() async {
-    final item = _held, from = _heldFrom, to = _hoverTarget;
+  Future<void> _land(Offset at, Velocity velocity) async {
+    final item = _held;
+    if (item == null) return;
+    final from = _heldFrom, target = _hoverTarget, canopy = _hoverCanopy;
+    final origin = _heldOrigin;
+    final card = at - const Offset(0, kHoldAbove);
+    final v = velocity.pixelsPerSecond;
+    final trees = treesOf(widget.branches);
+    final tree = target == null
+        ? null
+        : trees.where((t) => t.id == target).firstOrNull;
+
     setState(() {
       _held = null;
       _heldFrom = null;
       _hoverTarget = null;
+      _hoverCanopy = false;
     });
-    if (item == null || from == null || to == null) return;
-    HapticFeedback.mediumImpact();
-    await widget.onMoveGame(item, from, to);
+
+    Future<void> commit() async {
+      if (tree == null) return;
+      if (from == null) {
+        await widget.onFileGame?.call(item, tree.id);
+      } else {
+        await widget.onMoveGame(item, from, tree.id);
+      }
+    }
+
+    if (tree != null && canopy) {
+      // Onto the tree on screen: fly to the spot its fruit will pop in, and
+      // hold there until the file's pop (which waits 180ms + 55ms per card
+      // before it, discovery.py wait_frames) takes over.
+      final n = _gamesOn(tree).length;
+      final slot = n < kTreeSlots ? _slotGlobal(n + 1, n) : null;
+      final r = _canopyGlobal(n);
+      final to = slot?.$1 ?? r?.center ?? card;
+      _fly(item,
+          from: card,
+          velocity: v,
+          to: to,
+          toWidth: slot?.$2 ?? 18,
+          hold: Duration(milliseconds: slot == null ? 0 : 180 + 55 * n + 60),
+          onArrive: () {
+            HapticFeedback.lightImpact();
+            _controllers[tree.id]?.rustle();
+          });
+      await commit();
+      return;
+    }
+    if (tree != null) {
+      // Onto another tree's dot: into the dot, then go to that tree to see it
+      // hang there.
+      final box = _dotKeys[tree.id]?.currentContext?.findRenderObject() as RenderBox?;
+      final dot = box != null && box.hasSize
+          ? box.localToGlobal(box.size.center(Offset.zero))
+          : card;
+      _fly(item, from: card, velocity: v, to: dot, toWidth: 12);
+      HapticFeedback.lightImpact();
+      await commit();
+      if (!mounted) return;
+      final i = treesOf(widget.branches).indexWhere((t) => t.id == tree.id);
+      if (i >= 0 && _pages.hasClients) {
+        _pages.animateToPage(i,
+            duration: Tokens.motion.maybe(Tokens.motion.camera,
+                reduceMotion: MediaQuery.disableAnimationsOf(context)),
+            curve: Tokens.motion.easeInOut);
+      }
+      return;
+    }
+    // Nowhere: back where it came from.
+    final home = origin?.center ?? card;
+    if (from == null) setState(() => _returning = item);
+    _fly(item,
+        from: card,
+        velocity: v,
+        to: home,
+        toWidth: origin?.width ?? 20,
+        fade: from != null,
+        onDone: () {
+          if (mounted && _returning?.game.igdbId == item.game.igdbId) {
+            setState(() => _returning = null);
+          }
+        });
+  }
+
+  void _fly(TreeItem item,
+      {required Offset from,
+      required Offset velocity,
+      required Offset to,
+      required double toWidth,
+      Duration hold = Duration.zero,
+      bool fade = true,
+      VoidCallback? onArrive,
+      VoidCallback? onDone}) {
+    final key = UniqueKey();
+    final w = FruitFlight(
+      key: key,
+      item: item,
+      from: _toLocal(from),
+      fromWidth: kHeldW,
+      velocity: velocity,
+      to: _toLocal(to),
+      toWidth: toWidth,
+      hold: hold,
+      fade: fade,
+      onArrive: onArrive,
+      onDone: () {
+        if (!mounted) return;
+        setState(() => _flights.removeWhere((f) => f.$1 == key));
+        onDone?.call();
+      },
+    );
+    setState(() => _flights.add((key, w)));
   }
 
   @override
@@ -236,14 +471,14 @@ class _OrchardViewState extends State<OrchardView> {
     final byId = {for (final i in widget.items) i.game.igdbId: i};
     final pageCount = trees.length + 1; // + the empty patch
 
-    // One control row at the add button's height: ground pile left, tree dots
-    // centre (the add button, owned by the shell, sits right). Pages run the
-    // full screen so the sky continues under the controls; each tree's soil
-    // line is placed just above the dots, so its base, the patch and the fruit
-    // never sit behind chrome.
+    // The ground tray along the bottom (its add button as the end cap), the
+    // tree dots just above it. Pages run the full screen so the sky continues
+    // under the controls; each tree's soil line is placed just above the
+    // dots, so its base, the patch and the fruit never sit behind chrome.
     final rowBottom = MediaQuery.paddingOf(context).bottom + widget.bottomInset;
-    const rowH = 52.0, dotsH = 48.0;
+    const rowH = 66.0, dotsH = 48.0;
     final treeBottom = rowBottom + rowH + dotsH;
+    _treeBottom = treeBottom;
 
     return Stack(
       fit: StackFit.expand,
@@ -262,6 +497,16 @@ class _OrchardViewState extends State<OrchardView> {
                         ),
                       null, // the patch
                     ])),
+          ),
+        ),
+        // The back grass, on its own layer: it sways every frame.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: RepaintBoundary(
+              child: CustomPaint(
+                  painter: MeadowGrassPainter(
+                      scroll: _scroll, groundFromBottom: treeBottom, clock: _clock)),
+            ),
           ),
         ),
         Positioned.fill(
@@ -291,6 +536,7 @@ class _OrchardViewState extends State<OrchardView> {
               style: _styleOf(tree, trees),
               games: games,
               controller: c,
+              clock: _clock,
               sprout: tree.id == _sproutId,
               groundFromBottom: treeBottom,
               onFruit: (slot) {
@@ -303,9 +549,9 @@ class _OrchardViewState extends State<OrchardView> {
               onCustomise: widget.onStyleTree == null
                   ? null
                   : () => _customise(tree, trees),
-              onLongPressStart: (d) => _pickUp(tree, games, d),
-              onLongPressMove: _dragTo,
-              onLongPressEnd: (_) => _release(),
+              onLongPressStart: (d) => _liftFromTree(tree, games, d),
+              onLongPressMove: (d) => _carry(d.globalPosition),
+              onLongPressEnd: (d) => _land(d.globalPosition, d.velocity),
             );
           },
         ),
@@ -316,14 +562,14 @@ class _OrchardViewState extends State<OrchardView> {
           child: IgnorePointer(
             child: RepaintBoundary(
               child: CustomPaint(
-                  painter:
-                      MeadowFrontPainter(scroll: _scroll, groundFromBottom: treeBottom)),
+                  painter: MeadowFrontPainter(
+                      scroll: _scroll, groundFromBottom: treeBottom, clock: _clock)),
             ),
           ),
         ),
 
-        // Tree dots, in their own band just above the control row: where you
-        // are, and where a held fruit can go.
+        // Tree dots, in their own band just above the tray: where you are,
+        // and where a held card can go.
         Positioned(
           left: 0,
           right: 0,
@@ -346,20 +592,35 @@ class _OrchardViewState extends State<OrchardView> {
           ),
         ),
 
-        // The ground pile shares the add button's row, on the left.
-        if (widget.unfiled.isNotEmpty && _held == null)
-          Positioned(
-            left: Tokens.space.md,
-            right: 88, // clear of the add button's column
-            bottom: rowBottom,
-            height: rowH,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: _Ground(items: widget.unfiled, onTap: widget.onUnfiledTap),
-            ),
+        // The ground tray: games on no tree, and the add button.
+        Positioned(
+          left: Tokens.space.md,
+          right: Tokens.space.md,
+          bottom: rowBottom,
+          height: rowH,
+          child: GroundTray(
+            items: widget.unfiled,
+            addButton: widget.addButton ?? const SizedBox.shrink(),
+            onOpen: widget.onOpenGame,
+            lifted: _held ?? _returning,
+            onLift: (item, from, at) => _lift(item, null, from, at),
+            onLiftMove: _carry,
+            onLiftEnd: _land,
           ),
+        ),
 
-        if (_held != null) _HeldFruit(item: _held!, at: _heldAt),
+        for (final f in _flights) f.$2,
+
+        if (_held != null)
+          _HeldFruit(
+            item: _held!,
+            at: _toLocal(_heldAt),
+            origin: _heldOrigin == null
+                ? null
+                : _toLocal(_heldOrigin!.center),
+            originWidth: _heldOrigin?.width,
+            over: _hoverTarget != null,
+          ),
       ],
     );
   }
@@ -389,6 +650,7 @@ class _TreePage extends StatefulWidget {
     required this.style,
     required this.games,
     required this.controller,
+    required this.clock,
     required this.sprout,
     required this.groundFromBottom,
     required this.onFruit,
@@ -405,6 +667,7 @@ class _TreePage extends StatefulWidget {
   final TreeStyle style;
   final List<TreeItem> games;
   final RiveTreeController controller;
+  final MeadowClock clock;
   final bool sprout;
   final double groundFromBottom;
   final void Function(int slot) onFruit;
@@ -446,10 +709,12 @@ class _TreePageState extends State<_TreePage>
               zoom: treeZoom(games.length),
               pageIndex: w.pageIndex,
               style: w.style,
+              clock: w.clock,
               child: _Sprouting(
                 sprout: w.sprout,
                 builder: (planted) => RiveTree(
                   games: games.map((i) => i.game).toList(),
+                  looks: games.map(lookOf).toList(),
                   grownTarget: games.length,
                   planted: planted,
                   controller: w.controller,
@@ -659,11 +924,13 @@ class _Stage extends StatelessWidget {
     required this.child,
     this.pageIndex = 0,
     this.style,
+    this.clock,
   });
   final double groundFromBottom;
   final double zoom;
   final Widget child;
   final int pageIndex;
+  final MeadowClock? clock;
 
   /// Null for the empty patch: no halo, no props.
   final TreeStyle? style;
@@ -688,7 +955,8 @@ class _Stage extends StatelessWidget {
                   decor: st!.decor,
                   front: front,
                   groundY: groundY,
-                  pageIndex: pageIndex));
+                  pageIndex: pageIndex,
+                  clock: clock));
           // No clip: the halo and fireflies are soft light wider than a page.
           // Clipped, each tree's glow ended in a hard vertical edge mid-swipe.
           return Stack(clipBehavior: Clip.none, children: [
@@ -795,136 +1063,65 @@ class _TreeDots extends StatelessWidget {
   }
 }
 
+/// The card in your hand. It lifts out of where it was picked up (a short
+/// ease into place above the finger, where the finger does not hide it),
+/// then tracks the finger 1:1. Over a tree it grows a little: that tree will
+/// take it.
 class _HeldFruit extends StatelessWidget {
-  const _HeldFruit({required this.item, required this.at});
+  const _HeldFruit({
+    required this.item,
+    required this.at,
+    this.origin,
+    this.originWidth,
+    required this.over,
+  });
   final TreeItem item;
   final Offset at;
+  final Offset? origin;
+  final double? originWidth;
+  final bool over;
 
   @override
   Widget build(BuildContext context) {
-    const w = 56.0, h = w * 4 / 3;
-    final url = item.game.coverUrl;
-    return Positioned(
-      left: at.dx - w / 2,
-      top: at.dy - h - 24, // above the finger, so it can be seen
-      child: IgnorePointer(
-        child: Transform.rotate(
-          angle: -0.06,
-          child: Container(
-            width: w,
-            height: h,
-            decoration: BoxDecoration(
-              color: Tokens.palette.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Tokens.palette.accent, width: 1.5),
-              boxShadow: [
-                BoxShadow(blurRadius: 18, offset: const Offset(0, 8),
-                    color: Tokens.palette.bg.withValues(alpha: 0.6)),
-              ],
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    final m = Tokens.motion;
+    final above = at - const Offset(0, kHoldAbove);
+    final startScale = (originWidth ?? kHeldW) / kHeldW;
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('held-${item.game.igdbId}'),
+      tween: Tween(begin: reduce ? 1 : 0, end: 1),
+      duration: m.maybe(m.swap, reduceMotion: reduce),
+      curve: m.easeOut,
+      builder: (context, lift, child) {
+        const h = kHeldW * kFruitH / kFruitW;
+        // From where it was picked up to above the finger; converges on the
+        // finger by the end of the lift, then it is 1:1.
+        final c = origin == null ? above : Offset.lerp(origin, above, lift)!;
+        final scale = startScale + (1 - startScale) * lift;
+        return Positioned(
+          left: c.dx - kHeldW / 2,
+          top: c.dy - h / 2,
+          child: IgnorePointer(
+            child: Transform.scale(
+              scale: scale,
+              child: AnimatedScale(
+                scale: over ? 1.1 : 1,
+                duration: m.maybe(m.swap, reduceMotion: reduce),
+                curve: m.easeOut,
+                child: Transform.rotate(angle: -0.05 * lift, child: child),
+              ),
             ),
-            clipBehavior: Clip.antiAlias,
-            child: url == null || url.isEmpty
-                ? Center(
-                    child: Text(item.game.title.characters.first,
-                        style: TextStyle(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: Tokens.palette.text)))
-                : Image.network(url, fit: BoxFit.cover),
           ),
-        ),
+        );
+      },
+      child: FruitImage(
+        game: item.game,
+        look: lookOf(item),
+        width: kHeldW,
+        radius: 7,
+        shadow: true,
+        border: Border.all(color: Tokens.palette.text.withValues(alpha: 0.85), width: 1.5),
       ),
-    );
-  }
-}
-
-/// Games on no tree yet, as a small fanned pile of covers with a plain label.
-class _Ground extends StatelessWidget {
-  const _Ground({required this.items, this.onTap});
-  final List<TreeItem> items;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final n = items.length;
-    final label = n == 1 ? '1 on the ground' : '$n on the ground';
-    final fan = items.take(3).toList();
-    const w = 26.0, h = w * 4 / 3;
-    return Semantics(
-      button: true,
-      label: '${n == 1 ? '1 game' : '$n games'} on the ground. '
-          'Open the library to put them on a tree',
-      excludeSemantics: true,
-      child: InkWell(
-        key: const Key('orchard-ground'),
-        borderRadius: BorderRadius.circular(Tokens.radius.card),
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.all(Tokens.space.xs),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            SizedBox(
-              width: w + 10.0 * (fan.length - 1),
-              height: h + 4,
-              child: Stack(children: [
-                for (var i = fan.length - 1; i >= 0; i--)
-                  Positioned(
-                    left: 10.0 * i,
-                    top: i.isEven ? 4 : 0,
-                    child: Transform.rotate(
-                      angle: (i - 1) * 0.12,
-                      child: _Thumb(item: fan[i], w: w, h: h),
-                    ),
-                  ),
-              ]),
-            ),
-            SizedBox(width: Tokens.space.sm),
-            // Flexible + one line: the parent caps this row at 36pt tall, so
-            // wrapping cannot help at large text sizes. The semantics label
-            // above carries the full sentence either way.
-            Flexible(
-              child: Text(label,
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: Tokens.type.caption,
-                      color: Tokens.palette.textDim)),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _Thumb extends StatelessWidget {
-  const _Thumb({required this.item, required this.w, required this.h});
-  final TreeItem item;
-  final double w, h;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = item.game.coverUrl;
-    return Container(
-      width: w,
-      height: h,
-      decoration: BoxDecoration(
-        color: Tokens.cosmos.panelDeep,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Tokens.cosmos.panelEdge),
-      ),
-      clipBehavior: Clip.antiAlias,
-      // No cover yet: the title's first letter, so the pile reads as games
-      // rather than as images that failed to load.
-      child: url == null || url.isEmpty
-          ? Center(
-              child: Text(item.game.title.characters.first.toUpperCase(),
-                  style: TextStyle(
-                      fontSize: Tokens.type.caption,
-                      fontWeight: FontWeight.w700,
-                      color: Tokens.palette.textDim)))
-          : Image.network(url, fit: BoxFit.cover,
-              errorBuilder: (context, error, stack) => const SizedBox()),
     );
   }
 }
