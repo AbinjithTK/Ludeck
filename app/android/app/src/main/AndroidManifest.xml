@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Covers, the catalogue proxy and the social backend all need it. Debug
+         builds get it from src/debug; without it here a release build has no
+         network at all and every cover silently shows its placeholder. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="ludeck"
         android:name="${applicationName}"

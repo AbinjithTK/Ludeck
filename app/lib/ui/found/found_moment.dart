@@ -562,7 +562,11 @@ class _ChipRow extends StatelessWidget {
     return SizedBox(
       key: rowKey,
       height: Tokens.size.control + 12,
+      // Centred while the chips fit, scrolling once they do not: a two-tree
+      // orchard should not hug the left edge under a centred card.
+      child: Center(
       child: ListView.separated(
+        shrinkWrap: true,
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.symmetric(
             horizontal: Tokens.space.lg, vertical: 6),
@@ -626,6 +630,7 @@ class _ChipRow extends StatelessWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

@@ -169,6 +169,9 @@ class _AddScreenState extends State<AddScreen> {
     if (widget.fileOnto != null) {
       await store.place(game.igdbId, widget.fileOnto!);
     } else if (!already && mounted) {
+      // Drop the keyboard first. Left focused, the search field re-raises it
+      // the instant the moment closes, covering the orchard-bound snackbar.
+      FocusScope.of(context).unfocus();
       tree = await offerTree(context, store, game);
     }
     if (!mounted) return;
