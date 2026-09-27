@@ -180,6 +180,11 @@ def build(debug, test_hooks=False):
     front = debug_markers() if debug else ""
     style = '<LayoutComponentStyle name="Artboard Style" id="5:9099"/>'
     assert style in rml
+    # The source artboard's own background fill (grey-violet) painted over the
+    # app's sky on device once the Sky shape went transparent. Clear it.
+    art_bg = 'colorValue="FF4D4C61" id="5:1314"'
+    assert art_bg in rml, "source artboard background fill moved"
+    rml = rml.replace(art_bg, 'colorValue="00000000" id="5:1314"', 1)
     rml = rml.replace(style, style + front, 1)
 
     # -- back layer: the sky's HIT AREA only, declared after the tree ---------

@@ -2077,7 +2077,7 @@
             </Shape>
         </Node>
         <Fill id="5:1356">
-            <SolidColor colorValue="FF4D4C61" id="5:1314"/>
+            <SolidColor colorValue="00000000" id="5:1314"/>
         </Fill>
         <Shape name="Sky" id="5:20100">
             <Rectangle originX="0" originY="0" width="412" height="732" name="P"/>
