@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/models.dart';
 import 'package:ludeck/domain/branch_tree.dart';
-import 'package:ludeck/ui/orchard/night_sky.dart';
+import 'package:ludeck/ui/orchard/meadow.dart';
 import 'package:ludeck/ui/orchard/orchard_view.dart';
 import 'package:ludeck/ui/orchard/rive_tree.dart';
 import 'package:ludeck/ui/tokens.dart';
@@ -122,8 +122,8 @@ void main() {
     });
   });
 
-  group('night sky', () {
-    Future<Color> sample(NightSkyPainter p, Size size, Offset at) async {
+  group('meadow', () {
+    Future<Color> sample(CustomPainter p, Size size, Offset at) async {
       final rec = ui.PictureRecorder();
       p.paint(Canvas(rec), size);
       final img = await rec.endRecording().toImage(size.width.toInt(), size.height.toInt());
@@ -133,23 +133,59 @@ void main() {
       return Color.fromARGB(b[i + 3], b[i], b[i + 1], b[i + 2]);
     }
 
-    testWidgets('the hill ridge meets the soil line under the trunk, sky above it',
+    double dist(Color a, Color b) =>
+        ((a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs()) * 255;
+
+    const size = Size(411, 914);
+    const groundY = 710.0;
+
+    testWidgets('the ridge meets the soil line under the trunk, sky above it',
         (tester) async {
       await tester.runAsync(() async {
-      const size = Size(411, 914);
-      const groundY = 710.0;
-      final p = NightSkyPainter(tree: treeFrame(size, groundY, 1), groundY: groundY);
-      final below = await sample(p, size, const Offset(205, groundY + 6));
-      final above = await sample(p, size, const Offset(205, groundY - 6));
-      final hill = Tokens.cosmos.hillTop;
-      double dist(Color a, Color b) =>
-          ((a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs()) * 255;
-      expect(dist(below, hill), lessThan(12), reason: 'just under the soil is hill');
-      expect(dist(above, hill), greaterThan(12), reason: 'just above it is sky');
-      // The screen corners under the ridge are ground too, not sky: the hill
-      // spans the full width with nothing showing through at the edges.
-      final corner = await sample(p, size, const Offset(2, 912));
-      expect(dist(corner, Tokens.cosmos.hillDeep), lessThan(16));
+        final p = MeadowBackPainter(
+            scroll: ValueNotifier(0), groundFromBottom: size.height - groundY);
+        // At the trunk, sampled clear of the grass blades' reach either side.
+        final below = await sample(p, size, const Offset(205, groundY + 24));
+        final above = await sample(p, size, const Offset(205, groundY - 40));
+        expect(dist(below, Tokens.cosmos.hillTop), lessThan(24),
+            reason: 'under the soil is hill');
+        expect(dist(above, Tokens.cosmos.hillTop), greaterThan(12),
+            reason: 'above the grass is sky');
+        // The corners are ground too: the land spans the full width.
+        final corner = await sample(p, size, const Offset(2, 912));
+        expect(dist(corner, Tokens.cosmos.hillDeep), lessThan(16));
+      });
+    });
+
+    test('the ridge crests at every tree and is one unbroken line', () {
+      const w = 411.0;
+      for (var page = -1; page <= 6; page++) {
+        expect(ridgeY((page + 0.5) * w, w, groundY), moreOrLessEquals(groundY),
+            reason: 'tree $page stands exactly on the soil line');
+      }
+      // Continuous: no step anywhere, including across page seams.
+      var prev = ridgeY(0, w, groundY);
+      for (var x = 1.0; x < 6 * w; x += 1) {
+        final y = ridgeY(x, w, groundY);
+        expect((y - prev).abs(), lessThan(1), reason: 'no jump at x=$x');
+        prev = y;
+      }
+      // It really dips between trees, so the pages read as knolls.
+      expect(ridgeY(w, w, groundY) - groundY, greaterThan(0.03 * w));
+    });
+
+    testWidgets('scrolling moves the land with the pages', (tester) async {
+      await tester.runAsync(() async {
+        // World-locked, not screen-locked: a column at scroll 100 shows what
+        // the column 100px to its right showed at scroll 0.
+        final at0 = MeadowBackPainter(
+            scroll: ValueNotifier(0), groundFromBottom: size.height - groundY);
+        final at100 = MeadowBackPainter(
+            scroll: ValueNotifier(100), groundFromBottom: size.height - groundY);
+        const probe = Offset(30, groundY + 14);
+        final a = await sample(at100, size, probe);
+        final b = await sample(at0, size, probe + const Offset(100, 0));
+        expect(dist(a, b), lessThan(40));
       });
     });
   });

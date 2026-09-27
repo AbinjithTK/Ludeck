@@ -27,8 +27,10 @@ import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
 import '../common/name_dialog.dart';
 import '../tokens.dart';
-import 'night_sky.dart';
+import 'meadow.dart';
 import 'rive_tree.dart';
+import 'tree_customise_sheet.dart';
+import 'tree_style.dart';
 
 /// Top-level branches, in the user's order. These are the trees.
 List<Branch> treesOf(List<Branch> branches) {
@@ -63,6 +65,8 @@ class OrchardView extends StatefulWidget {
     required this.onPlantTree,
     required this.onMoveGame,
     this.onRenameTree,
+    this.styles = const {},
+    this.onStyleTree,
     this.unfiled = const [],
     this.onUnfiledTap,
     this.bottomInset = 0,
@@ -80,6 +84,13 @@ class OrchardView extends StatefulWidget {
   final Future<void> Function(TreeItem item, int fromId, int toId) onMoveGame;
   final void Function(Branch tree)? onRenameTree;
 
+  /// Each tree's look (`resolveTreeStyles`). A tree missing here gets its
+  /// default for its position.
+  final Map<int, TreeStyle> styles;
+
+  /// Save [style] as [tree]'s look.
+  final Future<void> Function(Branch tree, TreeStyle style)? onStyleTree;
+
   /// Games on no tree yet. They sit "on the ground": a quiet pile, never a
   /// nag or a count of what is outstanding (DECISIONS.md).
   final List<TreeItem> unfiled;
@@ -94,7 +105,13 @@ class OrchardView extends StatefulWidget {
 
 class _OrchardViewState extends State<OrchardView> {
   final PageController _pages = PageController();
-  double _page = 0;
+
+  /// Scroll offset in pixels and the fractional page. Notifiers, NOT
+  /// setState: a swipe changes these every frame and only the meadow and the
+  /// dots depend on them. Rebuilding the whole orchard (every page, every
+  /// Rive tree) per frame was the main per-frame cost of a swipe.
+  final ValueNotifier<double> _scroll = ValueNotifier(0);
+  final ValueNotifier<double> _page = ValueNotifier(0);
   final Map<int, RiveTreeController> _controllers = {};
 
   /// A tree planted this session: its page plays the seed -> sapling once.
@@ -110,12 +127,18 @@ class _OrchardViewState extends State<OrchardView> {
   @override
   void initState() {
     super.initState();
-    _pages.addListener(() => setState(() => _page = _pages.page ?? 0));
+    _pages.addListener(() {
+      if (!_pages.hasClients) return;
+      _scroll.value = _pages.offset;
+      _page.value = _pages.page ?? 0;
+    });
   }
 
   @override
   void dispose() {
     _pages.dispose();
+    _scroll.dispose();
+    _page.dispose();
     super.dispose();
   }
 
@@ -129,12 +152,39 @@ class _OrchardViewState extends State<OrchardView> {
     final before = treesOf(widget.branches).map((b) => b.id).toSet();
     await widget.onPlantTree(name);
     if (!mounted) return;
+    // The store has re-read, but this widget's `branches` only update on the
+    // next build. Read them after that frame, or the new tree is not in them.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
     final now = treesOf(widget.branches);
     final fresh = now.where((b) => !before.contains(b.id)).toList();
     if (fresh.isNotEmpty) {
       HapticFeedback.mediumImpact();
       setState(() => _sproutId = fresh.first.id);
+      // Saved at once, in the blossom the orchard has least of, so a new tree
+      // never looks like its neighbour and keeps its colour if trees are
+      // later reordered.
+      await widget.onStyleTree?.call(
+          fresh.first,
+          TreeStyle.defaultFor(now.length - 1).copyWith(
+              blossom: leastUsedBlossom([
+            for (final t in now)
+              if (t.id != fresh.first.id) _styleOf(t, now).blossom
+          ])));
     }
+  }
+
+  TreeStyle _styleOf(Branch tree, List<Branch> trees) =>
+      widget.styles[tree.id] ?? TreeStyle.defaultFor(trees.indexOf(tree));
+
+  Future<void> _customise(Branch tree, List<Branch> trees) async {
+    HapticFeedback.selectionClick();
+    await showTreeCustomiseSheet(
+      context,
+      tree: tree,
+      initial: _styleOf(tree, trees),
+      onChanged: (style) => widget.onStyleTree?.call(tree, style),
+    );
   }
 
   // ---- drag to move -------------------------------------------------------
@@ -198,10 +248,30 @@ class _OrchardViewState extends State<OrchardView> {
     return Stack(
       fit: StackFit.expand,
       children: [
+        // One continuous meadow behind every page (meadow.dart): it scrolls
+        // with the pages, so the ground runs on from tree to tree.
+        Positioned.fill(
+          child: RepaintBoundary(
+            child: CustomPaint(
+                painter: MeadowBackPainter(scroll: _scroll, groundFromBottom: treeBottom,
+                    halos: [
+                      for (final t in trees)
+                        (
+                          _styleOf(t, trees).blossom.swatch,
+                          treeZoom(gamesOnTree(t, shape, byId).length)
+                        ),
+                      null, // the patch
+                    ])),
+          ),
+        ),
         Positioned.fill(
           child: PageView.builder(
           controller: _pages,
           physics: const BouncingScrollPhysics(),
+          // Build the neighbour on each side ahead of time, so a tree is
+          // loaded and grown by the time a swipe reveals it instead of
+          // popping in and regrowing mid-swipe.
+          allowImplicitScrolling: true,
           itemCount: pageCount,
           itemBuilder: (context, index) {
             if (index == trees.length) {
@@ -217,6 +287,8 @@ class _OrchardViewState extends State<OrchardView> {
             return _TreePage(
               key: ValueKey('orchard-tree-${tree.id}'),
               tree: tree,
+              pageIndex: index,
+              style: _styleOf(tree, trees),
               games: games,
               controller: c,
               sprout: tree.id == _sproutId,
@@ -228,12 +300,26 @@ class _OrchardViewState extends State<OrchardView> {
               onRename: widget.onRenameTree == null
                   ? null
                   : () => widget.onRenameTree!(tree),
+              onCustomise: widget.onStyleTree == null
+                  ? null
+                  : () => _customise(tree, trees),
               onLongPressStart: (d) => _pickUp(tree, games, d),
               onLongPressMove: _dragTo,
               onLongPressEnd: (_) => _release(),
             );
           },
         ),
+        ),
+
+        // Short grass in front of every trunk. Visual only.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: RepaintBoundary(
+              child: CustomPaint(
+                  painter:
+                      MeadowFrontPainter(scroll: _scroll, groundFromBottom: treeBottom)),
+            ),
+          ),
         ),
 
         // Tree dots, in their own band just above the control row: where you
@@ -243,9 +329,11 @@ class _OrchardViewState extends State<OrchardView> {
           right: 0,
           bottom: rowBottom + rowH,
           height: dotsH,
-          child: _TreeDots(
+          child: ValueListenableBuilder<double>(
+            valueListenable: _page,
+            builder: (context, page, _) => _TreeDots(
             trees: trees,
-            page: _page,
+            page: page,
             holding: _held != null,
             heldFrom: _heldFrom,
             hover: _hoverTarget,
@@ -254,6 +342,7 @@ class _OrchardViewState extends State<OrchardView> {
                 duration: Tokens.motion.maybe(Tokens.motion.grow,
                     reduceMotion: MediaQuery.disableAnimationsOf(context)),
                 curve: Tokens.motion.easeInOut),
+          ),
           ),
         ),
 
@@ -292,10 +381,12 @@ class _OrchardViewState extends State<OrchardView> {
   }
 }
 
-class _TreePage extends StatelessWidget {
+class _TreePage extends StatefulWidget {
   const _TreePage({
     super.key,
     required this.tree,
+    required this.pageIndex,
+    required this.style,
     required this.games,
     required this.controller,
     required this.sprout,
@@ -303,12 +394,15 @@ class _TreePage extends StatelessWidget {
     required this.onFruit,
     required this.onShelf,
     required this.onRename,
+    required this.onCustomise,
     required this.onLongPressStart,
     required this.onLongPressMove,
     required this.onLongPressEnd,
   });
 
   final Branch tree;
+  final int pageIndex;
+  final TreeStyle style;
   final List<TreeItem> games;
   final RiveTreeController controller;
   final bool sprout;
@@ -316,51 +410,74 @@ class _TreePage extends StatelessWidget {
   final void Function(int slot) onFruit;
   final VoidCallback onShelf;
   final VoidCallback? onRename;
+  final VoidCallback? onCustomise;
   final GestureLongPressStartCallback onLongPressStart;
   final GestureLongPressMoveUpdateCallback onLongPressMove;
   final GestureLongPressEndCallback onLongPressEnd;
 
   @override
+  State<_TreePage> createState() => _TreePageState();
+}
+
+/// Kept alive once visited: a tree that was unmounted by a swipe away had to
+/// reload its file and regrow from nothing when swiped back to.
+class _TreePageState extends State<_TreePage>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
   Widget build(BuildContext context) {
+    super.build(context);
+    final w = widget;
+    final tree = w.tree, games = w.games;
     final extra = games.length - kTreeSlots;
     return Stack(
       fit: StackFit.expand,
       children: [
         GestureDetector(
           behavior: HitTestBehavior.translucent,
-          onLongPressStart: onLongPressStart,
-          onLongPressMoveUpdate: onLongPressMove,
-          onLongPressEnd: onLongPressEnd,
+          onLongPressStart: w.onLongPressStart,
+          onLongPressMoveUpdate: w.onLongPressMove,
+          onLongPressEnd: w.onLongPressEnd,
           child: ExcludeSemantics(
             child: _Stage(
-              groundFromBottom: groundFromBottom,
+              groundFromBottom: w.groundFromBottom,
               zoom: treeZoom(games.length),
+              pageIndex: w.pageIndex,
+              style: w.style,
               child: _Sprouting(
-                sprout: sprout,
+                sprout: w.sprout,
                 builder: (planted) => RiveTree(
                   games: games.map((i) => i.game).toList(),
                   grownTarget: games.length,
                   planted: planted,
-                  controller: controller,
-                  onFruitTap: onFruit,
+                  controller: w.controller,
+                  onFruitTap: w.onFruit,
                   fit: rv.Fit.contain,
                   alignment: Alignment.center,
+                  asset: w.style.asset,
                 ),
               ),
             ),
           ),
         ),
-        // Name and count. Top-left, clear of the canopy.
+        // Name and count top-left, clear of the canopy; the customise button
+        // top-right, where a screen's own actions go.
         SafeArea(
           child: Padding(
             padding: EdgeInsets.fromLTRB(
-                Tokens.space.lg, Tokens.space.md, Tokens.space.lg, 0),
-            child: Column(
+                Tokens.space.lg, Tokens.space.md, Tokens.space.sm, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 GestureDetector(
-                  onLongPress: onRename,
+                  onLongPress: w.onRename,
                   child: Text(
                     tree.name,
                     key: const Key('orchard-tree-name'),
@@ -383,7 +500,7 @@ class _TreePage extends StatelessWidget {
                   excludeSemantics: true,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(Tokens.radius.card),
-                    onTap: onShelf,
+                    onTap: w.onShelf,
                     child: Padding(
                       padding: EdgeInsets.symmetric(vertical: Tokens.space.xs),
                       child: Text(
@@ -397,6 +514,24 @@ class _TreePage extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
+            ),
+                ),
+                if (w.onCustomise != null)
+                  IconButton(
+                    key: const Key('orchard-customise'),
+                    onPressed: w.onCustomise,
+                    // IconButton's tooltip does not reach semantics; the
+                    // icon's label does.
+                    icon: Icon(Icons.palette_outlined,
+                        color: Tokens.palette.text,
+                        semanticLabel: 'Customise ${tree.name}'),
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size.square(48),
+                      backgroundColor: Tokens.cosmos.panel,
+                      side: BorderSide(color: Tokens.cosmos.panelEdge),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -510,24 +645,33 @@ class _PatchPage extends StatelessWidget {
   }
 }
 
-/// The sky a tree stands in, full screen, with the artboard placed so its soil
-/// line sits [groundFromBottom] above the bottom edge.
+/// Where a tree stands on its page, with its halo and props around it. The
+/// sky and the ground are NOT here: they are one continuous meadow painted
+/// behind all the pages (meadow.dart), so nothing ends at a page's edge.
 ///
-/// The tree file draws only the tree; the night, the blossom's halo and the
-/// hill are painted here ([NightSkyPainter]) at the screen's own size, so there
-/// is no edge where the artboard ends. [zoom] eases (interruptibly: the tween
-/// retargets from the value on screen) whenever the tree's size changes, and
-/// the halo rides the same frame as the tree.
+/// [zoom] eases (interruptibly: the tween retargets from the value on screen)
+/// whenever the tree's size changes, and the halo and props ride the same
+/// frame as the tree.
 class _Stage extends StatelessWidget {
-  const _Stage(
-      {required this.groundFromBottom, required this.zoom, required this.child});
+  const _Stage({
+    required this.groundFromBottom,
+    required this.zoom,
+    required this.child,
+    this.pageIndex = 0,
+    this.style,
+  });
   final double groundFromBottom;
   final double zoom;
   final Widget child;
+  final int pageIndex;
+
+  /// Null for the empty patch: no halo, no props.
+  final TreeStyle? style;
 
   @override
   Widget build(BuildContext context) {
     final reduce = MediaQuery.disableAnimationsOf(context);
+    final st = style;
     return LayoutBuilder(builder: (context, box) {
       final size = box.biggest;
       final groundY = size.height - groundFromBottom;
@@ -538,12 +682,23 @@ class _Stage extends StatelessWidget {
         child: child,
         builder: (context, z, child) {
           final r = treeFrame(size, groundY, z);
-          return Stack(clipBehavior: Clip.hardEdge, children: [
-            Positioned.fill(
-                child: RepaintBoundary(
-                    child: CustomPaint(
-                        painter: NightSkyPainter(tree: r, groundY: groundY)))),
+          CustomPaint decor(bool front) => CustomPaint(
+              painter: DecorPainter(
+                  tree: r,
+                  decor: st!.decor,
+                  front: front,
+                  groundY: groundY,
+                  pageIndex: pageIndex));
+          // No clip: the halo and fireflies are soft light wider than a page.
+          // Clipped, each tree's glow ended in a hard vertical edge mid-swipe.
+          return Stack(clipBehavior: Clip.none, children: [
+            if (st != null)
+              Positioned.fill(
+                  child: IgnorePointer(child: RepaintBoundary(child: decor(false)))),
             Positioned.fromRect(rect: r, child: child!),
+            if (st != null)
+              Positioned.fill(
+                  child: IgnorePointer(child: RepaintBoundary(child: decor(true)))),
           ]);
         },
       );

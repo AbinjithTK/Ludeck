@@ -156,4 +156,69 @@ void main() {
     final pv = tester.widget<PageView>(find.byType(PageView));
     expect(pv.controller!.page, closeTo(1, 0.01));
   });
+
+  testWidgets('customise: a swatch and a prop save to the tree, live',
+      (tester) async {
+    await plant(tester, 1, 2);
+    await pump(tester);
+    await tester.tap(find.bySemanticsLabel('Customise Tree 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('Wood'), findsOneWidget, reason: 'the sheet is open');
+
+    await tester.tap(find.bySemanticsLabel('Frost blossom'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.bySemanticsLabel('Birch wood'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('decor-lantern')));
+    await tester.tap(find.byKey(const Key('decor-lantern')));
+    await tester.pumpAndSettle();
+    // The writes are real sqflite I/O: let them land.
+    await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)));
+    await tester.pumpAndSettle();
+
+    final saved = await tester.runAsync(() => repo.treeStyles());
+    final row = saved!.values.single;
+    expect(row['blossom'], 'frost');
+    expect(row['wood'], 'birch');
+    expect(row['decor'], contains('lantern'));
+
+    await tester.tap(find.byKey(const Key('customise-done')));
+    await tester.pumpAndSettle();
+    expect(find.text('Wood'), findsNothing);
+  });
+
+  testWidgets('customise sheet lays out at 2x text scale', (tester) async {
+    await plant(tester, 1, 1);
+    await pump(tester, textScale: 2.0);
+    await tester.tap(find.bySemanticsLabel('Customise Tree 1'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a planted tree is saved in a colour no other tree has',
+      (tester) async {
+    await plant(tester, 1, 1);
+    await tester.runAsync(() => repo.setTreeStyle(1,
+        blossom: 'blossom', wood: 'plum', decor: ''));
+    await pump(tester);
+    // Page to the patch and plant.
+    await tester.tap(find.bySemanticsLabel('Go to a new tree'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('orchard-plant')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Second');
+    await tester.tap(find.text('Plant'));
+    for (var i = 0; i < 20; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect((await tester.runAsync(() => repo.branches()))!, hasLength(2),
+        reason: 'the tree was planted');
+    final saved = (await tester.runAsync(() => repo.treeStyles()))!;
+    expect(saved, hasLength(2));
+    final blossoms = saved.values.map((r) => r['blossom']).toSet();
+    expect(blossoms, hasLength(2), reason: 'the new tree differs from the first');
+  });
 }

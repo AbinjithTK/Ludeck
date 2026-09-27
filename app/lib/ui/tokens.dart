@@ -105,6 +105,61 @@ class Tokens {
   static const radius = _Radius();
   static const size = _Size();
   static const motion = _Motion();
+
+  /// The orchard's per-tree looks and the meadow's props. Extends the
+  /// `Tokens.canopy` decision (DECISIONS.md, 2026-09-25): tree material, not
+  /// UI colour. None of it colours text, a control or a state.
+  static const orchard = _Orchard();
+}
+
+class _Orchard {
+  const _Orchard();
+
+  /// Swatch for each blossom, in `TreeBlossom` order. Sampled from the mid
+  /// canopy of the baked variants (rive/build/palette_blossoms.png), so a
+  /// swatch shows the colour the tree will actually be.
+  final List<Color> blossom = const [
+    Color(0xFFC8457A), // blossom
+    Color(0xFFD0562F), // maple
+    Color(0xFF3FA36E), // jade
+    Color(0xFF9A63CF), // wisteria
+    Color(0xFF4C9EB9), // frost
+  ];
+
+  /// Swatch for each wood, in `TreeWood` order (palette_woods.png).
+  final List<Color> wood = const [
+    Color(0xFF3B2338), // plum
+    Color(0xFF6E4827), // oak
+    Color(0xFFABA596), // birch
+    Color(0xFF3A3F50), // ebony
+  ];
+
+  /// The blossom's light on the sky: [blossom] at this alpha, fading to 0.
+  final double haloAlpha = 0.16;
+
+  /// Meadow grass: blades from [grassBack] (far, darker) to [grassFront],
+  /// and a thin rim catching the sky on the tallest.
+  final Color grassBack = const Color(0xFF2B2452);
+  final Color grassFront = const Color(0xFF3B316B);
+  final Color grassRim = const Color(0x66C3B4F0);
+
+  // Props. Muted, moonlit versions of real colours: the scene is at night,
+  // and nothing here may out-shine a cover.
+  final List<Color> petals = const [
+    Color(0xFFE6E0F5),
+    Color(0xFFF0B8A8),
+    Color(0xFFA9B2F2),
+  ];
+  final Color stem = const Color(0xFF2E3E4A);
+  final Color mushroomCap = const Color(0xFFB9544F);
+  final Color mushroomSpot = const Color(0xFFF0E6DE);
+  final Color mushroomStem = const Color(0xFFCFC4BA);
+  final Color stone = const Color(0xFF38324F);
+  final Color stoneLit = const Color(0xFF4B4569);
+  final Color fence = const Color(0xFF4F4258);
+  final Color lanternFrame = const Color(0xFF2E2944);
+  final Color lanternLight = const Color(0xFFFFE2B8);
+  final Color firefly = const Color(0xFFE4FFB0);
 }
 
 class _Palette {

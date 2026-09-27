@@ -43,6 +43,8 @@ const List<({String child, String column, String parent, String onDelete})>
   // SET NULL, not CASCADE: deleting a branch must never take a subtree of the
   // user's categories with it. The repository re-parents children first.
   (child: 'branches', column: 'parent_id', parent: 'branches', onDelete: 'SET NULL'),
+  // A tree's look holds nothing the user would want back without the tree.
+  (child: 'tree_styles', column: 'branch_id', parent: 'branches', onDelete: 'CASCADE'),
 ];
 
 /// Tables the schema is expected to hold. A new one arriving without a cascade
@@ -55,6 +57,7 @@ const Set<String> kTables = {
   'placements',
   'sources',
   'roadmap_order',
+  'tree_styles',
 };
 
 void main() {

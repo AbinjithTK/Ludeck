@@ -28,6 +28,7 @@ import 'ui/shell/nav_pill.dart';
 // The orchard replaced the node tree / roadmap / canopy as home. Those views
 // stay on disk (and in git) unimported, so reverting is one import away.
 import 'ui/orchard/orchard_view.dart';
+import 'ui/orchard/tree_style.dart';
 import 'ui/found/found_moment.dart';
 import 'domain/branch_tree.dart';
 
@@ -918,6 +919,13 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               onMoveGame: (item, fromTree, toTree) =>
                   _moveBetweenTrees(store, item, fromTree, toTree),
               onRenameTree: (tree) => _branchMenu(store, tree),
+              styles: resolveTreeStyles(
+                  treesOf(store.branches).map((b) => b.id).toList(),
+                  store.treeStyles),
+              onStyleTree: (tree, style) => store.setTreeStyle(tree.id,
+                  blossom: style.blossom.name,
+                  wood: style.wood.name,
+                  decor: style.decorCsv),
               unfiled: _unfiled(items, store),
               onUnfiledTap: () =>
                   setState(() => _place = NavDestination.library),

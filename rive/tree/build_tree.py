@@ -92,12 +92,12 @@ CARDS = [
 ]
 
 
-def convert():
+def convert(blossom="blossom", wood="plum"):
     doc = riv_decode.decode(SRC)
     schema = json.load(open(os.path.join(ROOT, "tool", "rive_schema.json"),
                             encoding="utf-8"))
     return retint(riv_to_rml.Conv(doc, "5", "TreeDiscovery", schema,
-                                  vm="TreeDiscovery").run())
+                                  vm="TreeDiscovery").run(), blossom, wood)
 
 
 # The source art's grass. It becomes the hill's silhouette colour, so the
@@ -106,34 +106,100 @@ GRASS_SRC = "30E1A6"
 HILL_TOP = "FF1A1531"   # = Tokens.cosmos.hillTop (app/lib/ui/tokens.dart)
 
 
-def _tone(argb):
-    """Pull the source's neon magentas into a blossom rose that sits in the
-    violet night: saturation capped by lightness, hue nudged toward rose.
-    Darks (bark, shadow) and non-pink hues pass through untouched."""
+# ---- palettes -------------------------------------------------------------
+# Each tree picks a blossom and a wood. The canopy's colour lives in ~40 shades
+# across static fills, gradients and 86 keyframed colour tracks (the leaf steps
+# ramp it in), and a paint's visibility is not bindable, so a palette cannot be
+# switched at runtime inside one file. Each (blossom, wood) pair is baked as its
+# own .riv by build_variants.py from this one mapping; the ids MUST match
+# TreeBlossom / TreeWood in app/lib/ui/orchard/tree_style.dart.
+#
+# Blossom: (hue, saturation scale, lightness scale). Applied to the source's
+# rose-toned canopy, so every shade keeps its place in the light-to-shadow
+# ramp and only the hue family changes. No gold: gold means harvested.
+BLOSSOMS = {
+    "blossom":  (338, 1.00, 1.00),   # what shipped: soft rose
+    "maple":    (14, 1.05, 0.98),    # red-orange autumn
+    "jade":     (148, 0.72, 0.96),   # spring green
+    "wisteria": (272, 0.74, 1.10),   # lavender
+    "frost":    (204, 0.70, 1.06),   # pale ice blue
+}
+# Wood: (hue, saturation, lightness offset, lightness scale) for bark shades.
+WOODS = {
+    "plum":  None,                    # what shipped: the source's dark plum
+    "oak":   (26, 0.42, 0.06, 1.25),  # warm brown
+    "birch": (40, 0.10, 0.34, 1.10),  # pale silver-grey
+    "ebony": (236, 0.20, 0.07, 1.05),  # blue-black
+}
+
+
+def _hls(argb):
     import colorsys
-    a, rgb = argb[:2], argb[2:]
-    r, g, b = (int(rgb[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    r, g, b = (int(argb[2 + i:4 + i], 16) / 255 for i in (0, 2, 4))
     h, l, s = colorsys.rgb_to_hls(r, g, b)
-    deg = h * 360
-    if 150 <= deg <= 200 and s > 0.25:  # every grass teal in the source
-        return a + HILL_TOP[2:]
-    if not (285 <= deg or deg < 12) or l < 0.22:
-        return argb
-    cap = 0.42 + 0.25 * l               # light petals keep more colour
-    s = min(s, cap)
-    deg = deg + (338 - deg) * 0.35 if deg >= 285 else deg + (338 - 360 - deg) * 0.35
-    l = min(l, 0.70) * 0.96 + 0.02      # nothing brighter than a petal highlight
-    r, g, b = colorsys.hls_to_rgb((deg % 360) / 360, l, s)
+    return h * 360, l, s
+
+
+def _argb(a, deg, l, s):
+    import colorsys
+    r, g, b = colorsys.hls_to_rgb((deg % 360) / 360, min(max(l, 0), 1),
+                                  min(max(s, 0), 1))
     return a + "".join(f"{round(v * 255):02X}" for v in (r, g, b))
 
 
-def retint(rml):
+def classify(argb):
+    """Which part of the tree a source colour paints: grass, canopy, bark or
+    other. Bark is the dark, low-saturation plum; the dark but saturated
+    purples are the canopy's own deep shadow and recolour with it."""
+    deg, l, s = _hls(argb)
+    if 150 <= deg <= 200 and s > 0.25:
+        return "grass"
+    if not (275 <= deg or deg < 12):
+        return "other"
+    if l < 0.22:
+        return "bark" if s < 0.45 else "canopy"
+    return "canopy"
+
+
+def _tone(argb, blossom="blossom", wood="plum"):
+    """Pull the source's neon magentas into a blossom that sits in the violet
+    night: saturation capped by lightness, hue moved to the palette's. Bark
+    takes the wood; grass becomes the hill's silhouette colour."""
+    a = argb[:2]
+    kind = classify(argb)
+    deg, l, s = _hls(argb)
+    if kind == "grass":
+        return a + HILL_TOP[2:]
+    if kind == "bark":
+        w = WOODS[wood]
+        if w is None:
+            return argb
+        hue, sat, lo, ls = w
+        return _argb(a, hue, lo + l * ls, sat)
+    if kind != "canopy":
+        return argb
+    hue, ss, ls = BLOSSOMS[blossom]
+    src = deg if deg >= 200 else deg + 360
+    if l < 0.22:                        # deep canopy shadow: hue only
+        if blossom == "blossom":
+            return argb                 # exactly what shipped
+        return _argb(a, hue + (src - 338) * 0.65, l, s * ss)
+    cap = 0.42 + 0.25 * l               # light petals keep more colour
+    s = min(s, cap)
+    # 65% of the source's spread around the palette hue, so the canopy keeps
+    # its shading variety. For "blossom" (338) this is the shipped mapping.
+    deg = hue + (src - 338) * 0.65
+    l = min(l, 0.70) * 0.96 + 0.02      # nothing brighter than a petal highlight
+    return _argb(a, deg, min(l * ls, 0.74), s * ss)
+
+
+def retint(rml, blossom="blossom", wood="plum"):
     rml = re.sub(r'colorValue="([0-9A-Fa-f]{8})"',
-                 lambda m: f'colorValue="{_tone(m.group(1))}"', rml)
+                 lambda m: f'colorValue="{_tone(m.group(1), blossom, wood)}"', rml)
     # Most of the canopy's colour is animated (the leaf steps ramp it), so the
     # keyframes need the same treatment as the static fills.
     return re.sub(r'(<KeyFrameColor [^>]*value=")([0-9A-Fa-f]{8})"',
-                  lambda m: f'{m.group(1)}{_tone(m.group(2))}"', rml)
+                  lambda m: f'{m.group(1)}{_tone(m.group(2), blossom, wood)}"', rml)
 
 
 def debug_markers():
@@ -149,8 +215,8 @@ def debug_markers():
     return "".join(out)
 
 
-def build(debug, test_hooks=False):
-    rml = convert()
+def build(debug, test_hooks=False, blossom="blossom", wood="plum"):
+    rml = convert(blossom, wood)
 
     # -- view model: the old `input` number becomes `grown` ------------------
     # Growth and cards are separate on purpose. `grown` sets the tree's size
@@ -267,8 +333,10 @@ def main():
     ap.add_argument("--debug", action="store_true")
     ap.add_argument("--test-hooks", action="store_true",
                     help="add a corner tap that sets drop=0 (headless capture only; never ship)")
+    ap.add_argument("--blossom", default="blossom", choices=sorted(BLOSSOMS))
+    ap.add_argument("--wood", default="plum", choices=sorted(WOODS))
     a = ap.parse_args()
-    rml, n = build(a.debug, a.test_hooks)
+    rml, n = build(a.debug, a.test_hooks, a.blossom, a.wood)
     with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         f.write(rml)
     print(f"wrote {OUT}  ({rml.count(chr(10))} lines, {n} growth binds)")

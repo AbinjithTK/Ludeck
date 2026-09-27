@@ -18,7 +18,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart' as ffi;
 /// The file name. docs/DECISIONS.md froze `ludeck.db` and this honours it.
 const String kDatabaseFile = 'ludeck.db';
 
-const int kSchemaVersion = 4;
+const int kSchemaVersion = 5;
 
 /// Where a game came from. Added in schema v2.
 ///
@@ -106,6 +106,23 @@ const String _branchCollapsedColumn =
     'ALTER TABLE branches ADD COLUMN collapsed INTEGER NOT NULL DEFAULT 0';
 const String _branchParentIndex =
     'CREATE INDEX IF NOT EXISTS idx_branches_parent ON branches(parent_id)';
+
+/// A tree's look. Added in schema v5.
+///
+/// Its own table rather than columns on `branches`: a look is optional (a tree
+/// with no row gets its default from its position), belongs only to trees,
+/// and a separate table keeps the `Branch` shape every query and test already
+/// relies on. Values are enum NAMES, never indices, so reordering an enum in
+/// the app can never repaint a saved tree. CASCADE: the look goes with its
+/// tree; it holds nothing the user would want back.
+const String _treeStylesTable = '''
+  CREATE TABLE IF NOT EXISTS tree_styles (
+    branch_id INTEGER PRIMARY KEY REFERENCES branches(id) ON DELETE CASCADE,
+    blossom   TEXT    NOT NULL,
+    wood      TEXT    NOT NULL,
+    decor     TEXT    NOT NULL DEFAULT ''
+  )
+  ''';
 
 const List<String> _nestedBranches = [
   // Idempotent on every real install. Present so a partial or hand-built old
@@ -211,6 +228,8 @@ const List<String> _ddl = [
 
   // Must follow the `branches` CREATE above. See [_nestedBranches].
   ..._nestedBranches,
+
+  _treeStylesTable,
 ];
 
 /// Call once before opening a database on Windows, Linux or macOS.
@@ -283,6 +302,7 @@ const Map<int, List<String>> _migrations = {
   2: [_sourcesTable, _sourcesIndex],
   3: [_roadmapOrderTable],
   4: _nestedBranches,
+  5: [_treeStylesTable],
 };
 
 /// Versions `_migrations` can produce.

@@ -84,12 +84,26 @@ class LudeckStore extends ChangeNotifier {
     final branches = await _repo.branches();
     final placements = await _repo.placements();
     final order = await _repo.roadmapOrder();
+    final styles = await _repo.treeStyles();
     _items = result.items;
     _skipped = result.skipped;
     _branches = branches;
     _placements = placements;
     _roadmapOrder = order;
+    _treeStyles = styles;
   }
+
+  /// Saved tree looks: branch id -> raw row (see `TreeStyle.fromRow`). A tree
+  /// absent here has never been styled and takes its default.
+  Map<int, Map<String, Object?>> _treeStyles = const {};
+  Map<int, Map<String, Object?>> get treeStyles => _treeStyles;
+
+  Future<void> setTreeStyle(int branchId,
+          {required String blossom,
+          required String wood,
+          required String decor}) =>
+      _write(() => _repo.setTreeStyle(branchId,
+          blossom: blossom, wood: wood, decor: decor));
 
   /// igdb_id -> chosen roadmap position. Games absent from this map have no
   /// explicit position and fall to the end in their default order.

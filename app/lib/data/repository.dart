@@ -477,6 +477,24 @@ class Repository {
         whereArgs: [id],
       );
 
+  /// Every saved tree look, keyed by branch id. Raw rows (enum names as
+  /// text): turning them into a `TreeStyle` is the UI's business.
+  Future<Map<int, Map<String, Object?>>> treeStyles() async {
+    final rows = await _db.query('tree_styles');
+    return {for (final r in rows) r['branch_id'] as int: r};
+  }
+
+  /// Saves tree [branchId]'s look, replacing any earlier one.
+  Future<void> setTreeStyle(int branchId,
+          {required String blossom,
+          required String wood,
+          required String decor}) =>
+      _db.insert(
+        'tree_styles',
+        {'branch_id': branchId, 'blossom': blossom, 'wood': wood, 'decor': decor},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
   /// Ids of [of]'s parent chain, nearest first. Used to refuse a cycle.
   static Future<List<int>> _ancestors(DatabaseExecutor db, int of) async {
     final rows = await db.rawQuery('''

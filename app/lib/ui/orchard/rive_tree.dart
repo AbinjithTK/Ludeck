@@ -58,16 +58,20 @@ Rect treeFrame(Size box, double groundY, double zoom, {double headroom = 140}) {
   return Rect.fromLTWH((box.width - w) / 2, groundY - kTreeBaseY * s, w, h);
 }
 
-Future<rv.File?>? _treeFile;
+/// The Add screen's tree, and the look every tree had before styles.
+const String kDefaultTreeAsset = 'assets/rive/tree_discovery.riv';
 
-/// The tree file, loaded once. Resolves to null where Rive cannot run (the
-/// headless test host has no native library): callers degrade to nothing.
-Future<rv.File?> loadTreeFile() => _treeFile ??= () async {
+final Map<String, Future<rv.File?>> _treeFiles = {};
+
+/// A tree file, loaded once per app run per [asset] (each tree look is its own
+/// baked file; see tree_style.dart). Resolves to null where Rive cannot run
+/// (the headless test host has no native library): callers degrade to nothing.
+Future<rv.File?> loadTreeFile([String asset = kDefaultTreeAsset]) =>
+    _treeFiles[asset] ??= () async {
       try {
-        return await rv.File.asset('assets/rive/tree_discovery.riv',
-            riveFactory: rv.Factory.rive);
+        return await rv.File.asset(asset, riveFactory: rv.Factory.rive);
       } catch (e) {
-        debugPrint('RiveTree: Rive unavailable ($e)');
+        debugPrint('RiveTree: Rive unavailable for $asset ($e)');
         return null;
       }
     }();
@@ -115,6 +119,7 @@ class RiveTree extends StatefulWidget {
     this.controller,
     this.alignment,
     this.fit = rv.Fit.cover,
+    this.asset = kDefaultTreeAsset,
   });
 
   /// Fruit, in slot order (slot 0 is the canopy centre). Only the first
@@ -131,6 +136,9 @@ class RiveTree extends StatefulWidget {
   final RiveTreeController? controller;
   final Alignment? alignment;
   final rv.Fit fit;
+
+  /// Which baked tree to show (TreeStyle.asset).
+  final String asset;
 
   @override
   State<RiveTree> createState() => _RiveTreeState();
@@ -158,8 +166,9 @@ class _RiveTreeState extends State<RiveTree> {
   }
 
   Future<void> _load() async {
-    final file = await loadTreeFile();
-    if (!mounted) return;
+    final asset = widget.asset;
+    final file = await loadTreeFile(asset);
+    if (!mounted || asset != widget.asset) return;
     if (file == null) {
       setState(() => _failed = true);
       return;
@@ -168,10 +177,18 @@ class _RiveTreeState extends State<RiveTree> {
       final c = rv.RiveWidgetController(file,
           artboardSelector: rv.ArtboardSelector.byName('TreeDiscovery'));
       final vm = c.dataBind(rv.DataBind.auto());
+      // A restyle swaps files: the old tree stays on screen until the new one
+      // is ready, then both go in one frame, so there is never a blank page.
+      final oldC = _controller, oldVm = _vm;
+      _selected?.removeListener(_onSelected);
+      _generation++;
       setState(() {
         _controller = c;
         _vm = vm;
+        _failed = false;
       });
+      oldC?.dispose();
+      oldVm?.dispose();
       _selected = vm.number('selected');
       _selected?.addListener(_onSelected);
       vm.boolean('planted')?.value = widget.planted;
@@ -188,6 +205,12 @@ class _RiveTreeState extends State<RiveTree> {
     if (old.controller != widget.controller) {
       old.controller?._state = null;
       widget.controller?._state = this;
+    }
+    if (old.asset != widget.asset) {
+      // A new look is a new file. It regrows to this tree's size (the file
+      // eases `grown` up from 0), which doubles as the restyle's feedback.
+      _load();
+      return;
     }
     if (old.planted != widget.planted) {
       _vm?.boolean('planted')?.value = widget.planted;
