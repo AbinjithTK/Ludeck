@@ -29,6 +29,7 @@ import '../../services/catalog_service.dart';
 import '../../services/http_catalog.dart';
 import '../../state/ludeck_store.dart';
 import '../common/loading_disc.dart';
+import '../found/found_moment.dart';
 import '../tokens.dart';
 import 'discovery_tree.dart';
 
@@ -162,9 +163,13 @@ class _AddScreenState extends State<AddScreen> {
         copies: const [],
       ));
     }
-    // File it onto the branch the user opened this from, if any.
+    // File it onto the branch the user opened this from, if any. Otherwise a
+    // new game gets its moment, which ends with the user picking its tree.
+    String? tree;
     if (widget.fileOnto != null) {
       await store.place(game.igdbId, widget.fileOnto!);
+    } else if (!already && mounted) {
+      tree = await offerTree(context, store, game);
     }
     if (!mounted) return;
 
@@ -176,7 +181,9 @@ class _AddScreenState extends State<AddScreen> {
         // would be a small lie, and the user would wonder why nothing changed.
         already
             ? '${game.title} is already in your collection.'
-            : 'Added ${game.title}.',
+            : tree != null
+                ? 'Added ${game.title} to $tree.'
+                : 'Added ${game.title}.',
         style: TextStyle(color: Tokens.palette.text),
       ),
     ));

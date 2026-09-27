@@ -335,7 +335,42 @@ void main() {
       expect(added.entry.ownership, Ownership.spotted);
       expect(added.entry.progress, Progress.untouched);
       expect(added.isSeed, isTrue);
+      // A new game gets its found moment before any confirmation; leaving it
+      // on the ground is one tap, and then the snackbar says what happened.
+      expect(find.text('New find'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('found-not-now')));
+      await tester.pumpAndSettle();
+      expect(find.text('New find'), findsNothing);
+      // `_add` began inside runAsync, so what follows the moment resumes on a
+      // real turn of the event loop.
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 60)));
+      await tester.pumpAndSettle();
       expect(find.text('Added Hollow Knight.'), findsOneWidget);
+    });
+
+    testWidgets('the found moment files a new game onto the tree tapped',
+        (tester) async {
+      await tester.runAsync(() async => repo.createBranch('Cozy', sortOrder: 0));
+      await pump(tester, FixtureCatalog());
+      await type(tester, 'hollow');
+
+      await tapAndWrite(tester, find.text('Hollow Knight'));
+      // The shrink-into-the-chip exit runs on the fake clock; the write it
+      // triggers is real I/O, so it gets a real wait of its own.
+      await tester.tap(find.bySemanticsLabel('Hang it on Cozy'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 200)));
+      await tester.pumpAndSettle();
+
+      final cozy = store.branches.firstWhere((b) => b.name == 'Cozy');
+      final id = store.items!
+          .firstWhere((i) => i.game.title == 'Hollow Knight')
+          .game
+          .igdbId;
+      expect(store.placements[cozy.id], contains(id));
+      expect(find.text('Added Hollow Knight to Cozy.'), findsOneWidget);
     });
 
     testWidgets('adding a game already held says so instead of claiming to add',

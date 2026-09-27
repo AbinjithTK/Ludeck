@@ -28,6 +28,7 @@ import 'ui/shell/nav_pill.dart';
 // The orchard replaced the node tree / roadmap / canopy as home. Those views
 // stay on disk (and in git) unimported, so reverting is one import away.
 import 'ui/orchard/orchard_view.dart';
+import 'ui/found/found_moment.dart';
 import 'domain/branch_tree.dart';
 
 Future<void> main() async {
@@ -300,6 +301,9 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   Future<void> _applyIntake(ShareResolution r, IntakeChoice choice) async {
     final now = DateTime.now();
     final store = context.read<LudeckStore>();
+    // Games that are new to the collection get their moment afterwards; one
+    // that was already there keeps its tree and gets no ceremony.
+    final found = <Game>[];
 
     for (final candidate in choice.accepted) {
       final id = candidate.igdbId;
@@ -307,6 +311,8 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
 
       final game = await _catalog.byId(id);
       if (game == null) continue;
+      final isNew = !(store.items ?? const []).any((i) => i.game.igdbId == id);
+      if (isNew) found.add(game);
 
       // One write, one reload. Two separate calls left the collection briefly
       // holding a game with no source, and cost two full reload cycles per game.
@@ -335,13 +341,23 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
 
     if (!mounted) return;
 
+    // One moment per new game, in the order they were shared.
+    String? tree;
+    for (final game in found) {
+      if (!mounted) return;
+      tree = await offerTree(context, store, game);
+    }
+    if (!mounted) return;
+
     final n = choice.accepted.length;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         backgroundColor: Tokens.palette.surface,
         content: Text(
           n == 1
-              ? 'Added ${choice.accepted.single.title}.'
+              ? tree != null
+                  ? 'Added ${choice.accepted.single.title} to $tree.'
+                  : 'Added ${choice.accepted.single.title}.'
               : 'Added $n games.',
           style: TextStyle(color: Tokens.palette.text),
         ),

@@ -236,6 +236,10 @@ void main() {
     await settle(tester);
 
     await tapAndSettle(tester, 'Add 1 game');
+    // Hades is new, so its found moment follows. Leave it on the ground.
+    expect(find.text('New find'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('found-not-now')));
+    await settle(tester);
 
     final id = (await read(tester, () => repo.load()))
         .firstWhere((i) => i.game.title == 'Hades')
