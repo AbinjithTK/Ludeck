@@ -409,7 +409,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         duration: const Duration(seconds: 2),
         content: Text(
           branchName == null
-              ? '${item.game.title} is back on the trunk.'
+              ? '${item.game.title} is back on the ground.'
               : '${item.game.title} moved to $branchName.',
           style: TextStyle(color: Tokens.palette.text),
         ),
@@ -606,7 +606,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         content: Text(
           subCount > 0
               ? '"${branch.name}" deleted. Its sub-branches and games moved up.'
-              : '"${branch.name}" deleted. Its games are back on the trunk.',
+              : '"${branch.name}" deleted. Its games are back on the ground.',
           style: TextStyle(color: Tokens.palette.text),
         ),
         action: SnackBarAction(
@@ -746,10 +746,10 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               // one belongs to the branches screen, not to a status sheet.
               if (store.branches.isNotEmpty) ...[
                 Divider(color: Tokens.palette.bg, height: Tokens.space.md),
-                _sheetHeading('Where does it hang'),
+                _sheetHeading('Which tree'),
                 _sheetOption(
-                  tree: 'On the trunk',
-                  label: 'Not on any branch',
+                  tree: 'On the ground',
+                  label: 'Not on a tree yet',
                   selected: _branchIdFor(store, item) == null,
                   onTap: () {
                     Navigator.of(sheetContext).pop();

@@ -101,7 +101,7 @@ void main() {
       expect(store.branches, isEmpty);
       expect(find.text('In hand'), findsOneWidget);
       expect(find.text('Harvested'), findsOneWidget);
-      expect(find.text('Not on a branch'), findsNothing);
+      expect(find.text('On the ground'), findsNothing);
     });
 
     testWidgets('groups by branch once branches exist', (tester) async {
@@ -119,7 +119,7 @@ void main() {
       await pump(tester);
       await withBranches(tester);
 
-      final unplaced = find.text('Not on a branch');
+      final unplaced = find.text('On the ground');
       expect(unplaced, findsOneWidget);
 
       // Last, because it is where a freshly shared game waits to be filed, not

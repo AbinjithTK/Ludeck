@@ -20,6 +20,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+// Prefixed: rive_native exports its own Animation / Image / Fit names.
+import 'package:rive/rive.dart' as rv;
 
 import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
@@ -184,9 +186,10 @@ class _OrchardViewState extends State<OrchardView> {
     final pageCount = trees.length + 1; // + the empty patch
 
     // One control row at the add button's height: ground pile left, tree dots
-    // centre (the add button, owned by the shell, sits right). The tree is
-    // framed into everything above that row, so its base, the patch and the
-    // fruit never sit behind chrome.
+    // centre (the add button, owned by the shell, sits right). Pages run the
+    // full screen so the sky continues under the controls; each tree's soil
+    // line is placed just above the dots, so its base, the patch and the fruit
+    // never sit behind chrome.
     final rowBottom = MediaQuery.paddingOf(context).bottom + widget.bottomInset;
     const rowH = 52.0, dotsH = 48.0;
     final treeBottom = rowBottom + rowH + dotsH;
@@ -194,11 +197,7 @@ class _OrchardViewState extends State<OrchardView> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Positioned(
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: treeBottom,
+        Positioned.fill(
           child: PageView.builder(
           controller: _pages,
           physics: const BouncingScrollPhysics(),
@@ -208,7 +207,7 @@ class _OrchardViewState extends State<OrchardView> {
               return _PatchPage(
                 key: const ValueKey('orchard-patch'),
                 onPlant: _plant,
-                bottomInset: widget.bottomInset,
+                groundFromBottom: treeBottom,
               );
             }
             final tree = trees[index];
@@ -220,6 +219,7 @@ class _OrchardViewState extends State<OrchardView> {
               games: games,
               controller: c,
               sprout: tree.id == _sproutId,
+              groundFromBottom: treeBottom,
               onFruit: (slot) {
                 if (slot < games.length) widget.onOpenGame(games[slot]);
               },
@@ -298,6 +298,7 @@ class _TreePage extends StatelessWidget {
     required this.games,
     required this.controller,
     required this.sprout,
+    required this.groundFromBottom,
     required this.onFruit,
     required this.onShelf,
     required this.onRename,
@@ -310,6 +311,7 @@ class _TreePage extends StatelessWidget {
   final List<TreeItem> games;
   final RiveTreeController controller;
   final bool sprout;
+  final double groundFromBottom;
   final void Function(int slot) onFruit;
   final VoidCallback onShelf;
   final VoidCallback? onRename;
@@ -329,14 +331,20 @@ class _TreePage extends StatelessWidget {
           onLongPressMoveUpdate: onLongPressMove,
           onLongPressEnd: onLongPressEnd,
           child: ExcludeSemantics(
-            child: _Sprouting(
-              sprout: sprout,
-              builder: (planted) => RiveTree(
-                games: games.map((i) => i.game).toList(),
-                grownTarget: games.length,
-                planted: planted,
-                controller: controller,
-                onFruitTap: onFruit,
+            child: _Stage(
+              groundFromBottom: groundFromBottom,
+              zoom: treeZoom(games.length),
+              child: _Sprouting(
+                sprout: sprout,
+                builder: (planted) => RiveTree(
+                  games: games.map((i) => i.game).toList(),
+                  grownTarget: games.length,
+                  planted: planted,
+                  controller: controller,
+                  onFruitTap: onFruit,
+                  fit: rv.Fit.contain,
+                  alignment: Alignment.center,
+                ),
               ),
             ),
           ),
@@ -437,9 +445,9 @@ class _SproutingState extends State<_Sprouting> {
 
 class _PatchPage extends StatelessWidget {
   const _PatchPage(
-      {super.key, required this.onPlant, required this.bottomInset});
+      {super.key, required this.onPlant, required this.groundFromBottom});
   final VoidCallback onPlant;
-  final double bottomInset;
+  final double groundFromBottom;
 
   @override
   Widget build(BuildContext context) {
@@ -447,7 +455,16 @@ class _PatchPage extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         ExcludeSemantics(
-          child: RiveTree(games: const [], grownTarget: 0, planted: false),
+          child: _Stage(
+            groundFromBottom: groundFromBottom,
+            zoom: treeZoom(0),
+            child: RiveTree(
+                games: const [],
+                grownTarget: 0,
+                planted: false,
+                fit: rv.Fit.contain,
+                alignment: Alignment.center),
+          ),
         ),
         Semantics(
           button: true,
@@ -475,6 +492,7 @@ class _PatchPage extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: Tokens.palette.text,
                         letterSpacing: Tokens.type.trackingDisplay,
+
                         height: Tokens.type.leadingDisplay)),
                 SizedBox(height: Tokens.space.xs),
                 Text('Tap the patch to plant one.',
@@ -488,6 +506,53 @@ class _PatchPage extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+/// The sky a tree stands in, full screen, with the artboard placed so its soil
+/// line sits [groundFromBottom] above the bottom edge.
+///
+/// The artboard is 412x732 and a phone is taller, so the file's own sky cannot
+/// reach the screen edges. Above the artboard the sky is continued in its top
+/// colour and below it in its bottom colour -- the same stops the file uses
+/// (`Tokens.cosmos.deep`) -- so there is no seam where the file ends and the
+/// controls begin. [zoom] eases (interruptibly: the tween retargets from the
+/// value on screen) whenever the tree's size changes.
+class _Stage extends StatelessWidget {
+  const _Stage(
+      {required this.groundFromBottom, required this.zoom, required this.child});
+  final double groundFromBottom;
+  final double zoom;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    final sky = Tokens.cosmos.deep;
+    return LayoutBuilder(builder: (context, box) {
+      final size = box.biggest;
+      final groundY = size.height - groundFromBottom;
+      return TweenAnimationBuilder<double>(
+        tween: Tween(end: zoom),
+        duration: Tokens.motion.maybe(Tokens.motion.camera, reduceMotion: reduce),
+        curve: Tokens.motion.easeInOut,
+        child: child,
+        builder: (context, z, child) {
+          final r = treeFrame(size, groundY, z);
+          return Stack(clipBehavior: Clip.hardEdge, children: [
+            Positioned.fill(child: ColoredBox(color: sky.last)),
+            Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                // One px of overlap so no hairline shows at the join.
+                height: (r.top + 1).clamp(0.0, size.height),
+                child: ColoredBox(color: sky.first)),
+            Positioned.fromRect(rect: r, child: child!),
+          ]);
+        },
+      );
+    });
   }
 }
 
@@ -699,8 +764,15 @@ class _Thumb extends StatelessWidget {
         border: Border.all(color: Tokens.cosmos.panelEdge),
       ),
       clipBehavior: Clip.antiAlias,
+      // No cover yet: the title's first letter, so the pile reads as games
+      // rather than as images that failed to load.
       child: url == null || url.isEmpty
-          ? null
+          ? Center(
+              child: Text(item.game.title.characters.first.toUpperCase(),
+                  style: TextStyle(
+                      fontSize: Tokens.type.caption,
+                      fontWeight: FontWeight.w700,
+                      color: Tokens.palette.textDim)))
           : Image.network(url, fit: BoxFit.cover,
               errorBuilder: (context, error, stack) => const SizedBox()),
     );

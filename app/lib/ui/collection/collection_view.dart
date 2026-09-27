@@ -150,7 +150,7 @@ class _CollectionViewState extends State<CollectionView> {
     final unplaced =
         widget.items.where((i) => !placed.contains(i.game.igdbId)).toList();
     if (unplaced.isNotEmpty) {
-      groups.add(_Group('unplaced', 'Not on a branch', unplaced));
+      groups.add(_Group('unplaced', 'On the ground', unplaced));
     }
     return groups;
   }

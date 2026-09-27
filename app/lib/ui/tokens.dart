@@ -492,6 +492,11 @@ class _Motion {
   /// The harvest celebration. The only place the delight budget is spent.
   final Duration harvest = const Duration(milliseconds: 520);
 
+  /// The orchard camera easing back as a tree fills in. Matches the Rive
+  /// tree's own growth step (0.9s in rive/tree/discovery.py) so the frame and
+  /// the tree arrive together instead of the camera racing ahead.
+  final Duration camera = const Duration(milliseconds: 900);
+
   /// Critically damped. No overshoot. The default for everything.
   final double dampingDefault = 1.0;
 

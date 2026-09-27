@@ -29,6 +29,34 @@ const double kTreeArtW = 412, kTreeArtH = 732;
 /// Top of the full-grown canopy in artboard units, less a little headroom.
 const double kCanopyTop = 185;
 
+/// The soil line: where the trunk meets the ground, in artboard units
+/// (TREE_Y in rive/tree/discovery.py).
+const double kTreeBaseY = 668;
+
+/// How close the orchard's camera sits to a tree holding [grown] games.
+///
+/// A sapling framed at the full tree's scale fills a third of the screen and
+/// leaves the rest as empty sky, so a young tree is framed 1.3x closer and the
+/// camera eases back as it fills in, reaching 1.0 at 4 games. It never gets
+/// closer as games are added, so the tree only ever looks bigger. Fruit pops
+/// centre-out, so the few fruit a young tree carries are never the ones the
+/// closer framing crops at the edges.
+double treeZoom(int grown) {
+  final t = (grown / 4).clamp(0.0, 1.0);
+  return 1.3 - 0.3 * t;
+}
+
+/// Where the artboard goes in a [box] so its soil line sits at [groundY],
+/// at camera [zoom]. Fits the width, but never so large that the full tree
+/// would reach up into the [headroom] kept for the page's title.
+Rect treeFrame(Size box, double groundY, double zoom, {double headroom = 140}) {
+  final byWidth = box.width / kTreeArtW;
+  final byHeight = (groundY - headroom) / (kTreeBaseY - kCanopyTop);
+  final s = (byWidth < byHeight ? byWidth : byHeight).clamp(0.1, 100.0) * zoom;
+  final w = kTreeArtW * s, h = kTreeArtH * s;
+  return Rect.fromLTWH((box.width - w) / 2, groundY - kTreeBaseY * s, w, h);
+}
+
 Future<rv.File?>? _treeFile;
 
 /// The tree file, loaded once. Resolves to null where Rive cannot run (the
