@@ -1,21 +1,29 @@
 // The ground tray: games on no tree yet, and the way onto one.
 //
-// Collapsed it is the small fanned pile with its count, and the add button as
-// its end cap. Tapping (or pulling) the pile opens it to the right into a strip
-// of every cover on the ground, which scrolls sideways; press and hold a cover
-// to lift it, and drag it onto a tree to hang it there. The add button rides
-// the tray's right end in both states, so "add a game" and "put it on a tree"
-// read as one flow: things arrive here, and go up from here.
+// Collapsed it is a small fanned pile of covers with its count. Tapping (or
+// pulling) it opens the tray to the right, and the pile DEALS itself out into
+// a strip of every cover on the ground: each card travels from its place in
+// the pile to its place in the strip, the nearest first, on a small arc like a
+// card being dealt, growing and straightening as it goes; the cards that were
+// hidden under the pile fade in on their way out. Closing gathers them back
+// into the pile, the far ones first. The strip scrolls sideways; press and
+// hold a cover to lift it and drag it onto a tree.
+//
+// The add button is NOT part of the tray: it stays put at the bottom right,
+// and the tray opens up to it.
 //
 // Motion (DECISIONS.md "Motion"):
-//  - open and close are a critically damped spring, retargeted from the value
-//    and velocity on screen, so a second tap mid-flight reverses it smoothly;
-//    close is the snappier spring (exits are quicker than entrances)
+//  - one critically damped spring drives everything (capsule width, every
+//    card, the label and the chevron), retargeted from the value and velocity
+//    on screen, so a tap mid-flight reverses it smoothly; close is the
+//    snappier spring (exits are quicker than entrances)
 //  - pulling the pile tracks the finger 1:1, and on release the decision uses
 //    a momentum projection (0.998 deceleration), not where the finger stopped
 //  - the strip rubber-bands at both ends
 //  - press feedback on pointer-down; lift after a 320ms hold
 //  - reduce motion: it opens and closes instantly
+
+import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -37,11 +45,45 @@ bool trayProjectsOpen(double value, double velocity) {
   return value + velocity * d / (1 - d) / 1000 > 0.5;
 }
 
+/// Tray geometry, inside the capsule's inset (all in points).
+const double kTrayH = 66, kTrayInset = 5, kTrayInner = kTrayH - 2 * kTrayInset;
+
+/// The pile's box, the open state's chevron zone, and the strip's pitch.
+const double kPileW = 58, kChevronW = 40, kCoverW = 42, kCoverPitch = 48;
+
+/// Card i's own progress through the deal, from the tray's [t]: card i starts
+/// [kDealStagger] x i later (capped), so the pile deals out nearest-first and
+/// gathers back far-first. Monotonic in [t]; 0 at t=0 and 1 at t=1.
+const double kDealStagger = 0.045;
+double dealT(double t, int i) {
+  final d = math.min(i, 6) * kDealStagger;
+  return ((t - d) / (1 - d)).clamp(0.0, 1.0);
+}
+
+/// Card [i]'s pose at deal progress [u]: its rect and rotation in the
+/// capsule's inner coordinates. [scroll] is the strip's offset (non-zero only
+/// when closing a strip that had been scrolled).
+({Rect rect, double angle, double opacity}) dealPose(int i, double u, double scroll) {
+  final k = math.min(i, 2);
+  const fw = 28.0, fh = fw * 4 / 3;
+  final fan = Rect.fromLTWH(
+      8 + 10.0 * k, (kTrayInner - fh) / 2 + (k.isEven ? 2 : -2), fw, fh);
+  final strip = Rect.fromLTWH(kChevronW + 4 + i * kCoverPitch - scroll,
+      (kTrayInner - kCoverW * 4 / 3) / 2, kCoverW, kCoverW * 4 / 3);
+  final r = Rect.lerp(fan, strip, u)!;
+  // A small arc up and back down, like a card being dealt.
+  final lift = -7 * math.sin(math.pi * u);
+  return (
+    rect: r.shift(Offset(0, lift)),
+    angle: (k - 1) * 0.12 * (1 - u),
+    opacity: i < 3 ? 1 : Curves.easeOut.transform(u),
+  );
+}
+
 class GroundTray extends StatefulWidget {
   const GroundTray({
     super.key,
     required this.items,
-    required this.addButton,
     required this.onOpen,
     required this.onLift,
     required this.onLiftMove,
@@ -50,9 +92,6 @@ class GroundTray extends StatefulWidget {
   });
 
   final List<TreeItem> items;
-
-  /// The add control, shown as the tray's end cap.
-  final Widget addButton;
 
   /// Tap on a cover.
   final void Function(TreeItem item) onOpen;
@@ -73,9 +112,11 @@ class GroundTray extends StatefulWidget {
 class _GroundTrayState extends State<GroundTray>
     with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(vsync: this);
+  ScrollController _strip = ScrollController();
 
-  // Height fits the 56pt add button inside the 4pt inset and 1pt edge.
-  static const double _h = 66, _pad = 4, _edge = 1, _cap = 56, _gap = 4;
+  /// The strip's offset when a close began, so the cards gather from where
+  /// they actually were, not from a strip scrolled back to the start.
+  double _closingFrom = 0;
 
   /// How much the tray widens from closed to open (set each layout), so a
   /// pull can be tracked 1:1.
@@ -92,12 +133,30 @@ class _GroundTrayState extends State<GroundTray>
   @override
   void dispose() {
     _c.dispose();
+    _strip.dispose();
     super.dispose();
   }
 
+  bool get _settledOpen => _c.value == 1 && !_c.isAnimating;
+
+  /// Before the value leaves 1: remember where the strip was, then hand over
+  /// from the scrollable strip to the animated cards.
+  void _leaveOpen() {
+    if (_settledOpen || _c.value == 1) {
+      _closingFrom = _strip.hasClients ? _strip.offset : 0;
+    }
+  }
+
   void _settle(bool open, [double velocity = 0]) {
+    if (!open) _leaveOpen();
+    if (open && _c.value == 0) {
+      // A fresh strip starts at its first cover, where the deal lands.
+      _strip.dispose();
+      _strip = ScrollController();
+      _closingFrom = 0;
+    }
     if (_reduce) {
-      _c.value = open ? 1 : 0;
+      setState(() => _c.value = open ? 1 : 0);
       return;
     }
     final m = Tokens.motion;
@@ -111,27 +170,23 @@ class _GroundTrayState extends State<GroundTray>
       velocity,
     )).then((_) {
       // A spring stops within tolerance of its target, not on it: snap, so
-      // "closed" is exactly 0 and the strip is really gone. Only on a natural
-      // finish; an interrupted spring never completes this future.
-      if (mounted) _c.value = open ? 1 : 0;
+      // closed is exactly 0 and open exactly 1 (where the strip takes over).
+      // Only on a natural finish; an interrupted spring never completes this.
+      if (mounted) setState(() => _c.value = open ? 1 : 0);
     });
   }
 
   void _toggle() {
     HapticFeedback.selectionClick();
     // Aim by where it is heading, so a tap mid-open closes it and vice versa.
-    _settle(!(_c.status == AnimationStatus.forward ||
-        (_c.isAnimating ? _c.velocity > 0 : _c.value > 0.5)));
+    final heading = _c.isAnimating ? _c.velocity > 0 : _c.value > 0.5;
+    _settle(!heading);
   }
 
   @override
   Widget build(BuildContext context) {
     final items = widget.items;
-    if (items.isEmpty) {
-      // Nothing on the ground: the add button stands alone where the tray
-      // starts, so it is in the same place the tray will grow from.
-      return Align(alignment: Alignment.centerLeft, child: widget.addButton);
-    }
+    if (items.isEmpty) return const SizedBox.shrink();
     final n = items.length;
     final label = n == 1 ? '1 on the ground' : '$n on the ground';
     final style =
@@ -146,47 +201,88 @@ class _GroundTrayState extends State<GroundTray>
             textDirection: TextDirection.ltr,
           )..layout())
               .width +
-          Tokens.space.sm;
-      final fixed = (_pad + _edge) * 2 + _cap + _gap + _cap;
-      final stripW = (box.maxWidth - fixed).clamp(0.0, double.infinity);
+          Tokens.space.md;
+      final openW = box.maxWidth;
       // Never wider than the space: at large text the label gives way.
-      final closedLabelW = labelW.clamp(0.0, stripW);
-      _travel = (stripW - closedLabelW).clamp(1.0, double.infinity);
+      final closedW = math.min(2 * kTrayInset + kPileW + labelW, openW);
+      _travel = math.max(1, openW - closedW);
 
       return AnimatedBuilder(
         animation: _c,
         builder: (context, _) {
           final t = _c.value;
+          final w = closedW + (openW - closedW) * t;
+          final inner = w - 2 * kTrayInset;
           return Align(
             alignment: Alignment.centerLeft,
             child: Container(
-              height: _h,
-              padding: const EdgeInsets.all(_pad),
+              width: w,
+              height: kTrayH,
               decoration: BoxDecoration(
                 color: Tokens.cosmos.panelDeep,
-                borderRadius: BorderRadius.circular(_h / 2),
+                borderRadius: BorderRadius.circular(kTrayH / 2),
                 border: Border.all(color: Tokens.cosmos.panelEdge),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                _handle(items, label, closedLabelW, t),
-                SizedBox(
-                  width: stripW * t,
-                  child: t == 0
-                      ? null
-                      : ClipRect(
-                          child: OverflowBox(
-                            alignment: Alignment.centerLeft,
-                            minWidth: stripW,
-                            maxWidth: stripW,
-                            child: Opacity(
-                              opacity: Curves.easeOut.transform(t),
-                              child: _strip(items),
-                            ),
-                          ),
-                        ),
+              clipBehavior: Clip.antiAlias,
+              padding: const EdgeInsets.all(kTrayInset - 1),
+              child: Stack(clipBehavior: Clip.hardEdge, children: [
+                // The count, riding out to the right as the pile deals.
+                Positioned(
+                  left: kPileW,
+                  top: 0,
+                  bottom: 0,
+                  width: labelW,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: (1 - t * 2.4).clamp(0.0, 1.0),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(label,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.fade,
+                            style: style),
+                      ),
+                    ),
+                  ),
                 ),
-                const SizedBox(width: _gap),
-                widget.addButton,
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: kChevronW,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: ((t - 0.45) / 0.55).clamp(0.0, 1.0),
+                      child: Icon(Icons.chevron_left_rounded,
+                          size: 28, color: Tokens.palette.text),
+                    ),
+                  ),
+                ),
+                if (_settledOpen)
+                  Positioned(
+                    left: kChevronW,
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    child: _stripView(items),
+                  )
+                else
+                  ..._dealt(items, t, inner),
+                // The handle: the whole pile while closed, the chevron once
+                // open. On top, so a pull on the pile always reaches it.
+                // KEYED: the number of cards before it changes every frame of
+                // the deal, and an unkeyed handle was matched to a different
+                // element mid-pull, which dropped the drag (no release, no
+                // projection).
+                Positioned(
+                  key: const ValueKey('tray-handle'),
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: t < 0.5 ? math.min(kPileW + labelW, inner) : kChevronW,
+                  child: _handle(n, t),
+                ),
               ]),
             ),
           );
@@ -195,83 +291,84 @@ class _GroundTrayState extends State<GroundTray>
     });
   }
 
-  /// The pile and its count: tap or pull to open, and the close control
-  /// once open.
-  Widget _handle(List<TreeItem> items, String label, double labelW, double t) {
-    final n = items.length;
-    return Semantics(
-      button: true,
-      expanded: t > 0.5,
-      label: t > 0.5
-          ? 'Hide the games on the ground'
-          : '${n == 1 ? '1 game' : '$n games'} on the ground. Show them',
-      excludeSemantics: true,
-      child: GestureDetector(
-        key: const Key('orchard-ground'),
-        behavior: HitTestBehavior.opaque,
-        onTap: _toggle,
-        onHorizontalDragStart: (_) => _c.stop(),
-        onHorizontalDragUpdate: (d) =>
-            _c.value = (_c.value + d.delta.dx / _travel).clamp(0.0, 1.0),
-        onHorizontalDragEnd: (d) {
-          final v = d.velocity.pixelsPerSecond.dx / _travel;
-          _settle(trayProjectsOpen(_c.value, v), v);
-        },
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          SizedBox(
-            width: _cap,
-            height: _cap,
-            child: Stack(alignment: Alignment.center, children: [
-              Opacity(opacity: 1 - t, child: _Fan(items: items)),
-              if (t > 0)
-                Opacity(
-                  opacity: t,
-                  child: Icon(Icons.chevron_left_rounded,
-                      size: 28, color: Tokens.palette.text),
-                ),
-            ]),
-          ),
-          SizedBox(
-            width: labelW * (1 - t),
-            child: ClipRect(
-              child: OverflowBox(
-                alignment: Alignment.centerLeft,
-                minWidth: labelW,
-                maxWidth: labelW,
-                child: Opacity(
-                  opacity: (1 - t * 1.6).clamp(0.0, 1.0),
-                  child: Text(label,
-                      maxLines: 1,
-                      softWrap: false,
-                      overflow: TextOverflow.fade,
-                      style: TextStyle(
-                          fontSize: Tokens.type.caption,
-                          color: Tokens.palette.textDim)),
-                ),
+  /// The cards in flight between the pile and the strip.
+  List<Widget> _dealt(List<TreeItem> items, double t, double inner) {
+    final out = <Widget>[];
+    final scroll = _closingFrom;
+    // Painted far-to-near, so the pile's top card is card 0.
+    for (var i = math.min(items.length, 40) - 1; i >= 0; i--) {
+      final u = dealT(t, i);
+      if (i >= 3 && u == 0) continue; // still hidden under the pile
+      final p = dealPose(i, u, scroll);
+      if (p.rect.left > inner + 8 || p.rect.right < -8) continue;
+      out.add(Positioned.fromRect(
+        key: ValueKey('dealt-${items[i].game.igdbId}'),
+        rect: p.rect,
+        child: IgnorePointer(
+          child: Opacity(
+            opacity: p.opacity,
+            child: Transform.rotate(
+              angle: p.angle,
+              child: FruitImage(
+                game: items[i].game,
+                look: lookOf(items[i]),
+                width: p.rect.width,
+                radius: 4 + 2 * u,
+                border: u < 1 ? Border.all(color: Tokens.cosmos.panelEdge) : null,
               ),
             ),
           ),
-        ]),
-      ),
-    );
+        ),
+      ));
+    }
+    return out;
   }
 
-  Widget _strip(List<TreeItem> items) {
-    return ListView.separated(
+  Widget _handle(int n, double t) => Semantics(
+        button: true,
+        expanded: t > 0.5,
+        label: t > 0.5
+            ? 'Hide the games on the ground'
+            : '${n == 1 ? '1 game' : '$n games'} on the ground. Show them',
+        excludeSemantics: true,
+        child: GestureDetector(
+          key: const Key('orchard-ground'),
+          behavior: HitTestBehavior.opaque,
+          onTap: _toggle,
+          onHorizontalDragStart: (_) {
+            _leaveOpen();
+            _c.stop();
+            if (_c.value == 1) setState(() {}); // hand over from the strip
+          },
+          onHorizontalDragUpdate: (d) =>
+              _c.value = (_c.value + d.delta.dx / _travel).clamp(0.0, 1.0),
+          onHorizontalDragEnd: (d) {
+            final v = d.velocity.pixelsPerSecond.dx / _travel;
+            _settle(trayProjectsOpen(_c.value, v), v);
+          },
+        ),
+      );
+
+  Widget _stripView(List<TreeItem> items) {
+    return ListView.builder(
       key: const Key('ground-strip'),
+      controller: _strip,
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.symmetric(horizontal: Tokens.space.xxs),
+      padding: const EdgeInsets.only(left: 4, right: 4),
+      itemExtent: kCoverPitch,
       itemCount: items.length,
-      separatorBuilder: (_, _) => SizedBox(width: Tokens.space.xs),
-      itemBuilder: (context, i) => _TrayCover(
-        key: ValueKey('ground-${items[i].game.igdbId}'),
-        item: items[i],
-        lifted: widget.lifted?.game.igdbId == items[i].game.igdbId,
-        onTap: () => widget.onOpen(items[i]),
-        onLift: widget.onLift,
-        onLiftMove: widget.onLiftMove,
-        onLiftEnd: widget.onLiftEnd,
+      itemBuilder: (context, i) => Align(
+        alignment: Alignment.centerLeft,
+        child: _TrayCover(
+          key: ValueKey('ground-${items[i].game.igdbId}'),
+          item: items[i],
+          lifted: widget.lifted?.game.igdbId == items[i].game.igdbId,
+          onTap: () => widget.onOpen(items[i]),
+          onLift: widget.onLift,
+          onLiftMove: widget.onLiftMove,
+          onLiftEnd: widget.onLiftEnd,
+        ),
       ),
     );
   }
@@ -348,10 +445,10 @@ class _TrayCoverState extends State<_TrayCover> {
           child: AnimatedOpacity(
             opacity: widget.lifted ? 0.18 : 1,
             duration: Tokens.motion.maybe(Tokens.motion.swap, reduceMotion: reduce),
-            child: Center(
-              child: FruitImage(
-                  game: item.game, look: look, width: w, radius: 6),
-            ),
+            // No Center: the card must sit exactly where the deal landed it
+            // (left of its 48pt cell), or the hand-over from the animated
+            // cards to the list jumps 3pt.
+            child: FruitImage(game: item.game, look: look, width: w, radius: 6),
           ),
         ),
       ),
@@ -458,34 +555,3 @@ class _FruitImageState extends State<FruitImage> {
   }
 }
 
-/// The collapsed pile: the first three covers, fanned.
-class _Fan extends StatelessWidget {
-  const _Fan({required this.items});
-  final List<TreeItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    final fan = items.take(3).toList();
-    const w = 26.0;
-    return SizedBox(
-      width: w + 10.0 * (fan.length - 1),
-      height: w * 4 / 3 + 4,
-      child: Stack(children: [
-        for (var i = fan.length - 1; i >= 0; i--)
-          Positioned(
-            left: 10.0 * i,
-            top: i.isEven ? 4 : 0,
-            child: Transform.rotate(
-              angle: (i - 1) * 0.12,
-              child: FruitImage(
-                  game: fan[i].game,
-                  look: lookOf(fan[i]),
-                  width: w,
-                  radius: 4,
-                  border: Border.all(color: Tokens.cosmos.panelEdge)),
-            ),
-          ),
-      ]),
-    );
-  }
-}

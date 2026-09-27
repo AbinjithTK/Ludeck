@@ -75,6 +75,7 @@ class OrchardView extends StatefulWidget {
     this.onStyleTree,
     this.unfiled = const [],
     this.addButton,
+    this.actions = const [],
     this.bottomInset = 0,
   });
 
@@ -104,8 +105,11 @@ class OrchardView extends StatefulWidget {
   /// pile, never a nag or a count of what is outstanding (DECISIONS.md).
   final List<TreeItem> unfiled;
 
-  /// The add control. It is the ground tray's end cap.
+  /// The add control, fixed at the bottom right beside the ground tray.
   final Widget? addButton;
+
+  /// Icon buttons shown top right over every tree (Library, Friends, You).
+  final List<OrchardAction> actions;
 
   /// Space the app's own bottom chrome takes (nav pill).
   final double bottomInset;
@@ -480,7 +484,42 @@ class _OrchardViewState extends State<OrchardView>
     final treeBottom = rowBottom + rowH + dotsH;
     _treeBottom = treeBottom;
 
-    return Stack(
+    // The meadow answers touch: a finger parts the grass and scatters the
+    // fireflies; a tap on the ground bounces the flowers and throws up a puff
+    // of petals. A Listener, not a gesture detector: it only watches, so it
+    // never takes a swipe or a tap away from the pages and the tree.
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (e) {
+        if (!_ambient.isActive) return;
+        _downAt = e.localPosition;
+        _downTime = e.timeStamp;
+        _clock.pointerDown(e.localPosition + Offset(_scroll.value, 0));
+      },
+      onPointerMove: (e) {
+        if (_ambient.isActive) {
+          _clock.pointerMove(e.localPosition + Offset(_scroll.value, 0));
+        }
+      },
+      onPointerUp: (e) {
+        _clock.pointerUp();
+        final at = _downAt;
+        _downAt = null;
+        if (at == null || _held != null) return;
+        final groundY = (_box?.size.height ?? 0) - _treeBottom;
+        final quick = e.timeStamp - _downTime < const Duration(milliseconds: 350);
+        final still = (e.localPosition - at).distance < 12;
+        final onGround = at.dy > groundY - 70 && at.dy < groundY + 14;
+        if (quick && still && onGround) {
+          HapticFeedback.selectionClick();
+          _clock.poke(at + Offset(_scroll.value, 0));
+        }
+      },
+      onPointerCancel: (_) {
+        _clock.pointerUp();
+        _downAt = null;
+      },
+      child: Stack(
       fit: StackFit.expand,
       children: [
         // One continuous meadow behind every page (meadow.dart): it scrolls
@@ -592,15 +631,15 @@ class _OrchardViewState extends State<OrchardView>
           ),
         ),
 
-        // The ground tray: games on no tree, and the add button.
+        // The ground tray: games on no tree. It opens rightward up to the add
+        // button, which never moves.
         Positioned(
           left: Tokens.space.md,
-          right: Tokens.space.md,
+          right: Tokens.space.md + Tokens.size.control + Tokens.space.sm,
           bottom: rowBottom,
           height: rowH,
           child: GroundTray(
             items: widget.unfiled,
-            addButton: widget.addButton ?? const SizedBox.shrink(),
             onOpen: widget.onOpenGame,
             lifted: _held ?? _returning,
             onLift: (item, from, at) => _lift(item, null, from, at),
@@ -608,6 +647,20 @@ class _OrchardViewState extends State<OrchardView>
             onLiftEnd: _land,
           ),
         ),
+        if (widget.addButton != null)
+          Positioned(
+            right: Tokens.space.md,
+            bottom: rowBottom + (rowH - Tokens.size.control) / 2,
+            child: widget.addButton!,
+          ),
+
+        // Where else to go: icon buttons, top right, fixed over every page.
+        if (widget.actions.isNotEmpty)
+          Positioned(
+            top: MediaQuery.paddingOf(context).top + Tokens.space.md,
+            right: Tokens.space.md,
+            child: _TopActions(actions: widget.actions),
+          ),
 
         for (final f in _flights) f.$2,
 
@@ -622,8 +675,12 @@ class _OrchardViewState extends State<OrchardView>
             over: _hoverTarget != null,
           ),
       ],
+    ),
     );
   }
+
+  Offset? _downAt;
+  Duration _downTime = Duration.zero;
 
   void _openShelf(Branch tree, List<TreeItem> games) {
     showModalBottomSheet<void>(
@@ -758,7 +815,8 @@ class _TreePageState extends State<_TreePage>
                   ),
                 ),
                 SizedBox(height: Tokens.space.xxs),
-                Semantics(
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                Flexible(child: Semantics(
                   container: true,
                   button: true,
                   label: '${_count(games.length)} on ${tree.name}. Show all',
@@ -772,16 +830,17 @@ class _TreePageState extends State<_TreePage>
                         extra > 0
                             ? '${_count(games.length)}  ·  +$extra on the shelf'
                             : _count(games.length),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: Tokens.type.body,
                             color: Tokens.palette.textDim),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-                ),
+                )),
+                // This tree's own look, beside its own name: it belongs to
+                // the tree, not to the app's actions at the top right.
                 if (w.onCustomise != null)
                   IconButton(
                     key: const Key('orchard-customise'),
@@ -789,14 +848,18 @@ class _TreePageState extends State<_TreePage>
                     // IconButton's tooltip does not reach semantics; the
                     // icon's label does.
                     icon: Icon(Icons.palette_outlined,
-                        color: Tokens.palette.text,
+                        size: 20,
+                        color: Tokens.palette.textDim,
                         semanticLabel: 'Customise ${tree.name}'),
                     style: IconButton.styleFrom(
-                      minimumSize: const Size.square(48),
-                      backgroundColor: Tokens.cosmos.panel,
-                      side: BorderSide(color: Tokens.cosmos.panelEdge),
-                    ),
+                        minimumSize: const Size.square(44)),
                   ),
+                ]),
+              ],
+            ),
+                ),
+                // Room for the orchard's own icon buttons, top right.
+                const SizedBox(width: kTopActionsW),
               ],
             ),
           ),
@@ -1216,6 +1279,50 @@ class _ShelfItem extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+
+/// One of the orchard's top-right icon buttons.
+typedef OrchardAction = ({IconData icon, String label, VoidCallback onTap});
+
+/// Width the header leaves free for [_TopActions] (three 44pt buttons in a
+/// glass pill). Measured, not guessed: 3 x 44 + 2 x 2 gaps + 2 x 4 inset.
+const double kTopActionsW = 3 * 44 + 2 * 2 + 2 * 4;
+
+/// Library, Friends and You as quiet icon buttons in one glass pill: the
+/// places the app goes besides the orchard, out of the scene's way.
+class _TopActions extends StatelessWidget {
+  const _TopActions({required this.actions});
+  final List<OrchardAction> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Tokens.cosmos.panelDeep,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: Tokens.cosmos.panelEdge),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 0; i < actions.length; i++) ...[
+          if (i > 0) const SizedBox(width: 2),
+          IconButton(
+            key: Key('orchard-action-${actions[i].label.toLowerCase()}'),
+            onPressed: () {
+              HapticFeedback.selectionClick();
+              actions[i].onTap();
+            },
+            icon: Icon(actions[i].icon,
+                size: 22,
+                color: Tokens.palette.text,
+                semanticLabel: actions[i].label),
+            style: IconButton.styleFrom(minimumSize: const Size.square(44)),
+          ),
+        ],
+      ]),
     );
   }
 }

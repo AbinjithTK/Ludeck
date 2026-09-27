@@ -64,7 +64,10 @@ class _FriendsScreenState extends State<FriendsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
+                Row(children: [
+                  if (Navigator.of(context).canPop())
+                    BackButton(color: Tokens.palette.text),
+                  Text(
                   'Friends',
                   style: TextStyle(
                     fontSize: Tokens.type.title,
@@ -72,6 +75,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                     color: Tokens.palette.text,
                   ),
                 ),
+                ]),
                 SizedBox(height: Tokens.space.xs),
                 Text(
                   "Open someone's tree by their handle. You can react to what "

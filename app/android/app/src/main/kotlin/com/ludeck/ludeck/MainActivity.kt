@@ -1,10 +1,13 @@
 package com.ludeck.ludeck
 
+import android.content.ClipData
 import android.content.Intent
 import android.os.Bundle
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 /**
  * Receives text shared to Ludeck from any other app.
@@ -48,6 +51,27 @@ class MainActivity : FlutterActivity() {
                         val share = pendingShare
                         pendingShare = null
                         result.success(share)
+                    }
+                    // Share OUT: the system chooser with the link text and,
+                    // when given, the orchard card image (served from the
+                    // cache dir through the FileProvider in the manifest).
+                    "shareOut" -> {
+                        val text = call.argument<String>("text") ?: ""
+                        val image = call.argument<String>("image")
+                        val send = Intent(Intent.ACTION_SEND)
+                        if (image != null) {
+                            val uri = FileProvider.getUriForFile(
+                                this, "$packageName.share", File(image))
+                            send.type = "image/png"
+                            send.putExtra(Intent.EXTRA_STREAM, uri)
+                            send.clipData = ClipData.newRawUri("", uri)
+                            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        } else {
+                            send.type = "text/plain"
+                        }
+                        send.putExtra(Intent.EXTRA_TEXT, text)
+                        startActivity(Intent.createChooser(send, null))
+                        result.success(true)
                     }
                     else -> result.notImplemented()
                 }

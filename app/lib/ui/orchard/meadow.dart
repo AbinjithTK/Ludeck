@@ -52,6 +52,75 @@ class MeadowClock extends ChangeNotifier {
 
   double? _lastScroll;
 
+  // ---- touch: the meadow answers a finger ---------------------------------
+  /// The finger, in WORLD coordinates (x + page scroll, screen y), or null.
+  Offset? touch;
+
+  /// How pressed the finger is, 0..1: rises fast on down, eases off after up,
+  /// so grass parted by a finger springs back rather than snapping.
+  double touchK = 0;
+  bool _down = false;
+
+  /// Taps on the meadow: flowers near one bounce, and each throws up a puff
+  /// of petals. (world x, y, time).
+  final List<(double, double, double)> pokes = [];
+
+  /// Petals in the air: start (world), launch velocity, birth time, shade.
+  final List<({Offset at, Offset v, double born, int shade})> petals = [];
+
+  void pointerDown(Offset world) {
+    touch = world;
+    _down = true;
+  }
+
+  void pointerMove(Offset world) => touch = world;
+
+  void pointerUp() => _down = false;
+
+  /// A tap at [world]: a puff of [n] petals, and a bounce for flowers there.
+  void poke(Offset world, {int n = 7}) {
+    pokes.add((world.dx, world.dy, t));
+    for (var i = 0; i < n; i++) {
+      final a = -math.pi / 2 + (_rnd.nextDouble() - 0.5) * 1.6;
+      final s = 110 + _rnd.nextDouble() * 120;
+      petals.add((
+        at: world + Offset((_rnd.nextDouble() - 0.5) * 16, -4),
+        v: Offset(math.cos(a) * s, math.sin(a) * s),
+        born: t,
+        shade: _rnd.nextInt(3),
+      ));
+    }
+    if (petals.length > 60) petals.removeRange(0, petals.length - 60);
+  }
+
+  final math.Random _rnd = math.Random(3);
+
+  /// Seconds a petal lives, and the gravity pulling it down (px/s^2).
+  static const double petalLife = 1.6, petalGravity = 240;
+
+  /// Where petal [p] is now, and how visible (0 = gone).
+  (Offset, double) petalAt(({Offset at, Offset v, double born, int shade}) p) {
+    final a = t - p.born;
+    final drag = math.exp(-1.6 * a); // air slows the throw
+    final travel = p.v * ((1 - drag) / 1.6);
+    final flutter = Offset(math.sin(a * 7 + p.born * 13) * 6, 0);
+    final fall = Offset(0, 0.5 * petalGravity * 0.35 * a * a);
+    final fade = (1 - a / petalLife).clamp(0.0, 1.0);
+    return (p.at + travel + fall + flutter, fade);
+  }
+
+  /// Extra bounce for a flower at world ([x], [y]) from recent pokes, radians.
+  double pokeNod(double x, double y) {
+    var nod = 0.0;
+    for (final (px, py, pt) in pokes) {
+      final d = math.sqrt((x - px) * (x - px) + (y - py) * (y - py));
+      if (d > kPokeReach) continue;
+      final a = t - pt;
+      nod += 0.5 * (1 - d / kPokeReach) * math.exp(-4 * a) * math.sin(16 * a);
+    }
+    return nod;
+  }
+
   /// Move time on by [dt] seconds with the pages at [scroll] px.
   void advance(double dt, double scroll) {
     if (dt <= 0) return;
@@ -61,8 +130,28 @@ class MeadowClock extends ChangeNotifier {
     final v = (scroll - last) / dt; // px/s; the ground moves the other way
     final target = (v / kWindPerLean).clamp(-kWindMax, kWindMax);
     wind += (target - wind) * (1 - math.exp(-dt / kWindLag));
+    touchK += ((_down ? 1.0 : 0.0) - touchK) *
+        (1 - math.exp(-dt / (_down ? 0.05 : 0.30)));
+    if (!_down && touchK < 0.01) touch = null;
+    pokes.removeWhere((p) => t - p.$3 > 1.5);
+    petals.removeWhere((p) => t - p.born > petalLife);
     notifyListeners();
   }
+}
+
+/// How far a finger parts the grass (px), how far a tap reaches a flower.
+const double kTouchReach = 64, kPokeReach = 34;
+
+/// How much a finger at [touch] (strength [k]) bends a blade whose middle is
+/// at ([x], [y]): away from the finger, most when closest, nothing past
+/// [kTouchReach]. Pure, so a test can pin the direction and the bound.
+double touchLean(double x, double y, Offset? touch, double k) {
+  if (touch == null || k < 0.005) return 0;
+  final dx = x - touch.dx, dy = y - touch.dy;
+  final d = math.sqrt(dx * dx + dy * dy);
+  if (d > kTouchReach) return 0;
+  final f = 1 - d / kTouchReach;
+  return (dx >= 0 ? 1 : -1) * 0.9 * k * f * f;
 }
 
 /// Scroll speed (px/s) that bends the grass by one radian, the most it
@@ -128,7 +217,9 @@ void _paintGrass(Canvas canvas, Size size,
     required List<Color> shades,
     Color? rim,
     double time = 0,
-    double wind = 0}) {
+    double wind = 0,
+    Offset? touch,
+    double touchK = 0}) {
   final paths = List.generate(shades.length, (_) => Path());
   final rimPath = Path();
   final first = ((scroll - maxH) / spacing).floor();
@@ -140,7 +231,9 @@ void _paintGrass(Canvas canvas, Size size,
     final base = ridgeY(xw, size.width, groundY) + sink;
     var h = minH + (maxH - minH) * r1 * r1;
     if (r3 > 0.93) h *= 1.5; // the odd tall stem
-    final lean = (r2 - 0.5) * 0.9 + swayAt(xw, time, wind, r3);
+    final lean = (r2 - 0.5) * 0.9 +
+        swayAt(xw, time, wind, r3) +
+        touchLean(xw, base - h / 2, touch, touchK);
     final w = 1.6 + r3 * 1.4;
     final tip = Offset(x + math.sin(lean) * h, base - math.cos(lean) * h);
     final bend = Offset(x + math.sin(lean) * h * 0.35, base - h * 0.55);
@@ -288,7 +381,9 @@ class MeadowGrassPainter extends CustomPainter {
         shades: [o.grassBack, Color.lerp(o.grassBack, o.grassFront, 0.5)!, o.grassFront],
         rim: o.grassRim,
         time: clock?.t ?? 0,
-        wind: clock?.wind ?? 0);
+        wind: clock?.wind ?? 0,
+        touch: clock?.touch,
+        touchK: clock?.touchK ?? 0);
 
     final ridge = Path()..moveTo(-1, ridgeY(s - 1, size.width, groundY));
     for (var x = 0.0; x <= size.width + 6; x += 6) {
@@ -335,7 +430,27 @@ class MeadowFrontPainter extends CustomPainter {
         salt: 29,
         shades: [o.grassBack, Color.lerp(o.grassBack, Tokens.cosmos.hillTop, 0.5)!],
         time: clock?.t ?? 0,
-        wind: clock?.wind ?? 0);
+        wind: clock?.wind ?? 0,
+        touch: clock?.touch,
+        touchK: clock?.touchK ?? 0);
+    // Petals thrown up by a tap on the meadow, drifting down as they fade.
+    final c = clock;
+    if (c == null || c.petals.isEmpty) return;
+    final s = scroll.value;
+    for (final p in c.petals) {
+      final (at, fade) = c.petalAt(p);
+      if (fade <= 0) continue;
+      final a = c.t - p.born;
+      canvas.save();
+      canvas.translate(at.dx - s, at.dy);
+      canvas.rotate(a * 5 + p.born * 11);
+      canvas.drawOval(
+          const Rect.fromLTWH(-3.2, -1.8, 6.4, 3.6),
+          Paint()
+            ..color = o.petals[p.shade % o.petals.length]
+                .withValues(alpha: 0.9 * fade));
+      canvas.restore();
+    }
   }
 
   @override
@@ -397,12 +512,23 @@ class DecorPainter extends CustomPainter {
   double get _t => clock?.t ?? 0;
   double get _wind => clock?.wind ?? 0;
 
+  /// A flower at page-local ([x], [y]) bends away from a finger brushing
+  /// past and bounces when tapped. The clock's touch is in world x.
+  double _pageW = 0; // set at the start of each paint
+  double _touchNod(double x, double y) {
+    final c = clock;
+    if (c == null) return 0;
+    final xw = pageIndex * _pageW + x;
+    return touchLean(xw, y, c.touch, c.touchK) + c.pokeNod(xw, y);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (decor.isEmpty) return;
     final s = tree.width / kTreeArtW;
     final trunk = tree.left + kTreeBaseX * s;
     final world0 = pageIndex * size.width;
+    _pageW = size.width;
     double ground(double x) => ridgeY(world0 + x, size.width, groundY);
 
     if (!front) {
@@ -547,7 +673,8 @@ class DecorPainter extends CustomPainter {
       final x = trunk + spots[i] * s, y = g(x) + 4;
       final h = (9 + 6 * _hash(i, 3)) * s;
       // A nod: each flower on its own slow phase, plus the swipe's wind.
-      final nod = 0.10 * math.sin(_t * 1.7 + i * 1.9) * (_t == 0 ? 0 : 1) + _wind;
+      final nod = 0.10 * math.sin(_t * 1.7 + i * 1.9) * (_t == 0 ? 0 : 1) + _wind +
+          _touchNod(x, y - h / 2);
       final head = Offset(
           x + (_hash(i, 4) - 0.5) * 4 * s + math.sin(nod) * h,
           y - h * math.cos(nod));
@@ -577,7 +704,15 @@ class DecorPainter extends CustomPainter {
           ? Offset.zero
           : Offset(math.sin(t * 0.55 + i * 2.1) * 5, math.cos(t * 0.41 + i * 1.7) * 4);
       final pulse = t == 0 ? 1.0 : 0.55 + 0.45 * (0.5 + 0.5 * math.sin(t * 1.25 + i * 2.7));
-      final p = tree.topLeft + (at[i] + drift) * s;
+      var p = tree.topLeft + (at[i] + drift) * s;
+      // They shy away from a finger, and drift back when it lifts.
+      final ck = clock;
+      if (ck != null && ck.touch != null && ck.touchK > 0.01) {
+        final f = Offset(ck.touch!.dx - pageIndex * _pageW, ck.touch!.dy);
+        final away = p - f;
+        final d = away.distance;
+        if (d < 90 && d > 0.1) p += away / d * (1 - d / 90) * 34 * ck.touchK;
+      }
       final r = (7 + 4 * _hash(i, 9)) * s;
       c.drawCircle(
           p,

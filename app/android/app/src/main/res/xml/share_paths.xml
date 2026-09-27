@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the share FileProvider may hand to another app: only the cache
+     dir's share/ folder, where ShareOut writes the orchard card. -->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

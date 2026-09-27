@@ -6,7 +6,7 @@ import '../../services/cover_art_cache.dart';
 import '../../state/ludeck_store.dart';
 import '../collection/collection_view.dart';
 import '../gamified/primitives.dart';
-import '../shell/nav_pill.dart';
+
 import '../tokens.dart';
 
 /// The whole collection as a list, reached from the navigation pill.
@@ -66,14 +66,19 @@ class LibraryScreen extends StatelessWidget {
                 Tokens.space.md,
                 Tokens.space.sm,
               ),
-              child: Text(
+              child: Row(children: [
+                // Pushed from the orchard's top buttons: its way back.
+                if (Navigator.of(context).canPop())
+                  BackButton(color: Tokens.palette.text),
+                Expanded(child: Text(
                 _libraryTitle(items),
                 style: TextStyle(
                   fontSize: Tokens.type.title,
                   letterSpacing: Tokens.type.trackingTitle,
                   color: Tokens.palette.text,
                 ),
-              ),
+              )),
+              ]),
             ),
             Expanded(
               child: CollectionView(
@@ -91,7 +96,6 @@ class LibraryScreen extends StatelessWidget {
                 // behind the pill, which reads as a rendering fault rather than as
                 // a list that continues.
                 bottomInset: MediaQuery.of(context).padding.bottom +
-                    NavPill.heightFor(context) +
                     Tokens.space.md * 2,
               ),
             ),

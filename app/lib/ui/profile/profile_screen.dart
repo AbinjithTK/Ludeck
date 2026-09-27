@@ -32,14 +32,18 @@ import 'package:provider/provider.dart';
 
 import '../../data/enums.dart';
 import '../../data/models.dart';
+import '../../domain/branch_tree.dart';
 import '../../domain/level.dart';
 import '../../domain/season.dart';
 import '../../state/ludeck_store.dart';
 import '../gamified/primitives.dart';
 import '../onboarding/onboarding_screen.dart';
+import '../orchard/fruit_look.dart';
+import '../orchard/orchard_portrait.dart';
+import '../orchard/orchard_view.dart' show treesOf, gamesOnTree;
+import '../orchard/tree_style.dart';
 import '../publish/publish_screen.dart';
 import '../tokens.dart';
-import '../roadmap/roadmap_view.dart';
 
 /// The profile route. Reads the store, so it needs no arguments -- the same
 /// pattern `BranchScreen` uses.
@@ -65,18 +69,34 @@ class ProfileScreen extends StatelessWidget {
       // art, and it carried a drag-to-rotate gesture the user judged worse than
       // a still tree.
       //
+      // The SAME orchard the home screen draws: the fullest trees, their
+      // games as the same fruit, on the same meadow. It replaced a roadmap
+      // (2026-09-27), which was a third picture of the collection.
+      //
       // Passed in rather than constructed inside the body so the body stays
       // testable without a canvas.
-      hero: RoadmapView(
-        items: items,
-        branches: store.branches,
-        placements: store.placements,
-        // No handlers and non-interactive: the portrait is a PICTURE of the
-        // collection, not a second place to edit it.
-        interactive: false,
-        animateArrivals: false,
-      ),
+      hero: OrchardPortrait(trees: _portraitTrees(store, items)),
     );
+  }
+
+  static List<PortraitTree> _portraitTrees(LudeckStore store, List<TreeItem> items) {
+    final trees = treesOf(store.branches);
+    final styles = resolveTreeStyles(
+        trees.map((b) => b.id).toList(), store.treeStyles);
+    final shape = BranchTree(store.branches, store.placements);
+    final byId = {for (final i in items) i.game.igdbId: i};
+    return [
+      for (final t in trees)
+        () {
+          final games = gamesOnTree(t, shape, byId);
+          return (
+            name: t.name,
+            games: [for (final g in games) g.game],
+            looks: [for (final g in games) lookOf(g)],
+            style: styles[t.id] ?? TreeStyle.defaultFor(trees.indexOf(t)),
+          );
+        }(),
+    ];
   }
 }
 

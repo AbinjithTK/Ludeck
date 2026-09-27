@@ -24,7 +24,6 @@ import 'ui/onboarding/onboarding_screen.dart';
 import 'ui/profile/profile_screen.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
-import 'ui/shell/nav_pill.dart';
 // The orchard replaced the node tree / roadmap / canopy as home. Those views
 // stay on disk (and in git) unimported, so reverting is one import away.
 import 'ui/orchard/orchard_view.dart';
@@ -213,22 +212,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// The collection, the skipped count, the loading flag and the error all belong
   /// to `LudeckStore`, which is read from the provider. A screen holding both a
   /// Repository and a store would be two sources of truth for the same rows.
-
-  /// Which place the navigation pill is showing.
-  ///
-  /// Tree, Library and Friends are PLACES and switch inline, so the pill stays on
-  /// screen and moving between them is one tap in either direction. `You` is not
-  /// here: the profile is an existing pushed detail with its own back arrow, and
-  /// re-architecting it to live inside the shell is not what this stage is for.
-  NavDestination _place = NavDestination.tree;
-
-  void _goTo(NavDestination d) {
-    if (d == NavDestination.you) {
-      _openProfile();
-      return;
-    }
-    setState(() => _place = d);
-  }
 
   @override
   void initState() {
@@ -884,30 +867,10 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       return const Scaffold(body: SizedBox.shrink());
     }
 
-    // Everything not on the tree is a different PLACE, reached from the pill.
-    // Library and Friends are full screens in their own right; they are hosted
-    // here rather than pushed so the pill stays visible and moving between the
-    // three is one tap each way.
-    if (_place == NavDestination.library) {
-      return _withPill(
-        LibraryScreen(
-          onSelect: _openStatusSheet,
-          coverCache: widget.coverCache,
-        ),
-        toPlace: _unfiledCount(items, store),
-      );
-    }
-    if (_place == NavDestination.friends) {
-      return _withPill(
-        const FriendsScreen(),
-        toPlace: _unfiledCount(items, store),
-      );
-    }
-
-    return _withPill(
-      Scaffold(
-        // The orchard fills the screen; the Rive file draws its own sky. Only
-        // the add control floats, lifted clear of the navigation pill.
+    // The orchard is the whole app's home. There is no tab bar: Library,
+    // Friends and You are quiet icon buttons at the top right, each a pushed
+    // screen with its own back arrow, so nothing covers the meadow.
+    return Scaffold(
         body: Stack(
           fit: StackFit.expand,
           children: [
@@ -933,23 +896,36 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   decor: style.decorCsv),
               unfiled: _unfiled(items, store),
               addButton: AddMenu(onAction: _onAdd),
-              bottomInset: NavPill.heightFor(context) + Tokens.space.md,
+              actions: [
+                (
+                  icon: Icons.grid_view_rounded,
+                  label: 'Library',
+                  onTap: _openLibrary,
+                ),
+                (
+                  icon: Icons.people_alt_outlined,
+                  label: 'Friends',
+                  onTap: _openFriends,
+                ),
+                (
+                  icon: Icons.person_outline_rounded,
+                  label: 'You',
+                  onTap: _openProfile,
+                ),
+              ],
+              bottomInset: Tokens.space.md,
             ),
           ],
         ),
-      ),
-      toPlace: _unfiledCount(items, store),
     );
   }
 
-  /// How many games are not filed onto a named branch.
-  ///
-  /// Counted from the store rather than from the built tree, because the pill is
-  /// drawn outside `RoadmapView` and asking the view for a number would
-  /// mean building the tree a second time. Buds count: a recommendation can be
-  /// filed like anything else now.
-  int _unfiledCount(List<TreeItem> items, LudeckStore store) =>
-      _unfiled(items, store).length;
+  void _openLibrary() => Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => LibraryScreen(
+          onSelect: _openStatusSheet, coverCache: widget.coverCache)));
+
+  void _openFriends() => Navigator.of(context)
+      .push(MaterialPageRoute(builder: (_) => const FriendsScreen()));
 
   /// The games on no branch (and not shelved), for the orchard's ground pile.
   List<TreeItem> _unfiled(List<TreeItem> items, LudeckStore store) {
@@ -960,26 +936,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         .where((i) => !i.entry.shelved && !filed.contains(i.game.igdbId))
         .toList();
   }
-
-  /// Puts the navigation pill under whatever place is showing.
-  ///
-  /// A Stack with the pill at the bottom rather than a `bottomNavigationBar`,
-  /// because the pill is translucent and has to let the sky through: the
-  /// `bottomNavigationBar` slot reserves opaque height OUTSIDE the body, which is
-  /// exactly the permanent reserved band the tab-bar option was rejected for.
-  Widget _withPill(Widget place, {required int toPlace}) => Stack(
-        children: [
-          Positioned.fill(child: place),
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: NavPill(
-              current: _place,
-              onSelect: _goTo,
-              toPlace: toPlace,
-            ),
-          ),
-        ],
-      );
 }
 
 /// Shown only when the FIRST read failed, so there is no collection to render.

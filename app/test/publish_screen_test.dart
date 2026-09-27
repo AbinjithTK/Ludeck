@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 import 'package:ludeck/data/enums.dart';
-import 'package:ludeck/ui/publish/roadmap_story_card.dart';
+import 'package:ludeck/ui/publish/orchard_story_card.dart';
 import 'package:ludeck/data/models.dart';
 import 'package:ludeck/services/social/fake_social_backend.dart';
 import 'package:ludeck/services/social/publish_export.dart';
@@ -101,7 +101,9 @@ void main() {
       // The story card renders the collection as a roadmap of nodes, not a
       // sample title in text -- so assert the card is present rather than a game
       // name (which now appears only as a node/cover, never as rendered text).
-      expect(find.byType(RoadmapStoryCard), findsOneWidget);
+      expect(find.byType(OrchardStoryCard), findsOneWidget);
+      expect(find.byKey(const Key('share-out')), findsOneWidget,
+          reason: 'one tap to the system share sheet');
 
       // The privacy assertion: scan every Text widget's rendered string.
       final allText = tester

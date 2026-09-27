@@ -103,6 +103,47 @@ void main() {
   });
 
   group('meadow life', () {
+    test('a finger parts the grass: away from it, bounded, gone past its reach', () {
+      const f = Offset(100, 500);
+      expect(touchLean(110, 500, f, 1), greaterThan(0), reason: 'right of it leans right');
+      expect(touchLean(90, 500, f, 1), lessThan(0));
+      expect(touchLean(100 + kTouchReach + 1, 500, f, 1), 0);
+      expect(touchLean(110, 500, null, 1), 0);
+      expect(touchLean(101, 500, f, 1).abs(), lessThanOrEqualTo(0.9));
+      expect(touchLean(110, 500, f, 0.5), lessThan(touchLean(110, 500, f, 1)));
+    });
+
+    test('a tap throws petals up that fall and fade, and bounces a flower there', () {
+      final c = MeadowClock();
+      c.advance(1 / 60, 0);
+      c.poke(const Offset(200, 600));
+      expect(c.petals, isNotEmpty);
+      final start = c.petalAt(c.petals.first).$1;
+      for (var i = 0; i < 12; i++) {
+        c.advance(1 / 60, 0);
+      }
+      expect(c.petalAt(c.petals.first).$1.dy, lessThan(start.dy), reason: 'thrown up');
+      expect(c.pokeNod(200, 600).abs(), greaterThan(0));
+      expect(c.pokeNod(200 + kPokeReach + 5, 600), 0);
+      for (var i = 0; i < 120; i++) {
+        c.advance(1 / 60, 0);
+      }
+      expect(c.petals, isEmpty, reason: 'gone after their life');
+      expect(c.pokes, isEmpty);
+    });
+
+    test('a pressed finger eases in, and the grass springs back after', () {
+      final c = MeadowClock()..pointerDown(const Offset(1, 1));
+      for (var i = 0; i < 10; i++) {
+        c.advance(1 / 60, 0);
+      }
+      expect(c.touchK, greaterThan(0.9));
+      c.pointerUp();
+      for (var i = 0; i < 90; i++) {
+        c.advance(1 / 60, 0);
+      }
+      expect(c.touch, isNull);
+    });
     test('still when stopped, and bounded when moving', () {
       expect(swayAt(123, 0, 0, 0.4), 0);
       var most = 0.0;
@@ -157,7 +198,6 @@ void main() {
                 height: 66,
                 child: GroundTray(
                   items: items,
-                  addButton: const SizedBox(key: Key('add'), width: 56, height: 56),
                   onOpen: onOpen ?? (_) {},
                   onLift: (i, from, at) => log?.call('lift ${i.game.title}'),
                   onLiftMove: (_) => log?.call('move'),
@@ -177,21 +217,41 @@ void main() {
       await pump(tester, five);
       expect(find.text('5 on the ground'), findsOneWidget);
       expect(find.byKey(const Key('ground-strip')), findsNothing);
-      final closedAdd = tester.getRect(find.byKey(const Key('add')));
+      final closed = tester.getRect(find.byType(GroundTray));
+      final closedPill = tester.getSize(find.descendant(
+          of: find.byType(GroundTray), matching: find.byType(Container)).first);
 
       await tester.tap(find.byKey(const Key('orchard-ground')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ground-strip')), findsOneWidget);
-      final openAdd = tester.getRect(find.byKey(const Key('add')));
-      expect(openAdd.left, greaterThan(closedAdd.left),
-          reason: 'the add button rides the tray open to the right');
-      // Open, the tray (and its end cap) reaches the right edge: 1pt border
-      // and 4pt inset inside a 412pt box.
-      expect(openAdd.right, moreOrLessEquals(412 - 5, epsilon: 1));
+      final openPill = tester.getSize(find.descendant(
+          of: find.byType(GroundTray), matching: find.byType(Container)).first);
+      expect(closedPill.width, lessThan(closed.width), reason: 'closed hugs the pile');
+      expect(openPill.width, moreOrLessEquals(closed.width, epsilon: 0.5),
+          reason: 'open, the tray reaches the end of its space (the add button)');
 
       await tester.tap(find.byKey(const Key('orchard-ground')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ground-strip')), findsNothing);
+    });
+
+    testWidgets('the deal: covers travel from the pile, nearest first, and land '
+        'exactly where the strip puts them', (tester) async {
+      await pump(tester, five);
+      await tester.tap(find.byKey(const Key('orchard-ground')));
+      // Mid-deal: covers are in flight and card 0 is further along than card 4.
+      await tester.pump(const Duration(milliseconds: 90));
+      expect(find.byKey(const Key('ground-strip')), findsNothing,
+          reason: 'mid-deal the cards are animated, not the list');
+      await tester.pumpAndSettle();
+      // Settled: the list's first cover sits where dealPose(0, 1) put it.
+      final pill = tester.getRect(find.descendant(
+          of: find.byType(GroundTray), matching: find.byType(Container)).first);
+      final first = tester.getRect(find.byKey(const ValueKey('ground-1')));
+      final pose = dealPose(0, 1, 0).rect.shift(pill.topLeft + const Offset(kTrayInset, kTrayInset));
+      expect(first.left, moreOrLessEquals(pose.left, epsilon: 0.5));
+      expect(first.top, moreOrLessEquals(pose.top, epsilon: 0.5));
+      expect(first.width, moreOrLessEquals(pose.width, epsilon: 0.5));
     });
 
     testWidgets('reduce motion: it opens in one frame', (tester) async {
@@ -246,10 +306,26 @@ void main() {
           reason: 'the first cover scrolled out of view');
     });
 
-    testWidgets('empty ground: only the add button', (tester) async {
+    testWidgets('empty ground: no tray at all', (tester) async {
       await pump(tester, const []);
       expect(find.byKey(const Key('orchard-ground')), findsNothing);
-      expect(find.byKey(const Key('add')), findsOneWidget);
+      expect(find.byType(FruitImage), findsNothing);
+    });
+
+    test('each card starts in the pile and deals later than the one before', () {
+      for (var i = 0; i < 8; i++) {
+        expect(dealT(0, i), 0);
+        expect(dealT(1, i), 1);
+        if (i > 0) expect(dealT(0.3, i), lessThanOrEqualTo(dealT(0.3, i - 1)));
+      }
+      // Hidden cards (under the pile) fade in on their way out.
+      expect(dealPose(5, 0, 0).opacity, 0);
+      expect(dealPose(5, 1, 0).opacity, 1);
+      expect(dealPose(1, 0, 0).opacity, 1);
+      // The pile's cards are smaller and turned; the strip's are upright.
+      expect(dealPose(0, 0, 0).angle, isNot(0));
+      expect(dealPose(0, 1, 0).angle, 0);
+      expect(dealPose(0, 0, 0).rect.width, lessThan(dealPose(0, 1, 0).rect.width));
     });
   });
 }
