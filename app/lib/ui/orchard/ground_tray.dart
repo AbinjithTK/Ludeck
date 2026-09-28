@@ -59,6 +59,11 @@ const double kPileCoverW = 34;
 /// How far from the open strip's far end the covers fade into the glass.
 const double kTrayFadeW = 64;
 
+/// Every cover on the ground is shown as it is. The status marks (drained
+/// wishlist bud, play badge, gold finished rim) belong to the tree only: on
+/// the ground a game is just waiting to be hung (2026-09-28).
+const FruitLook kGroundLook = FruitLook.plain;
+
 /// Card i's own progress through the deal, from the tray's [t]: card i starts
 /// [kDealStagger] x i later (capped), so the pile deals out nearest-first and
 /// gathers back far-first. Monotonic in [t]; 0 at t=0 and 1 at t=1.
@@ -232,6 +237,11 @@ class _GroundTrayState extends State<GroundTray>
         fontFamily: Tokens.type.ui,
         fontSize: Tokens.type.caption,
         fontWeight: FontWeight.w600,
+        // No glass behind it any more: a soft shadow keeps it readable over
+        // the grass and flowers.
+        shadows: [
+          Shadow(blurRadius: 8, color: Tokens.palette.bg.withValues(alpha: 0.8)),
+        ],
         color: Tokens.palette.textDim));
     final span = TextSpan(style: style, children: [
       TextSpan(
@@ -365,10 +375,11 @@ class _GroundTrayState extends State<GroundTray>
               angle: p.angle,
               child: FruitImage(
                 game: items[i].game,
-                look: lookOf(items[i]),
+                look: kGroundLook,
                 width: p.rect.width,
                 radius: 4 + 2 * u,
                 edge: false,
+                bare: true,
               ),
             ),
           ),
@@ -525,7 +536,12 @@ class _TrayCoverState extends State<_TrayCover> {
             // (left of its 48pt cell), or the hand-over from the animated
             // cards to the list jumps 3pt.
             child: FruitImage(
-                game: item.game, look: look, width: kTrayCoverW, radius: 6, edge: false),
+                game: item.game,
+                look: kGroundLook,
+                width: kTrayCoverW,
+                radius: 6,
+                edge: false,
+                bare: true),
           ),
         ),
       ),
@@ -545,7 +561,12 @@ class FruitImage extends StatefulWidget {
     this.border,
     this.shadow = false,
     this.edge = true,
+    this.bare = false,
   });
+
+  /// No card behind a loaded cover: the cover alone, so nothing frames it.
+  /// Used on the ground, where covers sit straight on the meadow.
+  final bool bare;
 
   /// Outline the card while its cover is still loading. Off in the ground
   /// tray, which is glass with no edges anywhere.
@@ -608,7 +629,9 @@ class _FruitImageState extends State<FruitImage> {
       decoration: BoxDecoration(
         // Loading: a visible glass card, so a cover still downloading reads
         // as a card arriving rather than as a gap.
-        color: png == null ? Tokens.cosmos.panel : Tokens.cosmos.panelDeep,
+        color: png == null
+            ? Tokens.cosmos.panel
+            : (widget.bare ? null : Tokens.cosmos.panelDeep),
         borderRadius: BorderRadius.circular(widget.radius),
         border: widget.border ??
             (png == null && widget.edge
@@ -665,10 +688,11 @@ class TrayFade extends StatelessWidget {
   }
 }
 
-/// Frosted glass, the way a material sits over a live scene: the meadow
-/// behind is blurred and tinted, not merely darkened, so the controls take
-/// the scene's own colour and belong to it. [lit] brightens the edge when the
-/// tray is a drop target.
+/// The tray's surface. At rest there is NONE: the covers and the count sit
+/// straight on the meadow, no capsule, no frame (2026-09-28). Only while a
+/// game is held over it ([lit]) does a lit glass pad fade in behind, so the
+/// drop target is visible. The glass is always in the tree (just transparent)
+/// so the tray's own layout never changes shape when it lights.
 class _Glass extends StatelessWidget {
   const _Glass({required this.child, this.lit = false});
   final Widget child;
@@ -677,11 +701,24 @@ class _Glass extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final reduce = MediaQuery.disableAnimationsOf(context);
+    final d = Tokens.motion.maybe(Tokens.motion.swap, reduceMotion: reduce);
     return AnimatedScale(
       scale: lit ? 1.03 : 1,
-      duration: Tokens.motion.maybe(Tokens.motion.swap, reduceMotion: reduce),
+      duration: d,
       curve: Tokens.motion.easeOut,
-      child: Glass(lit: lit, rim: false, child: child),
+      child: Stack(children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: AnimatedOpacity(
+              key: const Key('tray-drop-glass'),
+              opacity: lit ? 1 : 0,
+              duration: d,
+              child: const Glass(lit: true, rim: false, child: SizedBox.expand()),
+            ),
+          ),
+        ),
+        child,
+      ]),
     );
   }
 }

@@ -238,10 +238,21 @@ void main() {
 
     testWidgets('no outline, and the open strip fades out at its far end',
         (tester) async {
-      await pump(tester, five);
+      // Mixed statuses, so "drawn as it is" is actually tested.
+      await pump(tester, [
+        item(1, 'Game 0', p: Progress.finished),
+        item(2, 'Game 1', p: Progress.playing),
+        item(3, 'Game 2', o: Ownership.spotted),
+        item(4, 'Game 3'),
+        item(5, 'Game 4'),
+      ]);
       Glass glass() => tester.widget<Glass>(find.descendant(
           of: find.byType(GroundTray), matching: find.byType(Glass)).first);
       expect(glass().rim, isFalse, reason: 'the tray is glass with no edge');
+      expect(
+          tester.widget<AnimatedOpacity>(find.byKey(const Key('tray-drop-glass'))).opacity,
+          0,
+          reason: 'at rest there is no capsule: the covers sit on the meadow');
       double fade() => tester.widget<TrayFade>(find.byType(TrayFade)).fade;
       expect(fade(), 0, reason: 'closed, nothing to fade');
       expect(tester.getSize(find.descendant(
@@ -252,6 +263,13 @@ void main() {
       await tester.pumpAndSettle();
       expect(fade(), kTrayFadeW);
       expect(tester.getSize(find.byKey(const ValueKey('ground-1'))).width, kTrayCoverW);
+      // No status marks on the ground: every cover is drawn as it is and
+      // with no card framing it, whatever its status on the tree.
+      for (final f in tester.widgetList<FruitImage>(find.descendant(
+          of: find.byType(GroundTray), matching: find.byType(FruitImage)))) {
+        expect(f.look, FruitLook.plain);
+        expect(f.bare, isTrue);
+      }
     });
 
     testWidgets('the deal: covers travel from the pile, nearest first, and land '
