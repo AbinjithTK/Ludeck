@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
 class ShareOut {
-  static const MethodChannel _channel = MethodChannel('com.ludeck.ludeck/share');
+  static const MethodChannel _channel = MethodChannel('com.ludeck.android/share');
 
   /// Open the share sheet with [text] and, when given, [png] as the image.
   /// True when the sheet opened.

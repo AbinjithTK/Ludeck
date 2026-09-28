@@ -7,8 +7,8 @@ function Shot([string]$name) {
     & $adb shell rm "/sdcard/$name.png"
     python -c "from PIL import Image; Image.open(r'$out\$name`_raw.png').resize((540,1200)).save(r'$out\$name.png')"
 }
-& $adb shell am force-stop com.ludeck.ludeck
-& $adb shell monkey -p com.ludeck.ludeck -c android.intent.category.LAUNCHER 1 2>&1 | Out-Null
+& $adb shell am force-stop com.ludeck.android
+& $adb shell monkey -p com.ludeck.android -c android.intent.category.LAUNCHER 1 2>&1 | Out-Null
 Start-Sleep 7
 Shot 'meadow_rest'
 # A slow 3 s drag right-to-left; the capture lands partway through it.

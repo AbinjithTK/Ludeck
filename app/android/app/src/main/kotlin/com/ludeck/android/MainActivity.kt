@@ -1,4 +1,4 @@
-package com.ludeck.ludeck
+package com.ludeck.android
 
 import android.content.ClipData
 import android.content.Intent
@@ -99,6 +99,6 @@ class MainActivity : FlutterActivity() {
     }
 
     private companion object {
-        const val CHANNEL = "com.ludeck.ludeck/share"
+        const val CHANNEL = "com.ludeck.android/share"
     }
 }

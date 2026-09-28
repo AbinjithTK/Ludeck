@@ -83,9 +83,9 @@ use `$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe`.
 
 ```powershell
 flutter build apk --debug --target-platform android-x64   # ~90MB; the fat APK won't fit
-& $adb uninstall com.ludeck.ludeck                        # /data is 91% full — MUST uninstall first
+& $adb uninstall com.ludeck.android                        # /data is 91% full — MUST uninstall first
 & $adb install <apk>
-& $adb shell monkey -p com.ludeck.ludeck -c android.intent.category.LAUNCHER 1
+& $adb shell monkey -p com.ludeck.android -c android.intent.category.LAUNCHER 1
 ```
 
 `install -r` fails with `INSUFFICIENT_STORAGE` unless you uninstall first, and
@@ -93,7 +93,7 @@ flutter build apk --debug --target-platform android-x64   # ~90MB; the fat APK w
 rounds. `monkey` brings an already-running app to the front rather than
 restarting it, so `am force-stop` first or you will screenshot stale code.
 
-Package id is **`com.ludeck.ludeck`**.
+Package id is **`com.ludeck.android`**.
 
 ---
 

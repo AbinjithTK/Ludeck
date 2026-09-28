@@ -20,7 +20,7 @@ class PlatformShareIntake implements ShareIntake {
   const PlatformShareIntake();
 
   static const MethodChannel _channel =
-      MethodChannel('com.ludeck.ludeck/share');
+      MethodChannel('com.ludeck.android/share');
 
   @override
   Future<String?> takePending() async {

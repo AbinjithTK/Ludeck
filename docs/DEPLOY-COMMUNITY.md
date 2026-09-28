@@ -123,7 +123,7 @@ After step 6, on a real device or emulator:
    opens a real Google consent screen.
 3. Note the handle shown on the resulting share card.
 4. On a second device (or a fresh app install, or `adb shell pm clear
-   com.ludeck.ludeck` to reset the first one), go to **Share your tree →
+   com.ludeck.android` to reset the first one), go to **Share your tree →
    Save and share → See what a visitor sees**, but change the handle in the
    URL/deep-link to the one from step 3 -- or, until real deep-linking exists
    (see the note below), edit `VisitScreen(handle: '...')`'s argument
