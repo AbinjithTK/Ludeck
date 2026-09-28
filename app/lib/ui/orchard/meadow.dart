@@ -238,7 +238,9 @@ void _paintGrass(Canvas canvas, Size size,
     double time = 0,
     double wind = 0,
     Offset? touch,
-    double touchK = 0}) {
+    double touchK = 0,
+    double? period}) {
+  final pw = period ?? size.width;
   final paths = List.generate(shades.length, (_) => Path());
   final rimPath = Path(), seedPath = Path();
   final first = ((scroll - maxH * 2) / spacing).floor();
@@ -251,7 +253,7 @@ void _paintGrass(Canvas canvas, Size size,
     if (lush < 0.32 && r3 > lush * 2.2) continue;
     final dFrac = depthBand > 0 ? math.pow(r1, 1.5).toDouble() : 0.0;
     final near = 1 + nearScale * dFrac;
-    final rootY = ridgeY(cx, size.width, groundY) + sink + dFrac * depthBand;
+    final rootY = ridgeY(cx, pw, groundY) + sink + dFrac * depthBand;
     final clumpH = (minH + (maxH - minH) * (0.35 + 0.65 * lush) * (0.6 + 0.4 * r3)) * near;
     final n = 3 + (lush * 6 * (0.6 + 0.4 * r1)).round();
     final spread = (3 + 5 * lush) * near;
@@ -321,7 +323,14 @@ class MeadowBackPainter extends CustomPainter {
     required this.scroll,
     required this.groundFromBottom,
     this.halos = const [],
+    this.period,
   }) : super(repaint: scroll);
+
+  /// The ridge's wavelength in px: one crest per tree. Defaults to the
+  /// painted width (the home screen: one tree per page). A portrait holding
+  /// several trees in one picture passes its slot width, so a crest sits
+  /// under every trunk instead of only under the picture's centre.
+  final double? period;
 
   /// The pages' scroll offset in pixels (0 = first tree centred).
   final ValueListenable<double> scroll;
@@ -379,9 +388,10 @@ class MeadowBackPainter extends CustomPainter {
     }
 
     // The ridge, sampled across the screen.
-    final ridge = Path()..moveTo(-1, ridgeY(s - 1, size.width, groundY));
+    final pw = period ?? size.width;
+    final ridge = Path()..moveTo(-1, ridgeY(s - 1, pw, groundY));
     for (var x = 0.0; x <= size.width + 6; x += 6) {
-      ridge.lineTo(x, ridgeY(s + x, size.width, groundY));
+      ridge.lineTo(x, ridgeY(s + x, pw, groundY));
     }
     final land = Path.from(ridge)
       ..lineTo(size.width + 6, size.height + 1)
@@ -395,7 +405,7 @@ class MeadowBackPainter extends CustomPainter {
             end: Alignment.bottomCenter,
             colors: [c.hillTop, c.hillDeep],
           ).createShader(
-              Rect.fromLTRB(0, groundY - kRidgeDip * size.width, size.width, size.height)));
+              Rect.fromLTRB(0, groundY - kRidgeDip * pw, size.width, size.height)));
     // Moonlight on the crest: a soft band, not a drawn line. The 1pt rim
     // stroke that was here made the whole meadow read as one ruled line.
     canvas.drawPath(
@@ -413,7 +423,7 @@ class MeadowBackPainter extends CustomPainter {
       final x = k * 160 + (_hash(k, 71) - 0.5) * 90 - s;
       // Well below the crest and faint: nearer the ridge, a 0.55 hollow sat
       // at a trunk's foot and read as a hole under the tree (2026-09-28).
-      final y = ridgeY(x + s, size.width, groundY) + 44 + _hash(k, 72) * 30;
+      final y = ridgeY(x + s, pw, groundY) + 44 + _hash(k, 72) * 30;
       final r = 60 + _hash(k, 73) * 70;
       canvas.drawOval(
           Rect.fromCenter(center: Offset(x, y), width: r * 2.4, height: r * 0.7),
@@ -430,6 +440,7 @@ class MeadowBackPainter extends CustomPainter {
   bool shouldRepaint(MeadowBackPainter old) =>
       old.scroll != scroll ||
       old.groundFromBottom != groundFromBottom ||
+      old.period != period ||
       !listEquals(old.halos, halos);
 }
 
@@ -438,12 +449,15 @@ class MeadowBackPainter extends CustomPainter {
 /// repainting for that.
 class MeadowGrassPainter extends CustomPainter {
   MeadowGrassPainter(
-      {required this.scroll, required this.groundFromBottom, this.clock})
+      {required this.scroll, required this.groundFromBottom, this.clock, this.period})
       : super(repaint: Listenable.merge([scroll, clock]));
 
   final ValueListenable<double> scroll;
   final double groundFromBottom;
   final MeadowClock? clock;
+
+  /// See [MeadowBackPainter.period].
+  final double? period;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -467,24 +481,29 @@ class MeadowGrassPainter extends CustomPainter {
         time: clock?.t ?? 0,
         wind: clock?.wind ?? 0,
         touch: clock?.touch,
-        touchK: clock?.touchK ?? 0);
+        touchK: clock?.touchK ?? 0,
+        period: period);
   }
 
   @override
   bool shouldRepaint(MeadowGrassPainter old) =>
       old.scroll != scroll ||
       old.clock != clock ||
+      old.period != period ||
       old.groundFromBottom != groundFromBottom;
 }
 
 /// Short grass in FRONT of the trees, so each trunk's foot stands in it.
 class MeadowFrontPainter extends CustomPainter {
   MeadowFrontPainter(
-      {required this.scroll, required this.groundFromBottom, this.clock})
+      {required this.scroll, required this.groundFromBottom, this.clock, this.period})
       : super(repaint: Listenable.merge([scroll, clock]));
 
   final ValueListenable<double> scroll;
   final MeadowClock? clock;
+
+  /// See [MeadowBackPainter.period].
+  final double? period;
 
   /// The soil line's distance from the bottom edge (same for every page).
   final double groundFromBottom;
@@ -507,7 +526,8 @@ class MeadowFrontPainter extends CustomPainter {
         time: clock?.t ?? 0,
         wind: clock?.wind ?? 0,
         touch: clock?.touch,
-        touchK: clock?.touchK ?? 0);
+        touchK: clock?.touchK ?? 0,
+        period: period);
     // Petals thrown up by a tap on the meadow, drifting down as they fade.
     final c = clock;
     if (c == null || c.petals.isEmpty) return;
@@ -532,6 +552,7 @@ class MeadowFrontPainter extends CustomPainter {
   bool shouldRepaint(MeadowFrontPainter old) =>
       old.scroll != scroll ||
       old.clock != clock ||
+      old.period != period ||
       old.groundFromBottom != groundFromBottom;
 }
 
@@ -826,6 +847,7 @@ class GroundContactPainter extends CustomPainter {
     required this.groundY,
     required this.pageIndex,
     this.patch = false,
+    this.period,
   });
 
   final Rect tree;
@@ -833,11 +855,14 @@ class GroundContactPainter extends CustomPainter {
   final int pageIndex;
   final bool patch;
 
+  /// See [MeadowBackPainter.period].
+  final double? period;
+
   @override
   void paint(Canvas canvas, Size size) {
     final s = tree.width / kTreeArtW;
     final x = tree.left + kTreeBaseX * s;
-    final y = ridgeY(pageIndex * size.width + x, size.width, groundY) + 2;
+    final y = ridgeY(pageIndex * size.width + x, period ?? size.width, groundY) + 2;
     final c = Tokens.cosmos;
     void soft(double w, double h, Color colour, double alpha, {double dy = 0}) {
       canvas.save();
@@ -872,5 +897,6 @@ class GroundContactPainter extends CustomPainter {
       old.tree != tree ||
       old.groundY != groundY ||
       old.pageIndex != pageIndex ||
+      old.period != period ||
       old.patch != patch;
 }

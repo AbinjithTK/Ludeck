@@ -73,6 +73,38 @@ List<PortraitTree> portraitFromPublished(
   ];
 }
 
+/// How far a trunk's foot sinks below the hill surface (px), so the front
+/// grass closes over it and the tree stands IN the meadow, not on a line.
+const double kFootSink = 3;
+
+/// Where each of [trees] stands in a portrait of [size] whose soil line is
+/// [soil] px from the bottom. One slot per tree; the meadow's ridge has one
+/// crest per slot ([MeadowBackPainter.period] = slot width), and each trunk's
+/// foot is moved onto that crest and [kFootSink] into it.
+///
+/// Before 2026-09-28 the ridge had ONE crest, at the picture's centre, while
+/// two or three trees stood at slot centres where the ridge dips: every tree
+/// hung above the hill ("these trees are in air"). Pure, so a test pins it.
+List<Rect> portraitFrames(Size size, double soil, List<int> gameCounts) {
+  final groundY = size.height - soil;
+  final n = gameCounts.isEmpty ? 1 : gameCounts.length;
+  final slotW = size.width / n;
+  return [
+    for (var i = 0; i < gameCounts.length; i++)
+      () {
+        // A lone tree gets headroom for a title; several stand closer.
+        final f = treeFrame(Size(slotW, size.height), groundY,
+            treeZoom(gameCounts[i]),
+            headroom: size.height * (n == 1 ? 0.06 : 0.12));
+        final s = f.width / kTreeArtW;
+        final footX = slotW * (i + 0.5); // the crest
+        final footY = ridgeY(footX, slotW, groundY) + kFootSink;
+        return f.shift(Offset(footX - (f.left + kTreeBaseX * s),
+            footY - (f.top + kTreeBaseY * s)));
+      }()
+  ];
+}
+
 class OrchardPortrait extends StatelessWidget {
   const OrchardPortrait({super.key, required this.trees, this.showNames = true});
 
@@ -90,20 +122,23 @@ class OrchardPortrait extends StatelessWidget {
       final groundY = size.height - soil;
       final n = shown.isEmpty ? 1 : shown.length;
       final slotW = size.width / n;
+      final frames =
+          portraitFrames(size, soil, [for (final t in shown) t.games.length]);
       return ClipRect(
         child: Stack(fit: StackFit.expand, children: [
           CustomPaint(
-              painter: MeadowBackPainter(scroll: _still, groundFromBottom: soil)),
+              painter: MeadowBackPainter(
+                  scroll: _still, groundFromBottom: soil, period: slotW)),
           CustomPaint(
-              painter: MeadowGrassPainter(scroll: _still, groundFromBottom: soil)),
+              painter: MeadowGrassPainter(
+                  scroll: _still, groundFromBottom: soil, period: slotW)),
           for (var i = 0; i < shown.length; i++) ...() {
             final t = shown[i];
-            final slot = Size(slotW, size.height);
-            // A lone tree gets headroom for a title; several stand closer.
-            final frame = treeFrame(slot, groundY, treeZoom(t.games.length),
-                    headroom: size.height * (n == 1 ? 0.06 : 0.12))
-                .shift(Offset(slotW * i, 0));
+            final frame = frames[i];
             return [
+              CustomPaint(
+                  painter: GroundContactPainter(
+                      tree: frame, groundY: groundY, pageIndex: 0, period: slotW)),
               Positioned.fromRect(
                 rect: frame,
                 child: IgnorePointer(
@@ -135,7 +170,8 @@ class OrchardPortrait extends StatelessWidget {
           }(),
           IgnorePointer(
             child: CustomPaint(
-                painter: MeadowFrontPainter(scroll: _still, groundFromBottom: soil)),
+                painter: MeadowFrontPainter(
+                    scroll: _still, groundFromBottom: soil, period: slotW)),
           ),
         ]),
       );
