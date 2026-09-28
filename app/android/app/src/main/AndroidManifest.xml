@@ -4,7 +4,7 @@
          network at all and every cover silently shows its placeholder. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="ludeck"
+        android:label="Ludeck"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
