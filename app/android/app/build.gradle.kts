@@ -23,7 +23,9 @@ val hasUploadKey = listOf("storeFile", "storePassword", "keyAlias", "keyPassword
     .all { !keyProperties.getProperty(it).isNullOrBlank() }
 
 gradle.taskGraph.whenReady {
-    val bundling = allTasks.any { it.name.startsWith("bundle") && it.name.endsWith("Release") }
+    // Exactly the app-bundle task. A prefix match also caught AGP's internal
+    // bundle*Release tasks that assembleRelease runs, and blocked emulator APKs.
+    val bundling = allTasks.any { it.path == ":app:bundleRelease" }
     if (bundling && !hasUploadKey) {
         throw GradleException(
             "Release app bundle needs the Play upload key: create android/key.properties " +
