@@ -299,4 +299,35 @@ void main() {
       expect(find.byType(PaywallScreen), findsNothing);
     });
   });
+
+  group('the share button', () {
+    testWidgets('is present, labelled, and no longer a filled slab',
+        (tester) async {
+      tester.view.physicalSize = const Size(412, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      var shared = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: ProfileBody(
+          items: [_item(1, 'Hades')],
+          branches: 0,
+          hero: Container(key: const Key('hero-stub')),
+          onShare: () => shared++,
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      // Present and reachable by its stable key and screen-reader label.
+      expect(find.byKey(const Key('profile-share')), findsOneWidget);
+      expect(
+          _labels(tester).where((l) => l == 'Share your orchard'), isNotEmpty);
+      // It is the app's glass material now, not Android's default filled pill.
+      expect(find.byType(FilledButton), findsNothing,
+          reason: 'the share button is no longer a solid FilledButton slab');
+
+      await tester.tap(find.byKey(const Key('profile-share')));
+      await tester.pump();
+      expect(shared, 1, reason: 'tapping the share button opens the share flow');
+    });
+  });
 }

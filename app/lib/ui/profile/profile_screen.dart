@@ -28,6 +28,7 @@
 // pure functions over the collection, both tested. No figure is computed inline.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/enums.dart';
@@ -39,6 +40,7 @@ import '../../services/entitlement_service.dart';
 import '../../services/social/social_backend.dart';
 import '../../state/ludeck_store.dart';
 import '../paywall/paywall_screen.dart';
+import '../common/glass.dart';
 import '../gamified/primitives.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../orchard/fruit_look.dart';
@@ -202,25 +204,7 @@ class ProfileBody extends StatelessWidget {
               children: [
                 _Ladder(ladder: ladder),
                 SizedBox(height: Tokens.space.lg),
-                SizedBox(
-                  height: 52,
-                  child: FilledButton.icon(
-                    key: const Key('profile-share'),
-                    onPressed: onShare ?? () => showShareSheet(context),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Tokens.palette.text,
-                      foregroundColor: Tokens.palette.bg,
-                      shape: const StadiumBorder(),
-                      // styleFrom's textStyle REPLACES the theme's, so it
-                      // must name the family itself.
-                      textStyle: TextStyle(
-                          fontFamily: Tokens.type.ui,
-                          fontSize: Tokens.type.body, fontWeight: FontWeight.w700),
-                    ),
-                    icon: const Icon(Icons.ios_share_rounded, size: 20),
-                    label: const Text('Share your orchard'),
-                  ),
-                ),
+                _ShareButton(onShare: onShare ?? () => showShareSheet(context)),
                 SizedBox(height: Tokens.space.xl),
                 _SeasonBlock(season: season, branches: branches),
                 SizedBox(height: Tokens.space.xl),
@@ -293,6 +277,77 @@ class _ProRow extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// The share action, made distinct from everything else on the screen.
+///
+/// It used to be a solid white pill -- Android's default filled button, the
+/// heaviest thing on the page and indistinguishable from any other app's
+/// primary button. Now it is the app's own glass material (the same as the
+/// header and the ground tray), a capsule with no drawn outline, the share
+/// glyph in the accent gold, and the label in the display face. It reads as
+/// the one thing that sends your orchard OUT, not as another navigation slab.
+class _ShareButton extends StatefulWidget {
+  const _ShareButton({required this.onShare});
+
+  final VoidCallback onShare;
+
+  @override
+  State<_ShareButton> createState() => _ShareButtonState();
+}
+
+class _ShareButtonState extends State<_ShareButton> {
+  bool _down = false;
+
+  void _set(bool v) {
+    if (_down != v) setState(() => _down = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Tokens.palette;
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    return Semantics(
+      button: true,
+      label: 'Share your orchard',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _set(true),
+        onTapCancel: () => _set(false),
+        onTapUp: (_) => _set(false),
+        onTap: () {
+          HapticFeedback.selectionClick();
+          widget.onShare();
+        },
+        child: AnimatedScale(
+          scale: _down ? Tokens.motion.pressScale : 1,
+          duration: Tokens.motion.maybe(Tokens.motion.press, reduceMotion: reduce),
+          curve: Tokens.motion.easeOut,
+          child: SizedBox(
+            key: const Key('profile-share'),
+            height: 56,
+            child: Glass(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.ios_share_rounded, size: 20, color: p.accent),
+                  SizedBox(width: Tokens.space.sm),
+                  Text('Share your orchard',
+                      style: TextStyle(
+                          fontFamily: Tokens.type.displayFamily,
+                          fontSize: Tokens.type.body,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: Tokens.type.trackingTitle,
+                          color: p.text)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
