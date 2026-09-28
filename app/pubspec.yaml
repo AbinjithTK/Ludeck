@@ -45,6 +45,9 @@ dependencies:
   # The game-discovery tree (assets/rive/tree_discovery.riv). Pinned exact:
   # 0.x minors break API. Brings rive_native (a native plugin).
   rive: 0.14.11
+  # RevenueCat (Shipaton eligibility). Pinned exact, like rive. Imported by
+  # lib/services/revenuecat_entitlement_source.dart ONLY.
+  purchases_flutter: 10.13.2
 
 dev_dependencies:
   flutter_test:

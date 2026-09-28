@@ -14,6 +14,8 @@ import 'services/cover_art_cache.dart';
 import 'services/share_resolver.dart';
 import 'services/social/social_backend.dart';
 import 'services/social/social_service.dart';
+import 'services/entitlement_service.dart';
+import 'services/revenuecat_entitlement_source.dart';
 import 'state/ludeck_store.dart';
 import 'ui/intake/confirm_sheet.dart';
 import 'ui/add/add_screen.dart';
@@ -47,14 +49,24 @@ Future<void> main() async {
     supabaseUrl: supabaseUrl.isEmpty ? null : supabaseUrl,
     supabasePublishableKey: supabaseKey.isEmpty ? null : supabaseKey,
   );
-  runApp(LudeckApp(repo: repo, social: social));
+  // RevenueCat's public Google SDK key, supplied the same way:
+  //   --dart-define=REVENUECAT_GOOGLE_KEY=goog_...
+  // Without it nothing can be bought and nobody is Pro (never the test fake,
+  // which would grant Pro for free).
+  const revenueCatKey = String.fromEnvironment('REVENUECAT_GOOGLE_KEY');
+  final entitlements = await resolveEntitlementService(revenueCatKey);
+  runApp(LudeckApp(repo: repo, social: social, entitlements: entitlements));
 }
 
 class LudeckApp extends StatelessWidget {
-  const LudeckApp({super.key, required this.repo, required this.social});
+  const LudeckApp(
+      {super.key, required this.repo, required this.social, this.entitlements});
 
   final Repository repo;
   final SocialBackend social;
+
+  /// Who is Pro. Tests that do not pass one get a store-less service.
+  final EntitlementService? entitlements;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +80,13 @@ class LudeckApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider<LudeckStore>(create: (_) => LudeckStore(repo)..load()),
         Provider<SocialBackend>.value(value: social),
+        if (entitlements != null)
+          Provider<EntitlementService>.value(value: entitlements!)
+        else
+          Provider<EntitlementService>(
+            create: (_) => EntitlementService(UnavailableEntitlementSource()),
+            dispose: (_, s) => s.dispose(),
+          ),
       ],
       child: MaterialApp(
       title: 'Ludeck',

@@ -18,6 +18,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/models.dart';
 import 'package:ludeck/ui/profile/profile_screen.dart';
+import 'package:ludeck/services/entitlement_service.dart';
+import 'package:ludeck/ui/paywall/paywall_screen.dart';
+import 'package:provider/provider.dart';
 
 TreeItem _item(
   int id,
@@ -250,6 +253,45 @@ void main() {
       ]);
 
       expect(find.textContaining('%'), findsNothing);
+    });
+  });
+
+  group('Pro', () {
+    Future<FakeEntitlementSource> pumpWithPro(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(412, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final source = FakeEntitlementSource();
+      final service = EntitlementService(source);
+      await tester.pumpWidget(Provider<EntitlementService>.value(
+        value: service,
+        child: MaterialApp(
+          home: ProfileBody(
+            items: [_item(1, 'Hades')],
+            branches: 0,
+            hero: Container(),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      return source;
+    }
+
+    testWidgets('the paywall is reachable from the profile', (tester) async {
+      await pumpWithPro(tester);
+      await tester.tap(find.byKey(const Key('profile-pro')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsOneWidget);
+    });
+
+    testWidgets('once Pro, the row says so and opens nothing', (tester) async {
+      final source = await pumpWithPro(tester);
+      source.grant();
+      await tester.pumpAndSettle();
+      expect(find.text('Ludeck Pro is on'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('profile-pro')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsNothing);
     });
   });
 }

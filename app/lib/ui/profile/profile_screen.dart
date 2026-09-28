@@ -35,7 +35,9 @@ import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
 import '../../domain/level.dart';
 import '../../domain/season.dart';
+import '../../services/entitlement_service.dart';
 import '../../state/ludeck_store.dart';
+import '../paywall/paywall_screen.dart';
 import '../gamified/primitives.dart';
 import '../onboarding/onboarding_screen.dart';
 import '../orchard/fruit_look.dart';
@@ -217,6 +219,8 @@ class ProfileBody extends StatelessWidget {
                 SizedBox(height: Tokens.space.xl),
                 _SeasonBlock(season: season, branches: branches),
                 SizedBox(height: Tokens.space.xl),
+                const _ProRow(),
+                SizedBox(height: Tokens.space.sm),
                 Center(
                   child: TextButton(
                     onPressed: () => Navigator.of(context).push(
@@ -231,6 +235,58 @@ class ProfileBody extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Where Pro lives: one quiet row under the season, above "How Ludeck works".
+/// Always reachable (Shipaton requires the paywall be reachable from the
+/// running app), never in the way of the orchard or sharing, which are free.
+class _ProRow extends StatelessWidget {
+  const _ProRow();
+
+  @override
+  Widget build(BuildContext context) {
+    final EntitlementService service;
+    try {
+      service = Provider.of<EntitlementService>(context, listen: false);
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink(); // a test mounting the body alone
+    }
+    return StreamBuilder<bool>(
+      stream: service.changes,
+      initialData: service.isPro,
+      builder: (context, snap) {
+        final pro = snap.data ?? false;
+        return Semantics(
+          button: !pro,
+          child: ListTile(
+            key: const Key('profile-pro'),
+            contentPadding: EdgeInsets.symmetric(horizontal: Tokens.space.sm),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(Tokens.radius.card)),
+            tileColor: Tokens.palette.surface,
+            leading: Icon(pro ? Icons.verified_rounded : Icons.auto_awesome_rounded,
+                color: Tokens.palette.accent),
+            title: Text(pro ? 'Ludeck Pro is on' : 'Ludeck Pro',
+                style: TextStyle(
+                    fontSize: Tokens.type.body,
+                    fontWeight: FontWeight.w600,
+                    color: Tokens.palette.text)),
+            subtitle: Text(
+                pro ? 'Thank you for growing with us' : 'See more in your collection',
+                style: TextStyle(
+                    fontSize: Tokens.type.caption, color: Tokens.palette.textDim)),
+            trailing: pro
+                ? null
+                : Icon(Icons.chevron_right_rounded, color: Tokens.palette.textDim),
+            onTap: pro
+                ? null
+                : () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => PaywallScreen(service: service))),
+          ),
+        );
+      },
     );
   }
 }

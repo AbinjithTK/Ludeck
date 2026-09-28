@@ -73,6 +73,25 @@ class _PaywallScreenState extends State<PaywallScreen> {
   bool _busy = false;
   String? _error;
 
+  /// The store's real prices and trials once they arrive. Until then (and on
+  /// a build with no store) the Plan fallbacks show.
+  Map<String, StoreOffer> _offers = const {};
+
+  @override
+  void initState() {
+    super.initState();
+    widget.service.offers().then((o) {
+      if (mounted && o.isNotEmpty) setState(() => _offers = o);
+    }, onError: (Object _) {});
+  }
+
+  String _priceOf(Plan p) => _offers[p.productId]?.price ?? p.price;
+
+  /// The store's answer wins once it is known: a trial is only promised when
+  /// the store says the plan has one.
+  int? _trialOf(Plan p) =>
+      _offers.containsKey(p.productId) ? _offers[p.productId]!.trialDays : p.trialDays;
+
   Future<void> _buy() async {
     setState(() {
       _busy = true;
@@ -202,9 +221,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     padding: EdgeInsets.symmetric(vertical: Tokens.space.sm),
                   ),
                   child: Text(
-                    _selected.trialDays == null
+                    _trialOf(_selected) == null
                         ? 'Continue'
-                        : 'Start ${_selected.trialDays} days free',
+                        : 'Start ${_trialOf(_selected)} days free',
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -312,7 +331,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                   ),
                 ),
                 Text(
-                  plan.price,
+                  _priceOf(plan),
                   style: TextStyle(
                     fontSize: Tokens.type.body,
                     fontWeight: FontWeight.w600,

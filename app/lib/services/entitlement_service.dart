@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+
 import '../domain/entitlement.dart';
 
 /// Where "is this person paying" comes from.
@@ -36,7 +38,60 @@ abstract class EntitlementSource {
   /// returns false like any other non-purchase.
   Future<bool> purchase(String productId);
 
+  /// What the store actually charges, per product id, in the buyer's own
+  /// currency. Missing entries mean "not known yet": the paywall shows its
+  /// fallback then. This is the one pricing read the interface allows,
+  /// because a hardcoded "$19.99" shown to someone charged in rupees is a
+  /// paywall telling a lie.
+  Future<Map<String, StoreOffer>> offers();
+
   Future<void> dispose();
+}
+
+/// The store's price for one product, and its free trial if it has one.
+@immutable
+class StoreOffer {
+  const StoreOffer({required this.price, this.trialDays});
+
+  /// Localised and formatted by the store, e.g. "₹1,650.00".
+  final String price;
+
+  /// Days free before the first charge, only when the store reports a free
+  /// phase. Never assumed: "Start 30 days free" on a plan with no trial
+  /// configured is a charge the user did not expect.
+  final int? trialDays;
+
+  @override
+  bool operator ==(Object other) =>
+      other is StoreOffer && other.price == price && other.trialDays == trialDays;
+
+  @override
+  int get hashCode => Object.hash(price, trialDays);
+}
+
+/// A build with no store connection (no RevenueCat key, or the SDK failed to
+/// configure). Nobody is Pro and nothing can be bought, and it says so rather
+/// than pretending: [purchase] throws, which the paywall reports as "did not
+/// go through, nothing charged".
+class UnavailableEntitlementSource implements EntitlementSource {
+  @override
+  Stream<bool> get isPro => Stream<bool>.value(false);
+
+  @override
+  bool get isProNow => false;
+
+  @override
+  Future<void> restore() async {}
+
+  @override
+  Future<bool> purchase(String productId) =>
+      Future.error(StateError('purchases are not available on this build'));
+
+  @override
+  Future<Map<String, StoreOffer>> offers() async => const {};
+
+  @override
+  Future<void> dispose() async {}
 }
 
 /// A local source with no network and no store.
@@ -63,6 +118,12 @@ class FakeEntitlementSource implements EntitlementSource {
 
   /// Set true to make [purchase] return false as though the user backed out.
   bool cancelPurchases = false;
+
+  /// What [offers] reports. Empty by default, like a store not reached yet.
+  Map<String, StoreOffer> storeOffers = const {};
+
+  @override
+  Future<Map<String, StoreOffer>> offers() async => storeOffers;
 
   @override
   Stream<bool> get isPro => _controller.stream;
@@ -135,6 +196,9 @@ class EntitlementService {
   /// Returns whether the user ended up entitled. False covers cancelling,
   /// which is ordinary and not a failure.
   Future<bool> purchase(String productId) => _source.purchase(productId);
+
+  /// The store's localised prices and trials, per product id.
+  Future<Map<String, StoreOffer>> offers() => _source.offers();
 
   Future<void> dispose() => _source.dispose();
 }
