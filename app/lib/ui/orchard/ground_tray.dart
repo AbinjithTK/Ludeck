@@ -46,11 +46,18 @@ bool trayProjectsOpen(double value, double velocity) {
   return value + velocity * d / (1 - d) / 1000 > 0.5;
 }
 
-/// Tray geometry, inside the capsule's inset (all in points).
-const double kTrayH = 66, kTrayInset = 5, kTrayInner = kTrayH - 2 * kTrayInset;
+/// Tray geometry, inside the capsule's inset (all in points). Taller than the
+/// first tray (66) so the covers read as covers, not as chips (2026-09-28).
+const double kTrayH = 76, kTrayInset = 5, kTrayInner = kTrayH - 2 * kTrayInset;
 
 /// The pile's box, the open state's chevron zone, and the strip's pitch.
-const double kPileW = 58, kChevronW = 40, kCoverW = 42, kCoverPitch = 48;
+const double kPileW = 68, kChevronW = 40, kTrayCoverW = 48, kCoverPitch = 56;
+
+/// The fan's card width while collapsed.
+const double kPileCoverW = 34;
+
+/// How far from the open strip's far end the covers fade into the glass.
+const double kTrayFadeW = 64;
 
 /// Card i's own progress through the deal, from the tray's [t]: card i starts
 /// [kDealStagger] x i later (capped), so the pile deals out nearest-first and
@@ -66,11 +73,11 @@ double dealT(double t, int i) {
 /// when closing a strip that had been scrolled).
 ({Rect rect, double angle, double opacity}) dealPose(int i, double u, double scroll) {
   final k = math.min(i, 2);
-  const fw = 28.0, fh = fw * 4 / 3;
+  const fw = kPileCoverW, fh = fw * 4 / 3;
   final fan = Rect.fromLTWH(
-      8 + 10.0 * k, (kTrayInner - fh) / 2 + (k.isEven ? 2 : -2), fw, fh);
+      8 + 11.0 * k, (kTrayInner - fh) / 2 + (k.isEven ? 2 : -2), fw, fh);
   final strip = Rect.fromLTWH(kChevronW + 4 + i * kCoverPitch - scroll,
-      (kTrayInner - kCoverW * 4 / 3) / 2, kCoverW, kCoverW * 4 / 3);
+      (kTrayInner - kTrayCoverW * 4 / 3) / 2, kTrayCoverW, kTrayCoverW * 4 / 3);
   final r = Rect.lerp(fan, strip, u)!;
   // A small arc up and back down, like a card being dealt.
   final lift = -7 * math.sin(math.pi * u);
@@ -219,13 +226,29 @@ class _GroundTrayState extends State<GroundTray>
     final label = n == 1 ? '1 on the ground' : '$n on the ground';
     // Merged onto the ambient style so the width below is measured in the
     // font the label is actually drawn in, not TextPainter's platform default.
-    final style = DefaultTextStyle.of(context).style.merge(
-        TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim));
+    // The number is set in the display face, the words in the UI face: the
+    // count is the thing you read, the words say what it counts.
+    final style = DefaultTextStyle.of(context).style.merge(TextStyle(
+        fontFamily: Tokens.type.ui,
+        fontSize: Tokens.type.caption,
+        fontWeight: FontWeight.w600,
+        color: Tokens.palette.textDim));
+    final span = TextSpan(style: style, children: [
+      TextSpan(
+          text: '$n',
+          style: TextStyle(
+              fontFamily: Tokens.type.displayFamily,
+              fontSize: Tokens.type.title,
+              fontWeight: FontWeight.w700,
+              color: Tokens.palette.text)),
+      const TextSpan(text: ' on the ground'),
+    ]);
+    assert(span.toPlainText() == label);
     final scaler = MediaQuery.textScalerOf(context);
 
     return LayoutBuilder(builder: (context, box) {
       final labelW = (TextPainter(
-            text: TextSpan(text: label, style: style),
+            text: span,
             textScaler: scaler,
             maxLines: 1,
             textDirection: TextDirection.ltr,
@@ -253,7 +276,9 @@ class _GroundTrayState extends State<GroundTray>
               // The whole inset: glass draws its rim as light, not as a
               // border that takes 1pt of layout (that was the old `- 1`).
               padding: const EdgeInsets.all(kTrayInset),
-              child: Stack(clipBehavior: Clip.hardEdge, children: [
+              child: TrayFade(
+                fade: kTrayFadeW * t,
+                child: Stack(clipBehavior: Clip.hardEdge, children: [
                 // The count, riding out to the right as the pile deals.
                 Positioned(
                   left: kPileW,
@@ -265,11 +290,10 @@ class _GroundTrayState extends State<GroundTray>
                       opacity: (1 - t * 2.4).clamp(0.0, 1.0),
                       child: Align(
                         alignment: Alignment.centerLeft,
-                        child: Text(label,
+                        child: Text.rich(span,
                             maxLines: 1,
                             softWrap: false,
-                            overflow: TextOverflow.fade,
-                            style: style),
+                            overflow: TextOverflow.fade),
                       ),
                     ),
                   ),
@@ -312,6 +336,7 @@ class _GroundTrayState extends State<GroundTray>
                   child: _handle(n, t),
                 ),
               ]),
+              ),
             ),
             ),
           );
@@ -343,7 +368,7 @@ class _GroundTrayState extends State<GroundTray>
                 look: lookOf(items[i]),
                 width: p.rect.width,
                 radius: 4 + 2 * u,
-                border: u < 1 ? Border.all(color: Tokens.cosmos.panelEdge) : null,
+                edge: false,
               ),
             ),
           ),
@@ -379,12 +404,36 @@ class _GroundTrayState extends State<GroundTray>
       );
 
   Widget _stripView(List<TreeItem> items) {
+    // Once scrolled, the near end fades too, so a cover sliding under the
+    // chevron dissolves rather than being sliced. At rest it does not: the
+    // first cover sits right there and must be whole.
+    return AnimatedBuilder(
+      animation: _strip,
+      builder: (context, child) {
+        final lead = _strip.hasClients ? _strip.offset.clamp(0.0, 24.0) : 0.0;
+        return ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (r) => LinearGradient(colors: [
+            Colors.black.withValues(alpha: lead > 0.5 ? 0 : 1),
+            Colors.black,
+            Colors.black,
+          ], stops: [0, r.width <= 0 ? 0 : (lead / r.width).clamp(0.0, 1.0), 1])
+              .createShader(r),
+          child: child,
+        );
+      },
+      child: _list(items),
+    );
+  }
+
+  Widget _list(List<TreeItem> items) {
     return ListView.builder(
       key: const Key('ground-strip'),
       controller: _strip,
       scrollDirection: Axis.horizontal,
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(left: 4, right: 4),
+      // Room at the far end, so the last cover can scroll clear of the fade.
+      padding: const EdgeInsets.only(left: 4, right: kTrayFadeW),
       itemExtent: kCoverPitch,
       itemCount: items.length,
       itemBuilder: (context, i) => Align(
@@ -427,8 +476,6 @@ class _TrayCover extends StatefulWidget {
 
 class _TrayCoverState extends State<_TrayCover> {
   bool _down = false;
-
-  static const double w = 42;
 
   @override
   Widget build(BuildContext context) {
@@ -477,7 +524,8 @@ class _TrayCoverState extends State<_TrayCover> {
             // No Center: the card must sit exactly where the deal landed it
             // (left of its 48pt cell), or the hand-over from the animated
             // cards to the list jumps 3pt.
-            child: FruitImage(game: item.game, look: look, width: w, radius: 6),
+            child: FruitImage(
+                game: item.game, look: look, width: kTrayCoverW, radius: 6, edge: false),
           ),
         ),
       ),
@@ -496,7 +544,12 @@ class FruitImage extends StatefulWidget {
     this.radius = 6,
     this.border,
     this.shadow = false,
+    this.edge = true,
   });
+
+  /// Outline the card while its cover is still loading. Off in the ground
+  /// tray, which is glass with no edges anywhere.
+  final bool edge;
 
   final Game game;
   final FruitLook look;
@@ -558,7 +611,9 @@ class _FruitImageState extends State<FruitImage> {
         color: png == null ? Tokens.cosmos.panel : Tokens.cosmos.panelDeep,
         borderRadius: BorderRadius.circular(widget.radius),
         border: widget.border ??
-            (png == null ? Border.all(color: Tokens.cosmos.panelEdge) : null),
+            (png == null && widget.edge
+                ? Border.all(color: Tokens.cosmos.panelEdge)
+                : null),
         boxShadow: widget.shadow
             ? [
                 BoxShadow(
@@ -585,6 +640,31 @@ class _FruitImageState extends State<FruitImage> {
 }
 
 
+/// Fades [child] out over its last [fade] points on the right, so a row of
+/// covers dissolves into the glass instead of stopping at a cut edge. The mask
+/// is always in the tree, even at [fade] 0: adding it only once the tray
+/// began to open re-parented the handle mid-pull and dropped the drag.
+class TrayFade extends StatelessWidget {
+  const TrayFade({required this.fade, required this.child});
+  final double fade;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ShaderMask(
+      blendMode: BlendMode.dstIn,
+      shaderCallback: (r) {
+        final start = r.width <= 0 ? 1.0 : ((r.width - fade) / r.width).clamp(0.0, 1.0);
+        return LinearGradient(
+          colors: [Colors.black, Colors.black, Colors.black.withValues(alpha: fade > 0.5 ? 0 : 1)],
+          stops: [0, start, 1],
+        ).createShader(r);
+      },
+      child: child,
+    );
+  }
+}
+
 /// Frosted glass, the way a material sits over a live scene: the meadow
 /// behind is blurred and tinted, not merely darkened, so the controls take
 /// the scene's own colour and belong to it. [lit] brightens the edge when the
@@ -601,7 +681,7 @@ class _Glass extends StatelessWidget {
       scale: lit ? 1.03 : 1,
       duration: Tokens.motion.maybe(Tokens.motion.swap, reduceMotion: reduce),
       curve: Tokens.motion.easeOut,
-      child: Glass(lit: lit, child: child),
+      child: Glass(lit: lit, rim: false, child: child),
     );
   }
 }

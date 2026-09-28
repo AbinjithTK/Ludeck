@@ -629,7 +629,7 @@ class _OrchardViewState extends State<OrchardView>
     // under the controls; each tree's soil line is placed just above the
     // dots, so its base, the patch and the fruit never sit behind chrome.
     final rowBottom = MediaQuery.paddingOf(context).bottom + widget.bottomInset;
-    const rowH = 66.0, dotsH = 48.0;
+    const rowH = kTrayH, dotsH = 48.0;
     final treeBottom = rowBottom + rowH + dotsH;
     _treeBottom = treeBottom;
 

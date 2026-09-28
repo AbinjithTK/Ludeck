@@ -27,12 +27,18 @@ class Glass extends StatelessWidget {
     this.shape = const StadiumBorder(),
     this.lit = false,
     this.blur = 18,
+    this.rim = true,
   });
 
   final Widget child;
   final ShapeBorder shape;
   final bool lit;
   final double blur;
+
+  /// Draw the lit rim. Off for a surface that should read as a soft pool of
+  /// glass with no edge at all (the ground tray); a [lit] surface always
+  /// shows its rim, because the rim is how a drop target says it is armed.
+  final bool rim;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +47,7 @@ class Glass extends StatelessWidget {
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
         child: CustomPaint(
-          painter: GlassPainter(shape: shape, lit: lit),
+          painter: GlassPainter(shape: shape, lit: lit, rim: rim || lit),
           child: child,
         ),
       ),
@@ -52,9 +58,10 @@ class Glass extends StatelessWidget {
 /// The glass itself, without the blur: tint, sheen and a lit rim. Public so
 /// a surface that cannot blur (a share image) draws the same material.
 class GlassPainter extends CustomPainter {
-  GlassPainter({required this.shape, this.lit = false});
+  GlassPainter({required this.shape, this.lit = false, this.rim = true});
   final ShapeBorder shape;
   final bool lit;
+  final bool rim;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -70,6 +77,7 @@ class GlassPainter extends CustomPainter {
             colors: [Tokens.cosmos.glassSheen, Tokens.cosmos.glassSheen.withValues(alpha: 0)],
             stops: const [0, 0.6],
           ).createShader(rect));
+    if (!rim) return;
     final a = lit ? 1.0 : 0.62;
     canvas.drawPath(
         shape.getInnerPath(rect.deflate(0.5)),
@@ -90,7 +98,8 @@ class GlassPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(GlassPainter old) => old.lit != lit || old.shape != shape;
+  bool shouldRepaint(GlassPainter old) =>
+      old.lit != lit || old.shape != shape || old.rim != rim;
 }
 
 /// A round glass button: [child] centred in a [size]pt circle, with the

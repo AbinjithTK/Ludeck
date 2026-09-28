@@ -196,7 +196,7 @@ void main() {
             body: Align(
               alignment: Alignment.bottomCenter,
               child: SizedBox(
-                height: 66,
+                height: kTrayH,
                 child: GroundTray(
                   items: items,
                   onOpen: onOpen ?? (_) {},
@@ -234,6 +234,24 @@ void main() {
       await tester.tap(find.byKey(const Key('orchard-ground')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ground-strip')), findsNothing);
+    });
+
+    testWidgets('no outline, and the open strip fades out at its far end',
+        (tester) async {
+      await pump(tester, five);
+      Glass glass() => tester.widget<Glass>(find.descendant(
+          of: find.byType(GroundTray), matching: find.byType(Glass)).first);
+      expect(glass().rim, isFalse, reason: 'the tray is glass with no edge');
+      double fade() => tester.widget<TrayFade>(find.byType(TrayFade)).fade;
+      expect(fade(), 0, reason: 'closed, nothing to fade');
+      expect(tester.getSize(find.descendant(
+          of: find.byType(GroundTray), matching: find.byType(Glass)).first).height,
+          kTrayH);
+
+      await tester.tap(find.byKey(const Key('orchard-ground')));
+      await tester.pumpAndSettle();
+      expect(fade(), kTrayFadeW);
+      expect(tester.getSize(find.byKey(const ValueKey('ground-1'))).width, kTrayCoverW);
     });
 
     testWidgets('the deal: covers travel from the pile, nearest first, and land '
