@@ -414,9 +414,9 @@ class _GroundTrayState extends State<GroundTray>
         return ShaderMask(
           blendMode: BlendMode.dstIn,
           shaderCallback: (r) => LinearGradient(colors: [
-            Colors.black.withValues(alpha: lead > 0.5 ? 0 : 1),
-            Colors.black,
-            Colors.black,
+            Tokens.cosmos.mask.withValues(alpha: lead > 0.5 ? 0 : 1),
+            Tokens.cosmos.mask,
+            Tokens.cosmos.mask,
           ], stops: [0, r.width <= 0 ? 0 : (lead / r.width).clamp(0.0, 1.0), 1])
               .createShader(r),
           child: child,
@@ -645,7 +645,7 @@ class _FruitImageState extends State<FruitImage> {
 /// is always in the tree, even at [fade] 0: adding it only once the tray
 /// began to open re-parented the handle mid-pull and dropped the drag.
 class TrayFade extends StatelessWidget {
-  const TrayFade({required this.fade, required this.child});
+  const TrayFade({super.key, required this.fade, required this.child});
   final double fade;
   final Widget child;
 
@@ -656,7 +656,7 @@ class TrayFade extends StatelessWidget {
       shaderCallback: (r) {
         final start = r.width <= 0 ? 1.0 : ((r.width - fade) / r.width).clamp(0.0, 1.0);
         return LinearGradient(
-          colors: [Colors.black, Colors.black, Colors.black.withValues(alpha: fade > 0.5 ? 0 : 1)],
+          colors: [Tokens.cosmos.mask, Tokens.cosmos.mask, Tokens.cosmos.mask.withValues(alpha: fade > 0.5 ? 0 : 1)],
           stops: [0, start, 1],
         ).createShader(r);
       },

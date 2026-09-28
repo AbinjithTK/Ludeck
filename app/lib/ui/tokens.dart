@@ -224,6 +224,10 @@ class _Cosmos {
   final Color glassRim = const Color(0xFFFFFFFF);
   final Color captionShadow = const Color(0x99000000);
 
+  /// The opaque end of an alpha mask (ShaderMask dstIn): only its alpha is
+  /// read, so the colour itself never shows.
+  final Color mask = const Color(0xFF000000);
+
   /// A darker panel, for a card that must hold small text.
   ///
   /// `panel` over the light end of `hero` leaves too little contrast under
