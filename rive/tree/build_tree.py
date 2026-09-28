@@ -220,6 +220,9 @@ def debug_markers():
 
 def build(debug, test_hooks=False, blossom="blossom", wood="plum"):
     rml = convert(blossom, wood)
+    # Shaken-loose petals take this tree's blossom, from two of the source's
+    # own rose shades run through the same retint as the canopy.
+    D.PETALS = (_tone("FFF4A6C8", blossom, wood), _tone("FFE5739F", blossom, wood))
 
     # -- view model: the old `input` number becomes `grown` ------------------
     # Growth and cards are separate on purpose. `grown` sets the tree's size

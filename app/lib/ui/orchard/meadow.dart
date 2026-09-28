@@ -204,8 +204,24 @@ double _hash(int k, int salt) {
   return (h ^ (h >> 16)) / 0x7fffffff;
 }
 
-/// Grass blades over the visible world range, batched into a few paths by
-/// shade so a frame costs a handful of draw calls, not one per blade.
+/// How lush the meadow is at world x [xw], 0..1: two slow waves and a finer
+/// one, so there are thick patches, thin patches and the odd bare spot
+/// instead of an even comb (2026-09-28: "the grass feels very organised in a
+/// line"). Pure, so a test can pin that it really varies.
+double lushAt(double xw, int salt) {
+  final a = math.sin(xw * 0.0105 + salt * 0.7);
+  final b = math.sin(xw * 0.031 + salt * 1.9 + 1.3);
+  final c = math.sin(xw * 0.083 + salt * 3.1);
+  return (0.5 + 0.30 * a + 0.14 * b + 0.06 * c).clamp(0.0, 1.0);
+}
+
+/// Grass over the visible world range, grown the way grass grows: in CLUMPS
+/// (blades fanning out from one root, the middle ones tallest), clumps
+/// scattered at uneven spacing and at a range of depths down the hill face
+/// ([depthBand] px below the ridge), thicker where [lushAt] is high and bare
+/// here and there, blades curving more near the tip, and the odd seed head.
+/// Nearer (lower) clumps are larger and lighter. Batched into one path per
+/// shade, so a frame costs a handful of draw calls, not one per blade.
 void _paintGrass(Canvas canvas, Size size,
     {required double scroll,
     required double groundY,
@@ -215,43 +231,80 @@ void _paintGrass(Canvas canvas, Size size,
     required double sink,
     required int salt,
     required List<Color> shades,
+    double depthBand = 0,
+    double nearScale = 0.3,
     Color? rim,
+    Color? seed,
     double time = 0,
     double wind = 0,
     Offset? touch,
     double touchK = 0}) {
   final paths = List.generate(shades.length, (_) => Path());
-  final rimPath = Path();
-  final first = ((scroll - maxH) / spacing).floor();
-  final last = ((scroll + size.width + maxH) / spacing).ceil();
+  final rimPath = Path(), seedPath = Path();
+  final first = ((scroll - maxH * 2) / spacing).floor();
+  final last = ((scroll + size.width + maxH * 2) / spacing).ceil();
   for (var k = first; k <= last; k++) {
     final r1 = _hash(k, salt), r2 = _hash(k, salt + 1), r3 = _hash(k, salt + 2);
-    final xw = k * spacing + (r2 - 0.5) * spacing * 0.8;
-    final x = xw - scroll;
-    final base = ridgeY(xw, size.width, groundY) + sink;
-    var h = minH + (maxH - minH) * r1 * r1;
-    if (r3 > 0.93) h *= 1.5; // the odd tall stem
-    final lean = (r2 - 0.5) * 0.9 +
-        swayAt(xw, time, wind, r3) +
-        touchLean(xw, base - h / 2, touch, touchK);
-    final w = 1.6 + r3 * 1.4;
-    final tip = Offset(x + math.sin(lean) * h, base - math.cos(lean) * h);
-    final bend = Offset(x + math.sin(lean) * h * 0.35, base - h * 0.55);
-    final p = paths[(r3 * shades.length).floor().clamp(0, shades.length - 1)];
-    p
-      ..moveTo(x - w / 2, base)
-      ..quadraticBezierTo(bend.dx - w * 0.2, bend.dy, tip.dx, tip.dy)
-      ..quadraticBezierTo(bend.dx + w * 0.4, bend.dy, x + w / 2, base)
-      ..close();
-    if (rim != null && h > maxH * 0.8) {
-      rimPath
-        ..moveTo(bend.dx, bend.dy)
-        ..quadraticBezierTo(
-            (bend.dx + tip.dx) / 2, (bend.dy + tip.dy) / 2 - 1, tip.dx, tip.dy);
+    final cx = k * spacing + (r2 - 0.5) * spacing * 1.2;
+    final lush = lushAt(cx, salt);
+    // Bare patches: thin ground loses clumps, never all of them.
+    if (lush < 0.32 && r3 > lush * 2.2) continue;
+    final dFrac = depthBand > 0 ? math.pow(r1, 1.5).toDouble() : 0.0;
+    final near = 1 + nearScale * dFrac;
+    final rootY = ridgeY(cx, size.width, groundY) + sink + dFrac * depthBand;
+    final clumpH = (minH + (maxH - minH) * (0.35 + 0.65 * lush) * (0.6 + 0.4 * r3)) * near;
+    final n = 3 + (lush * 6 * (0.6 + 0.4 * r1)).round();
+    final spread = (3 + 5 * lush) * near;
+    // Farther clumps take the darker shades, nearer the lighter.
+    final shadeBase = (dFrac * 0.55 + r2 * 0.45) * shades.length;
+    for (var j = 0; j < n; j++) {
+      final h1 = _hash(k * 17 + j, salt + 5), h2 = _hash(k * 17 + j, salt + 6);
+      final u = n == 1 ? 0.0 : j / (n - 1) * 2 - 1; // -1..1 across the clump
+      final x0 = cx + u * spread * 0.5 + (h1 - 0.5) * 2;
+      final xr = x0 - scroll;
+      if (xr < -maxH * 2 || xr > size.width + maxH * 2) continue;
+      final h = clumpH * (1 - 0.38 * u.abs()) * (0.7 + 0.45 * h2);
+      // Blades fan outward from the root; the wind and a finger add to it.
+      final lean = u * 0.42 + (h1 - 0.5) * 0.30 +
+          swayAt(x0, time, wind, h2) +
+          touchLean(x0, rootY - h / 2, touch, touchK);
+      final w = (1.3 + h2 * 1.5) * near;
+      // A cubic that bends most near the tip, the way a blade droops.
+      final c1 = Offset(xr + math.sin(lean * 0.35) * h * 0.35, rootY - h * 0.38);
+      final c2 = Offset(xr + math.sin(lean * 0.8) * h * 0.72, rootY - h * 0.78);
+      final tip = Offset(xr + math.sin(lean * 1.25) * h, rootY - math.cos(lean * 1.25) * h);
+      final p = paths[(shadeBase + (h1 - 0.5)).floor().clamp(0, shades.length - 1)];
+      p
+        ..moveTo(xr - w / 2, rootY)
+        ..cubicTo(c1.dx - w * 0.35, c1.dy, c2.dx - w * 0.15, c2.dy, tip.dx, tip.dy)
+        ..cubicTo(c2.dx + w * 0.25, c2.dy, c1.dx + w * 0.45, c1.dy, xr + w / 2, rootY)
+        ..close();
+      if (rim != null && h > maxH * 0.7) {
+        rimPath
+          ..moveTo(c2.dx, c2.dy)
+          ..quadraticBezierTo((c2.dx + tip.dx) / 2, (c2.dy + tip.dy) / 2 - 1, tip.dx, tip.dy);
+      }
+      // A seed head on the odd tall stem in a lush clump.
+      if (seed != null && j == n ~/ 2 && lush > 0.55 && r3 > 0.72) {
+        final sh = h * 1.35;
+        final st = Offset(xr + math.sin(lean * 1.1) * sh, rootY - math.cos(lean * 1.1) * sh);
+        seedPath
+          ..moveTo(xr, rootY - h * 0.2)
+          ..quadraticBezierTo(xr + math.sin(lean * 0.6) * sh * 0.6, rootY - sh * 0.62, st.dx, st.dy)
+          ..addOval(Rect.fromCenter(center: st, width: 2.6 * near, height: 6.5 * near));
+      }
     }
   }
   for (var i = 0; i < shades.length; i++) {
     canvas.drawPath(paths[i], Paint()..color = shades[i]);
+  }
+  if (seed != null) {
+    canvas.drawPath(
+        seedPath,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.9
+          ..color = seed);
   }
   if (rim != null) {
     canvas.drawPath(
@@ -343,6 +396,32 @@ class MeadowBackPainter extends CustomPainter {
             colors: [c.hillTop, c.hillDeep],
           ).createShader(
               Rect.fromLTRB(0, groundY - kRidgeDip * size.width, size.width, size.height)));
+    // Moonlight on the crest: a soft band, not a drawn line. The 1pt rim
+    // stroke that was here made the whole meadow read as one ruled line.
+    canvas.drawPath(
+        ridge,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 7
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4)
+          ..color = c.hillRim.withValues(alpha: c.hillRim.a * 0.9));
+    // The hill face darkens away from the light in uneven swells, so the
+    // ground is a surface with some body and not a flat fill.
+    canvas.save();
+    canvas.clipPath(land);
+    for (var k = ((s - size.width) / 160).floor(); k <= ((s + 2 * size.width) / 160).ceil(); k++) {
+      final x = k * 160 + (_hash(k, 71) - 0.5) * 90 - s;
+      final y = ridgeY(x + s, size.width, groundY) + 26 + _hash(k, 72) * 30;
+      final r = 60 + _hash(k, 73) * 70;
+      canvas.drawOval(
+          Rect.fromCenter(center: Offset(x, y), width: r * 2.4, height: r * 0.7),
+          Paint()
+            ..shader = RadialGradient(colors: [
+              c.hillDeep.withValues(alpha: 0.55),
+              c.hillDeep.withValues(alpha: 0),
+            ]).createShader(Rect.fromCenter(center: Offset(x, y), width: r * 2.4, height: r * 0.7)));
+    }
+    canvas.restore();
   }
 
   @override
@@ -368,33 +447,25 @@ class MeadowGrassPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final s = scroll.value;
     final groundY = size.height - groundFromBottom;
-    final c = Tokens.cosmos, o = Tokens.orchard;
-    // Back grass: dense, tall, standing just behind the ridge line.
+    final o = Tokens.orchard;
+    // Back grass: clumps along the crest, the tallest in the meadow.
     _paintGrass(canvas, size,
         scroll: s,
         groundY: groundY,
-        spacing: 2.6,
-        minH: 7,
-        maxH: 24,
-        sink: 1.5,
+        spacing: 8.5,
+        minH: 8,
+        maxH: 27,
+        sink: 2,
+        depthBand: 6,
+        nearScale: 0.15,
         salt: 11,
         shades: [o.grassBack, Color.lerp(o.grassBack, o.grassFront, 0.5)!, o.grassFront],
         rim: o.grassRim,
+        seed: Color.lerp(o.grassFront, o.grassRim, 0.35),
         time: clock?.t ?? 0,
         wind: clock?.wind ?? 0,
         touch: clock?.touch,
         touchK: clock?.touchK ?? 0);
-
-    final ridge = Path()..moveTo(-1, ridgeY(s - 1, size.width, groundY));
-    for (var x = 0.0; x <= size.width + 6; x += 6) {
-      ridge.lineTo(x, ridgeY(s + x, size.width, groundY));
-    }
-    canvas.drawPath(
-        ridge,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
-          ..color = c.hillRim.withValues(alpha: c.hillRim.a * 0.6));
   }
 
   @override
@@ -423,10 +494,12 @@ class MeadowFrontPainter extends CustomPainter {
     _paintGrass(canvas, size,
         scroll: scroll.value,
         groundY: groundY,
-        spacing: 3.6,
-        minH: 4,
-        maxH: 13,
-        sink: 6,
+        spacing: 13,
+        minH: 5,
+        maxH: 15,
+        sink: 4,
+        depthBand: 22,
+        nearScale: 0.45,
         salt: 29,
         shades: [o.grassBack, Color.lerp(o.grassBack, Tokens.cosmos.hillTop, 0.5)!],
         time: clock?.t ?? 0,
@@ -668,10 +741,14 @@ class DecorPainter extends CustomPainter {
       ..color = t.stem
       ..strokeWidth = 1.2 * s
       ..strokeCap = StrokeCap.round;
-    const spots = [-148.0, -121.0, -104.0, -70.0, -47.0, 30.0, 58.0, 84.0, 118.0, 139.0];
+    // In drifts, not a row: a few clusters at uneven spacing, each flower at
+    // its own depth down the hill face, nearer ones a little larger.
+    const spots = [-152.0, -143.0, -134.0, -101.0, -93.0, -58.0, 27.0, 36.0, 71.0, 80.0, 90.0, 131.0, 141.0];
     for (var i = 0; i < spots.length; i++) {
-      final x = trunk + spots[i] * s, y = g(x) + 4;
-      final h = (9 + 6 * _hash(i, 3)) * s;
+      final depth = _hash(i, 6);
+      final sc = s * (0.85 + 0.35 * depth);
+      final x = trunk + spots[i] * s, y = g(x) + 3 + depth * 16 * s;
+      final h = (8 + 7 * _hash(i, 3)) * sc;
       // A nod: each flower on its own slow phase, plus the swipe's wind.
       final nod = 0.10 * math.sin(_t * 1.7 + i * 1.9) * (_t == 0 ? 0 : 1) + _wind +
           _touchNod(x, y - h / 2);
@@ -680,7 +757,7 @@ class DecorPainter extends CustomPainter {
           y - h * math.cos(nod));
       c.drawLine(Offset(x, y), head, stem);
       final petal = Paint()..color = t.petals[i % t.petals.length];
-      final r = (2.0 + _hash(i, 5)) * s;
+      final r = (2.0 + _hash(i, 5)) * sc;
       for (var k = 0; k < 5; k++) {
         final a = k * 2 * math.pi / 5 + i;
         c.drawCircle(head + Offset(math.cos(a), math.sin(a)) * r, r * 0.75, petal);

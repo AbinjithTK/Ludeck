@@ -42,7 +42,8 @@ List<PortraitTree> portraitPick(List<PortraitTree> all) {
 /// A shared collection, as portrait trees: one per branch name, in order.
 /// Games on no branch only make a tree when there is no other.
 List<PortraitTree> portraitFromPublished(
-    List<PublishedGame> games, String trunkName) {
+    List<PublishedGame> games, String trunkName,
+    {Map<String, TreeStyle> styles = const {}}) {
   final byName = <String, List<PublishedGame>>{};
   for (final g in games) {
     (byName[g.branchName] ??= []).add(g);
@@ -65,7 +66,9 @@ List<PortraitTree> portraitFromPublished(
               _ => FruitLook.plain,
             }
         ],
-        style: TreeStyle.defaultFor(i++),
+        // The owner's own colours when known (the share card), so the card
+        // shows the trees they see at home; a visitor's copy falls back.
+        style: styles[e.key] ?? TreeStyle.defaultFor(i++),
       )
   ];
 }

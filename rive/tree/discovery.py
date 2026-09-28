@@ -102,6 +102,54 @@ POP_ROT = dict(response=0.62, damping=0.38)
 SPROUT = dict(response=0.55, damping=0.55)
 
 
+# ------------------------------------------------------------- the shake
+# A shake is a hand on the trunk: three quick pumps, then the tree rings down
+# on its own. Everything hanging from it answers late and larger: the fruit
+# swing on their stems like pendulums (a short stem swings faster), and
+# petals shaken loose drift down. One rigid rotation was the whole shake
+# before, and it read as a pole wobbling (2026-09-28).
+SHAKE_FRAMES = 96          # tree + petals; the tree itself is still by ~66
+SHAKE_HZ = 3.4             # the trunk's sway frequency
+SHAKE_AMP = 0.042          # radians at the top of the pumps (~15pt at the crown)
+SHAKE_DRIVE = 0.30         # seconds the hand keeps pumping
+SHAKE_DECAY = 5.5          # 1/s once it lets go
+SWING_AMP = 0.16           # a hanging fruit's swing, radians
+PETALS = ("FFF4A6C8", "FFE5739F")   # set per blossom by build_tree.build()
+
+
+def shake_keys(amp, hz, drive, decay, frames, delay=0, step=2, fade_in=0.06):
+    """Keyframes of a driven then freely decaying sway, sampled every `step`
+    frames: a sine whose envelope rises over `fade_in` s, holds while the hand
+    drives it, then decays exponentially. Ends exactly at 0."""
+    out = [f'<KeyFrameDouble value="0" frame="0" interpolationType="linear"/>']
+    for f in range(step, frames, step):
+        t = (f - delay) / 60
+        if t <= 0:
+            continue
+        env = min(1.0, t / fade_in) if t < drive else math.exp(-decay * (t - drive))
+        v = amp * env * math.sin(2 * math.pi * hz * t)
+        out.append(f'<KeyFrameDouble value="{v:.4f}" frame="{f}" interpolationType="linear"/>')
+    out.append(f'<KeyFrameDouble value="0" frame="{frames}" interpolationType="linear"/>')
+    return out
+
+
+def pendulum_hz(i):
+    """A fruit's swing frequency from its hang length: f = sqrt(g/L)/2pi,
+    scaled to the scene (a 40pt hang reads right at ~1.9Hz)."""
+    L = max(20.0, hang(CARDS[i]) + CARDS[i]["stem"] * 0.5)
+    return 1.9 * math.sqrt(40.0 / L)
+
+
+def drop_swing_keys(amp=0.22, frames=30):
+    """The fruit that is about to fall: its swing builds with every pump of
+    the shake (the stem straining) and it lets go at frame 30 as it passes
+    the bottom of the arc, moving fastest: the Fall timeline starts there.
+    Two whole periods in 30 frames, so the swing ends exactly at 0."""
+    out = [f'<KeyFrameDouble value="{amp * (f / frames) * math.sin(2 * math.pi * 2 * f / 60):.4f}" '
+           f'frame="{f}" interpolationType="linear"/>' for f in range(0, frames + 1, 2)]
+    return out + [f'<KeyFrameDouble value="0" frame="{frames + 1}" interpolationType="linear"/>']
+
+
 # ------------------------------------------------------------------ helpers
 def base(i):
     return 21000 + i * 100
@@ -197,6 +245,10 @@ def card_components():
         out.append(f'''
         <Node x="{ax}" y="{ay}" scaleX="{EARLY_SCALE}" scaleY="{EARLY_SCALE}" name="Game{i + 1}" id="{cid(i, 0)}">
             <TranslationConstraint targetId="{c['cluster']}" offset="true" name="FollowCanopy"/>
+            <Shape x="{(i * 37) % 23 - 11}" y="{(i * 53) % 17 - 14}" opacity="0" name="Petal" id="{cid(i, 70)}">
+                <Ellipse width="{7.2 + (i % 3) * 1.1}" height="{4.4 + (i % 2) * 0.8}" name="P"/>
+                <Fill name="F"><SolidColor colorValue="{PETALS[i % 2]}" name="C"/></Fill>
+            </Shape>
             <Node scaleX="0" scaleY="0" name="Pop" id="{cid(i, 1)}">
                 <Node y="{h}" name="Lift" id="{cid(i, 2)}">
                     <Shape isTargetOpaque="true" name="Hit" id="{cid(i, 9)}">
@@ -365,7 +417,53 @@ def card_animations():
                 (15, [key(0, tilt), key(30, tilt, GRAVITY), key(52, 0.35 if i % 2 else -0.35, EASE_OUT), key(64, 0)]),
                 (16, [key(0, 1), key(52, 1)] + spring_keys(1, 1.4, frames=32, offset=52, **POP_SX)[2:]),
                 (17, [key(0, 1), key(52, 1)] + spring_keys(1, 1.4, frames=32, offset=52, **POP_SY)[2:])])}
+        </LinearAnimation>
+        <LinearAnimation duration="1" name="Game{i + 1}SwingRest" id="{cid(i, 60)}">
+            {keyed(cid(i, 0), [(15, [key(0, 0)])])}
+        </LinearAnimation>
+        <LinearAnimation duration="110" name="Game{i + 1}Swing" id="{cid(i, 61)}">
+            {keyed(cid(i, 0), [(15, shake_keys(SWING_AMP * (0.8 + 0.4 * ((i * 7) % 5) / 4), pendulum_hz(i),
+                                               0.34, 3.2, 110, delay=3 + (i % 4) * 2))])}
+        </LinearAnimation>
+        <LinearAnimation duration="31" name="Game{i + 1}SwingDrop" id="{cid(i, 62)}">
+            {keyed(cid(i, 0), [(15, drop_swing_keys())])}
         </LinearAnimation>''')
+    return "".join(out)
+
+
+def petal_keys():
+    """Petals shaken loose: one per fruit anchor, so they come out of the
+    canopy wherever it is at this growth. Each lets go on its own beat while
+    the hand pumps, flutters sideways as it falls (drag makes a petal reach
+    its slow terminal speed almost at once, so the fall is nearly linear
+    after a short ease-in), spins, and fades before the grass."""
+    out = []
+    for i in range(SLOTS):
+        pid = cid(i, 70)
+        x0, y0 = (i * 37) % 23 - 11, (i * 53) % 17 - 14
+        d = 4 + (i * 5) % 14
+        life = min(SHAKE_FRAMES - d, 64 + (i * 11) % 24)
+        end = d + life
+        speed = 150 + (i * 29) % 70           # pt/s, terminal
+        tau = 0.14
+        drift = 5 + (i * 3) % 6
+        spin = (3.0 + (i % 4)) * (1 if i % 2 else -1)
+        ys = [key(0, y0), f'<KeyFrameDouble value="{y0}" frame="{d}" interpolationType="linear"/>']
+        xs = [key(0, x0), f'<KeyFrameDouble value="{x0}" frame="{d}" interpolationType="linear"/>']
+        for f in range(d + 4, end + 1, 4):
+            t = (f - d) / 60
+            ys.append(f'<KeyFrameDouble value="{y0 + speed * (t - tau * (1 - math.exp(-t / tau))):.2f}" '
+                      f'frame="{f}" interpolationType="linear"/>')
+            xs.append(f'<KeyFrameDouble value="{x0 + drift * (math.sin(2 * math.pi * 1.1 * t + i) - math.sin(i)):.2f}" '
+                      f'frame="{f}" interpolationType="linear"/>')
+        out.append(keyed(pid, [
+            (13, xs), (14, ys),
+            (15, [key(0, 0), f'<KeyFrameDouble value="0" frame="{d}" interpolationType="linear"/>',
+                  key(end, spin)]),
+            (18, [key(0, 0), f'<KeyFrameDouble value="0" frame="{d}" interpolationType="linear"/>',
+                  f'<KeyFrameDouble value="0.95" frame="{d + 4}" interpolationType="linear"/>',
+                  f'<KeyFrameDouble value="0.8" frame="{end - 14}" interpolationType="linear"/>',
+                  key(end, 0)])]))
     return "".join(out)
 
 
@@ -378,10 +476,9 @@ def tree_animations():
             {keyed(TREE, [(15, [key(0, 0, EASE_IO), key(7, 0.032, EASE_IO), key(16, -0.02, EASE_IO),
                                 key(25, 0.009, EASE_IO), key(34, -0.003, EASE_IO), key(42, 0)])])}
         </LinearAnimation>
-        <LinearAnimation duration="36" name="TreeShake" id="5:20302">
-            {keyed(TREE, [(15, [key(0, 0, EASE_IO), key(4, 0.05, EASE_IO), key(9, -0.05, EASE_IO),
-                                key(14, 0.04, EASE_IO), key(19, -0.03, EASE_IO), key(25, 0.015, EASE_IO),
-                                key(31, -0.005, EASE_IO), key(36, 0)])])}
+        <LinearAnimation duration="{SHAKE_FRAMES}" name="TreeShake" id="5:20302">
+            {keyed(TREE, [(15, shake_keys(SHAKE_AMP, SHAKE_HZ, SHAKE_DRIVE, SHAKE_DECAY, SHAKE_FRAMES))])}
+            {petal_keys()}
         </LinearAnimation>
         <LinearAnimation duration="144" loopValue="pingPong" name="Unplanted" id="5:20320">
             {keyed(TREE, [(16, [key(0, 0)]), (17, [key(0, 0)])])}
@@ -433,6 +530,17 @@ def card_layers():
             (s(7), cid(i, 27), 220, [tr(s(8), num_cond(P_DROP, "equal", i))]),
             (s(8), cid(i, 28), 440, [tr(s(7), num_cond(P_DROP, "notEqual", i), 250)]),
         ], 1700 + i * 60))
+        # The swing on its stem when the tree is shaken. The one about to fall
+        # swings harder and lets go at the bottom of its arc; the rest ring
+        # down. Game node rotation: keyed by no other layer.
+        w = lambda k: cid(i, 64 + k)   # noqa: E731
+        shaken = num_cond(P_DROP, "greaterThanOrEqual", 0) + num_cond(P_DROP, "notEqual", i)
+        out.append(layer(f"Game{n} swing", cid(i, 63), [tr(w(0))], [
+            (w(0), cid(i, 60), 220, [tr(w(2), num_cond(P_DROP, "equal", i)), tr(w(1), shaken)]),
+            (w(1), cid(i, 61), 440, [tr(w(3), exit_pct=100)]),
+            (w(2), cid(i, 62), 550, [tr(w(3), exit_pct=100)]),
+            (w(3), cid(i, 60), 660, [tr(w(0), num_cond(P_DROP, "lessThan", 0))]),
+        ], 3000 + i * 60))
     return "\n            ".join(out)
 
 

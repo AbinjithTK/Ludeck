@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/models.dart';
+import 'package:ludeck/ui/common/glass.dart';
 import 'package:ludeck/ui/orchard/fruit_look.dart';
 import 'package:ludeck/ui/orchard/fruit_slots.g.dart';
 import 'package:ludeck/ui/orchard/ground_tray.dart';
@@ -219,13 +220,13 @@ void main() {
       expect(find.byKey(const Key('ground-strip')), findsNothing);
       final closed = tester.getRect(find.byType(GroundTray));
       final closedPill = tester.getSize(find.descendant(
-          of: find.byType(GroundTray), matching: find.byType(Container)).first);
+          of: find.byType(GroundTray), matching: find.byType(Glass)).first);
 
       await tester.tap(find.byKey(const Key('orchard-ground')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ground-strip')), findsOneWidget);
       final openPill = tester.getSize(find.descendant(
-          of: find.byType(GroundTray), matching: find.byType(Container)).first);
+          of: find.byType(GroundTray), matching: find.byType(Glass)).first);
       expect(closedPill.width, lessThan(closed.width), reason: 'closed hugs the pile');
       expect(openPill.width, moreOrLessEquals(closed.width, epsilon: 0.5),
           reason: 'open, the tray reaches the end of its space (the add button)');
@@ -246,7 +247,7 @@ void main() {
       await tester.pumpAndSettle();
       // Settled: the list's first cover sits where dealPose(0, 1) put it.
       final pill = tester.getRect(find.descendant(
-          of: find.byType(GroundTray), matching: find.byType(Container)).first);
+          of: find.byType(GroundTray), matching: find.byType(Glass)).first);
       final first = tester.getRect(find.byKey(const ValueKey('ground-1')));
       final pose = dealPose(0, 1, 0).rect.shift(pill.topLeft + const Offset(kTrayInset, kTrayInset));
       expect(first.left, moreOrLessEquals(pose.left, epsilon: 0.5));

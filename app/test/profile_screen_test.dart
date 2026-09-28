@@ -71,11 +71,13 @@ Iterable<String> _labels(WidgetTester tester) => tester
     .map((s) => s.properties.label)
     .whereType<String>();
 
-/// The count rendered on the row whose label is [word].
+/// The count rendered over [word]: each stat is a number over its word, in
+/// its own Column (the profile's season row, 2026-09-28; it was a Row per
+/// count inside a card before).
 int _countFor(WidgetTester tester, String word) {
   final row = find.ancestor(
     of: find.text(word),
-    matching: find.byType(Row),
+    matching: find.byType(Column),
   );
   final texts = tester
       .widgetList<Text>(find.descendant(of: row.first, matching: find.byType(Text)))
@@ -145,7 +147,8 @@ void main() {
       expect(_countFor(tester, Progress.abandoned.tree), 1);
       expect(_countFor(tester, Progress.untouched.tree), 2);
       expect(_countFor(tester, Ownership.spotted.tree), 1);
-      expect(_countFor(tester, 'Branches'), 3);
+      // The home calls them trees; the profile used to say branches.
+      expect(_countFor(tester, 'Trees'), 3);
     });
 
     testWidgets('a released game is in no bucket', (tester) async {
@@ -169,11 +172,11 @@ void main() {
       expect(_countFor(tester, Progress.finished.tree), 0);
     });
 
-    testWidgets('one branch reads in the singular', (tester) async {
+    testWidgets('one tree reads in the singular', (tester) async {
       await _pump(tester, items: [_item(1, 'Hades')], branches: 1);
 
-      expect(find.text('Branch'), findsOneWidget);
-      expect(find.text('Branches'), findsNothing);
+      expect(find.text('Tree'), findsOneWidget);
+      expect(find.text('Trees'), findsNothing);
     });
   });
 

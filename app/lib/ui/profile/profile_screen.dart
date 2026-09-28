@@ -42,7 +42,7 @@ import '../orchard/fruit_look.dart';
 import '../orchard/orchard_portrait.dart';
 import '../orchard/orchard_view.dart' show treesOf, gamesOnTree;
 import '../orchard/tree_style.dart';
-import '../publish/publish_screen.dart';
+import '../publish/share_sheet.dart';
 import '../tokens.dart';
 
 /// The profile route. Reads the store, so it needs no arguments -- the same
@@ -104,12 +104,19 @@ class ProfileScreen extends StatelessWidget {
 ///
 /// Presentational and fully injectable, so a widget test can assert the labels,
 /// the counts and the semantics without a store, a database or a Rive artboard.
+///
+/// Laid out by priority (2026-09-28, replacing a column of five outlined
+/// cards): the orchard, full bleed, with the title over its sky; the level in
+/// words; the one action, Share, as the only filled control on the screen; the
+/// season as five numbers on one line; "How Ludeck works" as a quiet link at
+/// the foot. No card, frame or box anywhere: space and type do the grouping.
 class ProfileBody extends StatelessWidget {
   const ProfileBody({
     super.key,
     required this.items,
     required this.branches,
     required this.hero,
+    this.onShare,
   });
 
   /// The whole collection. Counting happens here, through the domain functions,
@@ -122,171 +129,136 @@ class ProfileBody extends StatelessWidget {
   /// The tree portrait.
   final Widget hero;
 
+  /// Opens the share sheet. Defaults to the store-backed one.
+  final VoidCallback? onShare;
+
   @override
   Widget build(BuildContext context) {
     final season = summarise(items);
     final ladder = levelFor(season.harvested);
+    final top = MediaQuery.paddingOf(context).top;
 
     return Scaffold(
       backgroundColor: Tokens.palette.bg,
-      // Without this the starfield stops at the app bar and the transparent bar
-      // just shows the scaffold's flat fill, which is a band across the top of a
-      // screen whose whole point is depth.
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        // Not `Colors.transparent`: checker rule 1 requires every colour value to
-        // resolve through the token file, and `SoftCard` already established this
-        // as the idiom for "no fill".
+        // Not `Colors.transparent`: checker rule 1 requires every colour value
+        // to resolve through the token file.
         backgroundColor: Tokens.palette.bg.withValues(alpha: 0),
         elevation: 0,
         foregroundColor: Tokens.palette.text,
-        title: Text(
-          'Your tree',
-          style: TextStyle(
-            fontSize: Tokens.type.body,
-            fontWeight: FontWeight.w600,
-            color: Tokens.palette.text,
-          ),
-        ),
       ),
-      body: CosmosBackdrop(
-        child: SafeArea(
-          // The body runs behind the app bar, so the top inset is handled in the
-          // list's own padding below rather than by SafeArea -- SafeArea would
-          // clear the status bar but not the bar itself.
-          top: false,
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(
-              Tokens.space.md,
-              // Clears the app bar. Both terms are real measurements, not a
-              // guessed inset: the status-bar height from the window and the
-              // toolbar's own constant. A default AppBar does not grow with the
-              // text-size setting, so this cannot drift the way a hand-picked
-              // number would.
-              MediaQuery.paddingOf(context).top + kToolbarHeight,
-              Tokens.space.md,
-              Tokens.space.xl,
+      body: ListView(
+        padding: EdgeInsets.only(bottom: Tokens.space.xl),
+        children: [
+          // The orchard, edge to edge, fading into the page so it has no
+          // frame; the title sits in its sky.
+          Stack(children: [
+            _Portrait(hero: hero),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: 72,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Tokens.palette.bg.withValues(alpha: 0),
+                        Tokens.palette.bg,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-            children: [
-              _Portrait(hero: hero),
-              SizedBox(height: Tokens.space.sm),
-              _ShareEntry(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PublishScreen()),
+            Positioned(
+              left: Tokens.space.lg,
+              right: Tokens.space.lg,
+              top: top + kToolbarHeight,
+              child: Text(
+                'Your orchard',
+                style: TextStyle(
+                  fontSize: Tokens.type.display,
+                  fontWeight: FontWeight.w700,
+                  color: Tokens.palette.text,
+                  letterSpacing: Tokens.type.trackingDisplay,
+                  height: Tokens.type.leadingDisplay,
                 ),
               ),
-              SizedBox(height: Tokens.space.xs),
-              _HowItWorksEntry(
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+            ),
+          ]),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: Tokens.space.lg),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _Ladder(ladder: ladder),
+                SizedBox(height: Tokens.space.lg),
+                SizedBox(
+                  height: 52,
+                  child: FilledButton.icon(
+                    key: const Key('profile-share'),
+                    onPressed: onShare ?? () => showShareSheet(context),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Tokens.palette.text,
+                      foregroundColor: Tokens.palette.bg,
+                      shape: const StadiumBorder(),
+                      textStyle: TextStyle(
+                          fontSize: Tokens.type.body, fontWeight: FontWeight.w700),
+                    ),
+                    icon: const Icon(Icons.ios_share_rounded, size: 20),
+                    label: const Text('Share your orchard'),
+                  ),
                 ),
-              ),
-              SizedBox(height: Tokens.space.lg),
-              _Ladder(ladder: ladder),
-              SizedBox(height: Tokens.space.lg),
-              _SeasonBlock(season: season, branches: branches),
-            ],
+                SizedBox(height: Tokens.space.xl),
+                _SeasonBlock(season: season, branches: branches),
+                SizedBox(height: Tokens.space.xl),
+                Center(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+                    ),
+                    style: TextButton.styleFrom(foregroundColor: Tokens.palette.textDim),
+                    child: const Text('How Ludeck works'),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-/// The entry point into publish consent. docs/DECISIONS.md: sharing is never
-/// gated, so this is a plain tappable card, reachable by every user, with no
-/// entitlement check anywhere near it.
-class _ShareEntry extends StatelessWidget {
-  const _ShareEntry({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => SoftCard(
-        onTap: onTap,
-        child: Row(
-          children: [
-            Icon(Icons.ios_share, size: 18, color: Tokens.palette.accent),
-            SizedBox(width: Tokens.space.sm),
-            Expanded(
-              child: Text(
-                'Share your tree',
-                style: TextStyle(
-                  fontSize: Tokens.type.body,
-                  fontWeight: FontWeight.w600,
-                  color: Tokens.palette.text,
-                ),
-              ),
-            ),
-            Icon(Icons.chevron_right, size: 18, color: Tokens.palette.textDim),
-          ],
-        ),
-      );
-}
-
-/// Re-opens onboarding. "Re-openable from settings" -- FEATURES.md's own
-/// requirement for a first-run explainer that must not be a one-time-only
-/// thing.
-class _HowItWorksEntry extends StatelessWidget {
-  const _HowItWorksEntry({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => SoftCard(
-        onTap: onTap,
-        child: Row(
-          children: [
-            Icon(Icons.help_outline, size: 18, color: Tokens.palette.accent),
-            SizedBox(width: Tokens.space.sm),
-            Expanded(
-              child: Text(
-                'How Ludeck works',
-                style: TextStyle(
-                  fontSize: Tokens.type.body,
-                  fontWeight: FontWeight.w600,
-                  color: Tokens.palette.text,
-                ),
-              ),
-            ),
-            Icon(Icons.chevron_right, size: 18, color: Tokens.palette.textDim),
-          ],
-        ),
-      );
-}
-
-/// The tree, framed as a portrait.
-///
-/// A fixed aspect rather than a fixed height: the share card is a fixed ratio
-/// artifact, and this is meant to be the same artifact, so the frame here should
-/// not drift from it when the phone changes.
+/// The orchard as a portrait. A fixed 4:5 like the share card, which is the
+/// same picture, so the two never drift.
 class _Portrait extends StatelessWidget {
   const _Portrait({required this.hero});
 
   final Widget hero;
 
   @override
-  Widget build(BuildContext context) => SoftCard(
-        child: AspectRatio(
-          aspectRatio: 4 / 5,
-          child: Semantics(
-            // The tree itself carries no text, so without this a screen reader
-            // reaches the largest thing on the screen and finds nothing. The
-            // wording is distinct from the app bar's title on purpose: two nodes
-            // announcing "Your tree" makes a test that checks for one of them
-            // pass on the other.
-            label: 'A portrait of your tree',
-            image: true,
-            child: hero,
-          ),
+  Widget build(BuildContext context) => AspectRatio(
+        aspectRatio: 4 / 5,
+        child: Semantics(
+          // The tree itself carries no text, so without this a screen reader
+          // reaches the largest thing on the screen and finds nothing.
+          label: 'A portrait of your tree',
+          image: true,
+          child: hero,
         ),
       );
 }
 
-/// Level, what it means in words, and the bar.
+/// Level, what it means in words, and a thin line for how far along.
 ///
-/// The number is never shown bare. A level with no sentence beside it is a score
-/// the user has to guess the rules of.
+/// The number is never shown bare. A level with no sentence beside it is a
+/// score the user has to guess the rules of.
 class _Ladder extends StatelessWidget {
   const _Ladder({required this.ladder});
 
@@ -305,87 +277,11 @@ class _Ladder extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => SoftCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Level ${ladder.level}',
-              style: TextStyle(
-                fontSize: Tokens.type.title,
-                fontWeight: FontWeight.w700,
-                color: Tokens.palette.text,
-                letterSpacing: Tokens.type.trackingTitle,
-              ),
-            ),
-            SizedBox(height: Tokens.space.xxs),
-            Text(
-              _meaning,
-              style: TextStyle(
-                fontSize: Tokens.type.body,
-                color: Tokens.palette.textDim,
-              ),
-            ),
-            SizedBox(height: Tokens.space.sm),
-            // The bar is decoration over the sentence above it, which already
-            // says the same thing in words -- so it is excluded from semantics
-            // rather than read out as a second, vaguer version of it.
-            ExcludeSemantics(
-              child: PillProgress(value: ladder.progress),
-            ),
-          ],
-        ),
-      );
-}
-
-/// The season: four counts, in the metaphor's own words.
-///
-/// The words come from `Progress.tree` and `Ownership.tree` rather than being
-/// typed here, so a reworded metaphor cannot leave this screen behind. The
-/// status vocabulary is frozen in `docs/DECISIONS.md` and a checker rule fails
-/// the build on a banned synonym.
-class _SeasonBlock extends StatelessWidget {
-  const _SeasonBlock({required this.season, required this.branches});
-
-  final Season season;
-  final int branches;
-
-  @override
-  Widget build(BuildContext context) {
-    /// "1 game you finished", "3 games you finished". A screen reader saying
-    /// "1 games" is the kind of detail nobody sees in a screenshot review.
-    String games(int n, String tail) =>
-        '$n ${n == 1 ? 'game' : 'games'} $tail';
-
-    final rows = <({String word, int count, String sentence})>[
-      (
-        word: Progress.finished.tree,
-        count: season.harvested,
-        sentence: games(season.harvested, 'you finished'),
-      ),
-      (
-        word: Progress.abandoned.tree,
-        count: season.pressed,
-        sentence: games(season.pressed, 'you set aside'),
-      ),
-      (
-        word: Progress.untouched.tree,
-        count: season.stillGrowing,
-        sentence: games(season.stillGrowing, 'still to play'),
-      ),
-      (
-        word: Ownership.spotted.tree,
-        count: season.seeds,
-        sentence: games(season.seeds, 'someone recommended'),
-      ),
-    ];
-
-    return SoftCard(
-      child: Column(
+  Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'This season',
+            'Level ${ladder.level}',
             style: TextStyle(
               fontSize: Tokens.type.title,
               fontWeight: FontWeight.w700,
@@ -395,83 +291,126 @@ class _SeasonBlock extends StatelessWidget {
           ),
           SizedBox(height: Tokens.space.xxs),
           Text(
-            // Says what the number IS, so nobody reads it as a target they are
-            // behind on.
-            'Where your collection stands right now.',
-            style: TextStyle(
-              fontSize: Tokens.type.body,
-              color: Tokens.palette.textDim,
-            ),
+            _meaning,
+            style: TextStyle(fontSize: Tokens.type.body, color: Tokens.palette.textDim),
           ),
           SizedBox(height: Tokens.space.sm),
-          for (final row in rows)
-            _CountRow(
-              word: row.word,
-              count: row.count,
-              sentence: row.sentence,
-            ),
-          Divider(color: Tokens.cosmos.panelEdge, height: Tokens.space.lg),
-          _CountRow(
-            word: branches == 1 ? 'Branch' : 'Branches',
-            count: branches,
-            sentence: '$branches '
-                '${branches == 1 ? 'branch' : 'branches'} on your tree',
-          ),
+          // Decoration over the sentence above, which says the same thing.
+          ExcludeSemantics(child: PillProgress(value: ladder.progress)),
         ],
+      );
+}
+
+/// The season: five numbers on one line, each over its word in the
+/// metaphor's own vocabulary.
+///
+/// The words come from `Progress.tree` and `Ownership.tree` rather than being
+/// typed here, so a reworded metaphor cannot leave this screen behind.
+class _SeasonBlock extends StatelessWidget {
+  const _SeasonBlock({required this.season, required this.branches});
+
+  final Season season;
+  final int branches;
+
+  @override
+  Widget build(BuildContext context) {
+    /// "1 game you finished", "3 games you finished".
+    String games(int n, String tail) =>
+        '$n ${n == 1 ? 'game' : 'games'} $tail';
+
+    final stats = <({String word, int count, String sentence})>[
+      (
+        word: Progress.finished.tree,
+        count: season.harvested,
+        sentence: games(season.harvested, 'you finished'),
       ),
+      (
+        word: Progress.untouched.tree,
+        count: season.stillGrowing,
+        sentence: games(season.stillGrowing, 'still to play'),
+      ),
+      (
+        word: Progress.abandoned.tree,
+        count: season.pressed,
+        sentence: games(season.pressed, 'you set aside'),
+      ),
+      (
+        word: Ownership.spotted.tree,
+        count: season.seeds,
+        sentence: games(season.seeds, 'someone recommended'),
+      ),
+      (
+        word: branches == 1 ? 'Tree' : 'Trees',
+        count: branches,
+        sentence: '$branches ${branches == 1 ? 'tree' : 'trees'} in your orchard',
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'This season',
+          style: TextStyle(
+            fontSize: Tokens.type.body,
+            fontWeight: FontWeight.w600,
+            color: Tokens.palette.text,
+          ),
+        ),
+        SizedBox(height: Tokens.space.xxs),
+        Text(
+          // Says what the number IS, so nobody reads it as a target.
+          'Where your collection stands right now.',
+          style: TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim),
+        ),
+        SizedBox(height: Tokens.space.md),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final s in stats)
+              Expanded(
+                child: _Stat(word: s.word, count: s.count, sentence: s.sentence),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-/// One line of the season block: a word and a number.
-///
-/// A row, not a chip. Four bordered pills in a grid is the shape the tree
-/// header already uses for three counts, and repeating it here would read as a
-/// row of buttons -- which is a live complaint about the header, since only one
-/// of its three chips actually does anything.
-class _CountRow extends StatelessWidget {
-  const _CountRow({
-    required this.word,
-    required this.count,
-    required this.sentence,
-  });
+/// One number over its word. [sentence] is the whole announcement, already
+/// pluralised: the metaphor word alone ("Pressed 1") tells an unfamiliar
+/// listener nothing.
+class _Stat extends StatelessWidget {
+  const _Stat({required this.word, required this.count, required this.sentence});
 
   final String word;
   final int count;
-
-  /// The whole announcement, already pluralised by the caller. The metaphor word
-  /// alone ("Pressed 1") does not tell an unfamiliar listener anything, and
-  /// assembling the sentence here produced "1 games".
   final String sentence;
 
   @override
   Widget build(BuildContext context) => Semantics(
         label: sentence,
         excludeSemantics: true,
-        child: Padding(
-          padding: EdgeInsets.symmetric(vertical: Tokens.space.xs),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  word,
-                  style: TextStyle(
-                    fontSize: Tokens.type.body,
-                    color: Tokens.palette.text,
-                  ),
-                ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: Tokens.type.title,
+                fontWeight: FontWeight.w700,
+                color: Tokens.palette.text,
+                fontFeatures: const [FontFeature.tabularFigures()],
               ),
-              Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: Tokens.type.body,
-                  fontWeight: FontWeight.w700,
-                  color: Tokens.palette.text,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
+            ),
+            Text(
+              word,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim),
+            ),
+          ],
         ),
       );
 }

@@ -216,6 +216,14 @@ class _Cosmos {
   /// dissolves into a bright region of the gradient and stops reading as a card.
   final Color panelEdge = const Color(0x3DFFFFFF);
 
+  /// Glass (ui/common/glass.dart): the tint over the blurred scene, the sheen
+  /// that brightens its top, the light its rim catches, and the soft shadow
+  /// under a caption set straight on the scene.
+  final Color glassTint = const Color(0x7015122B);
+  final Color glassSheen = const Color(0x1CFFFFFF);
+  final Color glassRim = const Color(0xFFFFFFFF);
+  final Color captionShadow = const Color(0x99000000);
+
   /// A darker panel, for a card that must hold small text.
   ///
   /// `panel` over the light end of `hero` leaves too little contrast under
@@ -494,6 +502,11 @@ class _Radius {
   /// 10, and a 20 there would make the collection look inflated. These are large
   /// standalone panels, where 10 reads as sharp-edged against a gradient.
   final double panel = 20;
+
+  /// A large glass surface floating over the scene (the pick card, the
+  /// share sheet): a continuous (superellipse) corner, the way a sheet's
+  /// corner follows the phone's own.
+  final double sheet = 28;
 
   final double pill = 999;
 }

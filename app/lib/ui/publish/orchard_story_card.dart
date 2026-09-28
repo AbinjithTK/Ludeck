@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import '../../data/enums.dart';
 import '../../services/social/social_backend.dart';
 import '../orchard/orchard_portrait.dart';
+import '../orchard/tree_style.dart';
 import '../tokens.dart';
 
 /// A 4:5 card: level and finished count over the orchard, and the app's name.
@@ -24,6 +25,7 @@ class OrchardStoryCard extends StatelessWidget {
     required this.games,
     required this.level,
     required this.trunkName,
+    this.styles = const {},
   });
 
   final List<PublishedGame> games;
@@ -32,20 +34,35 @@ class OrchardStoryCard extends StatelessWidget {
   /// The group name games on no branch are published under.
   final String trunkName;
 
+  /// Each tree's own look by name, so the card matches home.
+  final Map<String, TreeStyle> styles;
+
   @override
   Widget build(BuildContext context) {
     final harvested = games.where((g) => g.status == Progress.finished).length;
-    final trees = portraitFromPublished(games, trunkName);
-    final title = TextStyle(
-        fontSize: Tokens.type.title,
-        fontWeight: FontWeight.w700,
-        color: Tokens.palette.text,
-        letterSpacing: Tokens.type.trackingTitle);
-    final dim = TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim);
+    final trees = portraitFromPublished(games, trunkName, styles: styles);
+    final t = Tokens.palette;
+    // Hierarchy: the orchard is the picture; one line of title over the sky;
+    // the three numbers that say what it holds; the name of the app, small.
+    // No frame, no boxes: the sky runs to the card's edge.
+    Widget stat(int n, String word) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$n',
+                style: TextStyle(
+                    fontSize: Tokens.type.title,
+                    fontWeight: FontWeight.w700,
+                    color: t.text,
+                    height: 1.05,
+                    fontFeatures: const [FontFeature.tabularFigures()])),
+            Text(word, style: TextStyle(fontSize: Tokens.type.caption, color: t.textDim)),
+          ],
+        );
     return AspectRatio(
       aspectRatio: 4 / 5,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(Tokens.radius.panel),
+      child: ClipRSuperellipse(
+        borderRadius: BorderRadius.circular(Tokens.radius.sheet),
         child: Stack(fit: StackFit.expand, children: [
           trees.isEmpty
               ? const OrchardPortrait(trees: [])
@@ -55,24 +72,36 @@ class OrchardStoryCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(trees.length == 1 ? trees.first.name : 'My orchard', style: title),
-                SizedBox(height: Tokens.space.xxs),
-                Text(
-                  [
-                    games.length == 1 ? '1 game' : '${games.length} games',
-                    harvested == 1 ? '1 finished' : '$harvested finished',
-                    'level $level',
-                  ].join('  ·  '),
-                  style: dim,
-                ),
-                const Spacer(),
-                Align(
-                  alignment: Alignment.bottomRight,
-                  child: Text('Ludeck',
-                      style: dim.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: Tokens.type.trackingTitle)),
-                ),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: Text(trees.length == 1 ? trees.first.name : 'My orchard',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: Tokens.type.display,
+                            fontWeight: FontWeight.w700,
+                            color: t.text,
+                            letterSpacing: Tokens.type.trackingDisplay,
+                            height: Tokens.type.leadingDisplay)),
+                  ),
+                  // Top right, in the empty sky: at the foot it sat on the
+                  // trees' name labels.
+                  Padding(
+                    padding: EdgeInsets.only(top: Tokens.space.xxs),
+                    child: Text('Ludeck',
+                        style: TextStyle(
+                            fontSize: Tokens.type.caption,
+                            fontWeight: FontWeight.w700,
+                            color: t.text.withValues(alpha: 0.7),
+                            letterSpacing: 1.2)),
+                  ),
+                ]),
+                SizedBox(height: Tokens.space.sm),
+                Wrap(spacing: Tokens.space.lg, runSpacing: Tokens.space.xs, children: [
+                  stat(games.length, games.length == 1 ? 'game' : 'games'),
+                  stat(harvested, 'finished'),
+                  stat(level, 'level'),
+                ]),
               ],
             ),
           ),

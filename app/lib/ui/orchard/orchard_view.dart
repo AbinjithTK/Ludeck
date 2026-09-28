@@ -18,7 +18,6 @@
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
@@ -30,6 +29,7 @@ import '../../data/enums.dart';
 import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
 import '../../domain/pick.dart';
+import '../common/glass.dart';
 import '../common/name_dialog.dart';
 import '../tokens.dart';
 import 'fruit_flight.dart';
@@ -190,19 +190,23 @@ class _OrchardViewState extends State<OrchardView>
 
   // ---- the shake (roulette) ----------------------------------------------
   final math.Random _rnd = math.Random();
+  final ShakeBag _bag = ShakeBag();
   Pick? _pick;
   Branch? _pickTree;
-  int? _lastPickId;
   Timer? _pickTimer;
   int _pickPage = 0;
 
-  /// Shake [tree]: a random playable game on it falls (the file's drop), and
-  /// a card rises with what fell and why. Only fruit that is HANGING can fall,
-  /// so the pool is the first [kTreeSlots] games.
-  void _shake(Branch tree, List<TreeItem> games, {bool again = false}) {
+  /// A fruit is down (or falling) on [_pickTree]: the file's drop is >= 0.
+  bool _dropped = false;
+
+  /// Shake [tree]: a game on it falls (the file's drop), and a card rises
+  /// with what fell and why. Only fruit that is HANGING can fall, so the pool
+  /// is the first [kTreeSlots] games. Every hanging game gets its turn before
+  /// any falls twice (ShakeBag).
+  void _shake(Branch tree, List<TreeItem> games) {
     final c = _controllers[tree.id];
     final hanging = games.take(kTreeSlots).toList();
-    final pick = shakePick(hanging, _rnd, avoid: again ? _lastPickId : null);
+    final pick = _bag.shake(tree.id, hanging, _rnd);
     _pickTimer?.cancel();
     if (pick == null) {
       // Nothing can fall: the tree still answers, and says why in words.
@@ -220,26 +224,34 @@ class _OrchardViewState extends State<OrchardView>
     }
     HapticFeedback.mediumImpact();
     final slot = hanging.indexWhere((i) => i.game.igdbId == pick.item.game.igdbId);
-    if (again && _pick != null) {
-      // The last pick hangs back first, then the tree shakes again.
-      c?.drop(-1);
-      setState(() => _pick = null);
-      _pickTimer = Timer(const Duration(milliseconds: 380), () {
-        if (!mounted) return;
-        c?.drop(slot);
-        _pickTimer = Timer(kPickDelay, () => _showPick(tree, pick));
-      });
-      return;
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    void fall() {
+      c?.drop(slot);
+      _dropped = true;
+      _pickTimer = Timer(reduce ? Duration.zero : kPickDelay,
+          () => _showPick(tree, pick));
     }
-    c?.drop(slot);
+
     setState(() {
       _nothingToShake = false;
+      _pick = null;
       _pickTree = tree;
       _pickPage = _page.value.round();
     });
-    _pickTimer = Timer(
-        MediaQuery.disableAnimationsOf(context) ? Duration.zero : kPickDelay,
-        () => _showPick(tree, pick));
+    if (_dropped) {
+      // A fruit is already down: it hangs back first, THEN the tree shakes.
+      // Going straight from one drop to the next skipped the file's shake
+      // (its tree layer only re-arms after drop < 0).
+      for (final other in _controllers.values) {
+        other.drop(-1);
+      }
+      _dropped = false;
+      _pickTimer = Timer(const Duration(milliseconds: 380), () {
+        if (mounted) fall();
+      });
+      return;
+    }
+    fall();
   }
 
   bool _nothingToShake = false;
@@ -250,7 +262,6 @@ class _OrchardViewState extends State<OrchardView>
     setState(() {
       _pick = pick;
       _pickTree = tree;
-      _lastPickId = pick.item.game.igdbId;
     });
   }
 
@@ -259,6 +270,7 @@ class _OrchardViewState extends State<OrchardView>
     _pickTimer?.cancel();
     final t = _pickTree;
     if (t != null) _controllers[t.id]?.drop(-1);
+    _dropped = false;
     if (_pick != null || _nothingToShake) {
       setState(() {
         _pick = null;
@@ -789,6 +801,42 @@ class _OrchardViewState extends State<OrchardView>
             child: widget.addButton!,
           ),
 
+        // Shake: the orchard's roulette, over the add button in the thumb's
+        // reach. Only on a tree page, and out of the way while a card is in
+        // the hand or the pick card (which has its own "Shake again") is up.
+        Positioned(
+          right: Tokens.space.md + (Tokens.size.control - kShakeSize) / 2,
+          bottom: rowBottom + rowH + Tokens.space.sm,
+          child: ValueListenableBuilder<double>(
+            valueListenable: _page,
+            builder: (context, page, _) {
+              final i = page.round();
+              final tree = i < trees.length ? trees[i] : null;
+              final show = tree != null && _held == null && _pick == null;
+              return IgnorePointer(
+                ignoring: !show,
+                child: AnimatedOpacity(
+                  opacity: show ? 1 : 0,
+                  duration: Tokens.motion.maybe(Tokens.motion.swap,
+                      reduceMotion: MediaQuery.disableAnimationsOf(context)),
+                  curve: Tokens.motion.easeOut,
+                  child: GlassButton(
+                    key: const Key('orchard-shake'),
+                    size: kShakeSize,
+                    caption: 'Shake',
+                    label: tree == null
+                        ? 'Shake'
+                        : 'Shake ${tree.name} for something to play',
+                    onTap: tree == null ? null : () => _shake(tree, _gamesOn(tree)),
+                    child: CustomPaint(
+                        size: const Size.square(26), painter: ShakeGlyph()),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
         // Where else to go: icon buttons, top right, fixed over every page.
         if (widget.actions.isNotEmpty)
           Positioned(
@@ -833,7 +881,7 @@ class _OrchardViewState extends State<OrchardView>
                     },
                     onAgain: () {
                       final t = _pickTree;
-                      if (t != null) _shake(t, _gamesOn(t), again: true);
+                      if (t != null) _shake(t, _gamesOn(t));
                     },
                     onOpen: () {
                       final item = _pick!.item;
@@ -1029,29 +1077,10 @@ class _TreePageState extends State<_TreePage>
                     ),
                   ),
                 )),
-                // This tree's own look, beside its own name: it belongs to
-                // the tree, not to the app's actions at the top right.
-                // Labelled, not a bare icon: "shake the tree" is this app's
-                // own idea and a die alone would not say it.
-                TextButton.icon(
-                  key: const Key('orchard-shake'),
-                  onPressed: w.onShake,
-                  icon: Icon(Icons.casino_outlined,
-                      size: 18, color: Tokens.palette.text),
-                  label: Text('Shake',
-                      semanticsLabel: 'Shake ${tree.name} for something to play',
-                      style: TextStyle(
-                          fontSize: Tokens.type.caption,
-                          fontWeight: FontWeight.w600,
-                          color: Tokens.palette.text)),
-                  style: TextButton.styleFrom(
-                    minimumSize: const Size(44, 36),
-                    padding: EdgeInsets.symmetric(horizontal: Tokens.space.sm),
-                    backgroundColor: Tokens.cosmos.panel,
-                    shape: StadiumBorder(
-                        side: BorderSide(color: Tokens.cosmos.panelEdge)),
-                  ),
-                ),
+                // This tree's own look, beside its own count: it belongs to
+                // the tree, not to the app's actions at the top right. The
+                // shake is not here any more: it is the orchard's one playful
+                // action, so it sits in the thumb's reach by the add button.
                 if (w.onCustomise != null)
                   IconButton(
                     key: const Key('orchard-customise'),
@@ -1506,6 +1535,46 @@ class _ShelfItem extends StatelessWidget {
 /// One of the orchard's top-right icon buttons.
 typedef OrchardAction = ({IconData icon, String label, VoidCallback onTap});
 
+/// The shake button's diameter: a step below the add button (56), which
+/// stays the primary action.
+const double kShakeSize = 48;
+
+/// The shake glyph: a small tree with the sway lines of being shaken and a
+/// fruit falling from it. A die said "random" but not "shake the tree".
+class ShakeGlyph extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 26;
+    final ink = Paint()
+      ..color = Tokens.palette.text
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8 * s
+      ..strokeCap = StrokeCap.round;
+    // Canopy, trunk.
+    canvas.drawCircle(Offset(13 * s, 9.5 * s), 6.2 * s, ink);
+    canvas.drawLine(Offset(13 * s, 15.7 * s), Offset(13 * s, 23 * s), ink);
+    // Sway lines either side.
+    final thin = Paint()
+      ..color = Tokens.palette.text.withValues(alpha: 0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.4 * s
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(Rect.fromCircle(center: Offset(13 * s, 9.5 * s), radius: 9.8 * s),
+        2.69, 0.9, false, thin);
+    canvas.drawArc(Rect.fromCircle(center: Offset(13 * s, 9.5 * s), radius: 9.8 * s),
+        -0.45, 0.9, false, thin);
+    // The fruit, falling.
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset(20.5 * s, 21 * s), width: 3.6 * s, height: 4.6 * s),
+            Radius.circular(1 * s)),
+        Paint()..color = Tokens.palette.text);
+  }
+
+  @override
+  bool shouldRepaint(ShakeGlyph old) => false;
+}
+
 /// Width the header leaves free for [_TopActions] (three 44pt buttons in a
 /// glass pill). Measured, not guessed: 3 x 44 + 2 x 2 gaps + 2 x 4 inset.
 const double kTopActionsW = 3 * 44 + 2 * 2 + 2 * 4;
@@ -1518,17 +1587,9 @@ class _TopActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(26),
-      child: BackdropFilter(
-      filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-      child: Container(
+    return Glass(
+      child: Padding(
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Tokens.cosmos.panelDeep,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: Tokens.cosmos.panelEdge),
-      ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         for (var i = 0; i < actions.length; i++) ...[
           if (i > 0) const SizedBox(width: 2),
@@ -1546,7 +1607,6 @@ class _TopActions extends StatelessWidget {
           ),
         ],
       ]),
-    ),
     ),
     );
   }
@@ -1573,18 +1633,20 @@ class PickCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final item = pick.item;
-    final playing = item.entry.progress == Progress.playing;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(Tokens.radius.panel),
-      child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
+    final bud = item.entry.ownership != Ownership.owned;
+    final primary = bud
+        ? 'Take a look'
+        : switch (item.entry.progress) {
+            Progress.playing => 'Back to it',
+            Progress.finished => 'Play again',
+            Progress.abandoned => 'Give it a go',
+            _ => 'Play it',
+          };
+    return Glass(
+      shape: RoundedSuperellipseBorder(
+          borderRadius: BorderRadius.circular(Tokens.radius.sheet)),
+      child: Padding(
           padding: EdgeInsets.all(Tokens.space.sm),
-          decoration: BoxDecoration(
-            color: Tokens.cosmos.panelDeep,
-            borderRadius: BorderRadius.circular(Tokens.radius.panel),
-            border: Border.all(color: Tokens.cosmos.panelEdge),
-          ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Semantics(
               button: true,
@@ -1639,21 +1701,23 @@ class PickCard extends StatelessWidget {
                   Wrap(spacing: Tokens.space.xs, runSpacing: Tokens.space.xs, children: [
                     FilledButton(
                       key: const Key('pick-play'),
-                      onPressed: onPlay,
+                      onPressed: bud ? onOpen : onPlay,
                       style: FilledButton.styleFrom(
                           backgroundColor: Tokens.palette.text,
                           foregroundColor: Tokens.palette.bg,
                           visualDensity: VisualDensity.compact),
-                      child: Text(playing ? 'Back to it' : 'Play it'),
+                      child: Text(primary),
                     ),
-                    OutlinedButton.icon(
+                    TextButton.icon(
                       key: const Key('pick-again'),
                       onPressed: onAgain,
-                      style: OutlinedButton.styleFrom(
+                      style: TextButton.styleFrom(
                           foregroundColor: Tokens.palette.text,
-                          side: BorderSide(color: Tokens.cosmos.panelEdge),
+                          backgroundColor: Tokens.cosmos.panel,
+                          shape: const StadiumBorder(),
                           visualDensity: VisualDensity.compact),
-                      icon: const Icon(Icons.casino_outlined, size: 16),
+                      icon: CustomPaint(
+                          size: const Size.square(18), painter: ShakeGlyph()),
                       label: const Text('Shake again'),
                     ),
                   ]),
@@ -1661,7 +1725,6 @@ class PickCard extends StatelessWidget {
               ),
             ),
           ]),
-        ),
       ),
     );
   }
@@ -1675,18 +1738,15 @@ class _NothingToShake extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Center(
-        child: Container(
+        child: Glass(
+          child: Padding(
           padding: EdgeInsets.symmetric(
               horizontal: Tokens.space.md, vertical: Tokens.space.sm),
-          decoration: BoxDecoration(
-            color: Tokens.cosmos.panelDeep,
-            borderRadius: BorderRadius.circular(Tokens.radius.pill),
-            border: Border.all(color: Tokens.cosmos.panelEdge),
-          ),
           child: Text(
             'Nothing on $treeName to shake loose right now',
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.text),
+          ),
           ),
         ),
       );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../common/glass.dart';
 import '../tokens.dart';
 
 /// The ways a game can get onto the tree.
@@ -169,31 +170,14 @@ class _AddMenuState extends State<AddMenu> with SingleTickerProviderStateMixin {
             angle: _c.value * 0.785398,
             child: child,
           ),
-          child: Semantics(
-            button: true,
-            label: 'Add a game',
-            child: Material(
+          child: GlassButton(
               // Deliberately NOT the accent colour: gold means exactly one
-              // thing, harvested (a design critique caught it doing two jobs).
-              //
-              // Glass rather than a solid white disc. A solid white disc was
-              // the brightest object on the orchard and pulled the eye off the
-              // tree. The plus glyph keeps full text contrast, the panel edge
-              // gives the control its boundary, and the fill lets the sky
-              // through like the navigation pill beside it.
-              color: Tokens.cosmos.panel,
-              shape: CircleBorder(
-                  side: BorderSide(color: Tokens.cosmos.panelEdge)),
-              child: InkWell(
-                customBorder: const CircleBorder(),
-                onTap: _toggle,
-                child: SizedBox(
-                  width: Tokens.size.control,
-                  height: Tokens.size.control,
-                  child: Icon(Icons.add, color: Tokens.palette.text, size: 26),
-                ),
-              ),
-            ),
+              // thing, harvested. Glass like every control on the orchard,
+              // so the brightest thing on screen stays the tree.
+              label: 'Add a game',
+              size: Tokens.size.control,
+              onTap: _toggle,
+              child: Icon(Icons.add_rounded, color: Tokens.palette.text, size: 28),
           ),
         );
   }

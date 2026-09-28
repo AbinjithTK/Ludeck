@@ -24,7 +24,6 @@
 //  - reduce motion: it opens and closes instantly
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +31,7 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 
 import '../../data/models.dart';
+import '../common/glass.dart';
 import '../tokens.dart';
 import 'fruit_look.dart';
 
@@ -248,7 +248,9 @@ class _GroundTrayState extends State<GroundTray>
               child: Container(
               width: w,
               height: kTrayH,
-              padding: const EdgeInsets.all(kTrayInset - 1),
+              // The whole inset: glass draws its rim as light, not as a
+              // border that takes 1pt of layout (that was the old `- 1`).
+              padding: const EdgeInsets.all(kTrayInset),
               child: Stack(clipBehavior: Clip.hardEdge, children: [
                 // The count, riding out to the right as the pile deals.
                 Positioned(
@@ -592,31 +594,12 @@ class _Glass extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final r = BorderRadius.circular(kTrayH / 2);
     final reduce = MediaQuery.disableAnimationsOf(context);
     return AnimatedScale(
       scale: lit ? 1.03 : 1,
       duration: Tokens.motion.maybe(Tokens.motion.swap, reduceMotion: reduce),
       curve: Tokens.motion.easeOut,
-      child: ClipRRect(
-        borderRadius: r,
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: AnimatedContainer(
-            duration: Tokens.motion.maybe(Tokens.motion.swap, reduceMotion: reduce),
-            decoration: BoxDecoration(
-              color: Tokens.cosmos.panelDeep,
-              borderRadius: r,
-              border: Border.all(
-                  color: lit
-                      ? Tokens.palette.text.withValues(alpha: 0.7)
-                      : Tokens.cosmos.panelEdge,
-                  width: lit ? 1.5 : 1),
-            ),
-            child: child,
-          ),
-        ),
-      ),
+      child: Glass(lit: lit, child: child),
     );
   }
 }

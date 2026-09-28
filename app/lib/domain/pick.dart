@@ -118,36 +118,87 @@ String _reasonFor(TreeItem item, double? hoursFree) {
   }
 }
 
-/// Shake the tree: one game, at random, from what on it can be played now.
+/// Shake the tree: one game, at random, from everything hanging on it.
 ///
-/// The roulette. Not uniform: a game already in hand is three times as likely
-/// to fall as one not started, and an installed one twice, because the point
-/// of shaking is to get something you will actually pick up tonight. Anything
-/// finished, set aside, not owned (a bud) or shelved never falls. [avoid] is
-/// the last game that fell: "shake again" never hands back the same game while
-/// there is another. Null when nothing on the tree can fall.
-Pick? shakePick(List<TreeItem> items, math.Random rnd, {int? avoid}) {
-  var pool = items
-      .where((i) =>
-          !i.entry.shelved &&
-          i.entry.ownership == Ownership.owned &&
-          i.entry.progress != Progress.finished &&
-          i.entry.progress != Progress.abandoned)
-      .toList();
+/// The roulette. Every fruit that hangs can fall: a roulette where two of six
+/// fruit ever came down read as broken (2026-09-28, when only owned,
+/// unfinished games could fall), and so does a fruit you can see that never
+/// comes down (a given-away game kept on the tree). It is still not uniform:
+/// what you can play tonight falls far more often than a bud, a finished
+/// game or one given away, and [reason] says honestly why each one came down.
+///
+/// [fallen] is what already fell this round: a game does not fall twice
+/// until every other game on the tree has had its turn (a shuffle bag, so a
+/// run of shakes goes round the whole tree instead of re-rolling the same
+/// favourite). When the round is spent it starts again, still never handing
+/// back [avoid], the one that just fell, while there is another. Null when
+/// nothing on the tree can fall.
+Pick? shakePick(List<TreeItem> items, math.Random rnd,
+    {int? avoid, Set<int> fallen = const {}}) {
+  final pool = [...items];
   if (pool.isEmpty) return null;
-  if (avoid != null && pool.length > 1) {
-    pool = pool.where((i) => i.game.igdbId != avoid).toList();
+  var bag = pool.where((i) => !fallen.contains(i.game.igdbId)).toList();
+  if (bag.isEmpty) bag = pool; // the round is spent: a new one
+  if (avoid != null && bag.length > 1) {
+    bag = bag.where((i) => i.game.igdbId != avoid).toList();
   }
-  int weight(TreeItem i) => switch (i.entry.progress) {
-        Progress.playing => 3,
-        Progress.installed => 2,
-        _ => 1,
-      };
-  final total = pool.fold<int>(0, (s, i) => s + weight(i));
+  final total = bag.fold<int>(0, (s, i) => s + shakeWeight(i));
   var r = rnd.nextInt(total);
-  for (final i in pool) {
-    r -= weight(i);
-    if (r < 0) return Pick(item: i, reason: _reasonFor(i, null));
+  for (final i in bag) {
+    r -= shakeWeight(i);
+    if (r < 0) return Pick(item: i, reason: _shakeReason(i));
   }
-  return Pick(item: pool.last, reason: _reasonFor(pool.last, null));
+  return Pick(item: bag.last, reason: _shakeReason(bag.last));
+}
+
+/// How likely [i] is to fall, relative to the others still in the bag. The
+/// point of shaking is something you will actually pick up tonight, so a
+/// game in hand is six times as likely as a finished one.
+int shakeWeight(TreeItem i) {
+  if (i.entry.ownership == Ownership.released) return 1;
+  if (i.entry.ownership != Ownership.owned) return 2; // a bud
+  if (i.entry.shelved) return 1;
+  return switch (i.entry.progress) {
+    Progress.playing => 6,
+    Progress.installed => 4,
+    Progress.untouched => 3,
+    Progress.finished || Progress.abandoned => 1,
+  };
+}
+
+String _shakeReason(TreeItem i) {
+  if (i.entry.ownership == Ownership.released) {
+    return 'Given away a while back. Miss it?';
+  }
+  if (i.entry.ownership != Ownership.owned) {
+    return 'A bud: not yours yet. Worth picking up?';
+  }
+  if (i.entry.shelved) return 'On the shelf a while. Another look?';
+  return switch (i.entry.progress) {
+    Progress.finished => 'Finished already. Up for a replay?',
+    Progress.abandoned => 'Set aside a while back. Another go?',
+    _ => _reasonFor(i, null),
+  };
+}
+
+/// Per-tree memory of what fell this round, for [shakePick]'s shuffle bag.
+/// Lives as long as the orchard screen: a new session starts a new round.
+class ShakeBag {
+  final Map<int, Set<int>> _fallen = {};
+  final Map<int, int> _last = {};
+
+  /// Shake tree [treeId] holding [hanging]. The game that fell last is never
+  /// handed straight back while there is another.
+  Pick? shake(int treeId, List<TreeItem> hanging, math.Random rnd) {
+    final done = _fallen.putIfAbsent(treeId, () => <int>{});
+    final ids = hanging.map((i) => i.game.igdbId).toSet();
+    done.retainAll(ids); // a game moved off the tree leaves the round
+    if (done.length >= ids.length) done.clear();
+    final pick = shakePick(hanging, rnd, avoid: _last[treeId], fallen: done);
+    if (pick != null) {
+      done.add(pick.item.game.igdbId);
+      _last[treeId] = pick.item.game.igdbId;
+    }
+    return pick;
+  }
 }
