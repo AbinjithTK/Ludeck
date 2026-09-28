@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:ludeck/data/enums.dart';
+import 'package:ludeck/data/models.dart';
 import 'package:ludeck/data/repository.dart';
 import 'package:ludeck/state/ludeck_store.dart';
 import 'package:ludeck/ui/collection/collection_view.dart';
@@ -264,9 +265,16 @@ void main() {
     testWidgets('a seed announces who recommended it', (tester) async {
       await pump(tester);
 
-      // A seed's whole point is where it came from.
-      expect(find.bySemanticsLabel(RegExp(r'Pentiment, Recommended by Priya')),
-          findsOneWidget);
+      // A seed's whole point is where it came from. With a larger seed the
+      // list virtualizes, so the row may not be built until scrolled to.
+      final seed = find.bySemanticsLabel(RegExp(r'Pentiment, Recommended by Priya'));
+      await tester.scrollUntilVisible(
+        find.text('Pentiment'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(seed, findsOneWidget);
     });
 
     testWidgets('a heading announces its name, count and expanded state',
@@ -308,7 +316,37 @@ void main() {
 
     testWidgets('a single-game section says game, not games', (tester) async {
       final handle = tester.ensureSemantics();
-      await pump(tester);
+      // CollectionView takes its items as a parameter, so the grammar test
+      // mounts it with exactly ONE item directly -- no repo, no seed. This
+      // keeps the singular/plural assertion independent of how many games the
+      // catalog seeds into any given status.
+      // No DB here, but check.ps1 rule 8 requires every pumpWidget in a
+      // repository-importing test file to sit inside runAsync.
+      await tester.runAsync(() async {
+        await tester.pumpWidget(MaterialApp(
+          home: Scaffold(
+            body: CollectionView(
+              items: [
+                TreeItem(
+                  game: const Game(igdbId: 999001, title: 'Solo Game'),
+                  entry: const Entry(
+                      igdbId: 999001,
+                      ownership: Ownership.owned,
+                      progress: Progress.playing),
+                  copies: const [],
+                ),
+              ],
+              branches: const [],
+              placements: const {},
+              topInset: 0,
+              bottomInset: 0,
+              onSelect: (_) {},
+              onHold: (_) {},
+            ),
+          ),
+        ));
+      });
+      await tester.pumpAndSettle();
 
       expect(
         tester.getSemantics(heading('Playing')),
