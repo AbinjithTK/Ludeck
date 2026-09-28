@@ -26,7 +26,12 @@ class OrchardStoryCard extends StatelessWidget {
     required this.level,
     required this.trunkName,
     this.styles = const {},
+    this.treeName,
   });
+
+  /// Set when the card shows ONE tree: its name becomes the headline and
+  /// the eyebrow reads "My tree". Null: the whole orchard.
+  final String? treeName;
 
   final List<PublishedGame> games;
   final int level;
@@ -55,14 +60,18 @@ class OrchardStoryCard extends StatelessWidget {
     // Text sits on the dark ground, never over the trees, so it keeps its
     // contrast whatever the blossom colours are.
     final facts = [
+      // One tree: its name is the headline, so the count moves down here.
+      if (treeName != null) n == 1 ? '1 game' : '$n games',
       if (harvested > 0) '$harvested finished',
       if (playing > 0) '$playing playing now',
       'level $level',
     ].join('  ·  ');
     // The trunk group's name is internal (games on no tree), not a title.
-    final eyebrow = trees.length == 1 && trees.first.name != trunkName
-        ? trees.first.name
-        : 'My orchard';
+    final eyebrow = treeName != null
+        ? 'My tree'
+        : trees.length == 1 && trees.first.name != trunkName
+            ? trees.first.name
+            : 'My orchard';
 
     return AspectRatio(
       aspectRatio: 4 / 5,
@@ -111,7 +120,8 @@ class OrchardStoryCard extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    n == 1 ? '$n game in my orchard' : '$n games in my orchard',
+                    treeName ??
+                        (n == 1 ? '$n game in my orchard' : '$n games in my orchard'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(

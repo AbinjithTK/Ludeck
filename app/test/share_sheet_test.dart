@@ -102,4 +102,88 @@ void main() {
     expect(all, isNot(contains('secret')));
     expect(all, isNot(contains('Priya')));
   });
+
+  group('sharing one tree', () {
+    TreeItem game(int id, String title, Progress p) => TreeItem(
+          game: Game(igdbId: id, title: title),
+          entry: Entry(igdbId: id, ownership: Ownership.owned, progress: p),
+          copies: const [],
+        );
+    final cozy = toPublished(
+        [game(1, 'Stardew', Progress.playing), game(2, 'Unpacking', Progress.finished)],
+        'Cozy');
+    final action = toPublished([game(3, 'Hades', Progress.untouched)], 'Action');
+
+    Future<FakeSocialStore> pumpTrees(WidgetTester tester) async {
+      final store = FakeSocialStore();
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ShareSheet(
+              backend: FakeSocialBackend(signedInAs: _me, store: store),
+              games: [...cozy, ...action],
+              level: 2,
+              trees: [
+                (name: 'Cozy', swatch: const Color(0xFFC8457A), games: cozy),
+                (name: 'Action', swatch: const Color(0xFFD0562F), games: action),
+              ],
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      return store;
+    }
+
+    OrchardStoryCard card(WidgetTester tester) =>
+        tester.widget<OrchardStoryCard>(find.byType(OrchardStoryCard));
+
+    testWidgets('opens on the whole orchard', (tester) async {
+      await pumpTrees(tester);
+      expect(card(tester).treeName, isNull);
+      expect(card(tester).games, hasLength(3));
+      expect(find.text('3 games in my orchard'), findsOneWidget);
+    });
+
+    testWidgets('choosing a tree puts only that tree on the card', (tester) async {
+      await pumpTrees(tester);
+      await tester.tap(find.byKey(const Key('share-scope-Cozy')));
+      await tester.pumpAndSettle();
+      expect(card(tester).treeName, 'Cozy');
+      expect(card(tester).games.map((g) => g.title), ['Stardew', 'Unpacking'],
+          reason: 'a card never carries more than its scope');
+      expect(find.text('MY TREE'), findsOneWidget);
+      expect(find.text('Cozy'), findsWidgets);
+      expect(find.textContaining('2 games'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('share-scope-Whole orchard')));
+      await tester.pumpAndSettle();
+      expect(card(tester).games, hasLength(3));
+    });
+
+    testWidgets('a one-tree share says the link is still the whole orchard',
+        (tester) async {
+      await pumpTrees(tester);
+      expect(find.byKey(const Key('share-link-scope')), findsNothing);
+      await tester.tap(find.byKey(const Key('share-scope-Action')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('share-link-scope')), findsOneWidget);
+    });
+
+    testWidgets('choosing a tree publishes nothing', (tester) async {
+      final store = await pumpTrees(tester);
+      await tester.tap(find.byKey(const Key('share-scope-Cozy')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('share-out')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(store.trees, isEmpty);
+    });
+
+    testWidgets('no trees, no choice row', (tester) async {
+      await _pump(tester);
+      expect(find.byKey(const Key('share-scope')), findsNothing);
+    });
+  });
 }

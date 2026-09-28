@@ -34,6 +34,7 @@ import '../../data/models.dart';
 import '../../domain/level.dart';
 import '../../domain/season.dart';
 import '../../services/share_out.dart';
+import '../../services/social/publish_export.dart' show toPublished;
 import '../../services/social/social_backend.dart';
 import '../../services/social/tree_links.dart';
 import '../../state/ludeck_store.dart';
@@ -62,14 +63,35 @@ Future<void> showShareSheet(BuildContext context) {
     for (final (i, t) in trees.indexed)
       t.name: resolved[t.id] ?? TreeStyle.defaultFor(i),
   };
+  // One tree, whole: its own games and every sub-branch's, published under
+  // the tree's name so the card draws it as the one tree it is at home.
+  final tree = store.tree;
+  final shareTrees = <ShareTree>[
+    for (final t in trees)
+      () {
+        final ids = tree.gamesUnder(t.id).toSet();
+        return (
+          name: t.name,
+          swatch: styles[t.name]!.blossom.swatch,
+          games: toPublished(items.where((i) => ids.contains(i.game.igdbId)), t.name),
+        );
+      }()
+  ].where((t) => t.games.isNotEmpty).toList();
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Tokens.palette.bg.withValues(alpha: 0),
     builder: (_) => ShareSheet(
-        backend: backend, games: games, level: level, styles: styles),
+        backend: backend,
+        games: games,
+        level: level,
+        styles: styles,
+        trees: shareTrees),
   );
 }
+
+/// A tree you can share on its own.
+typedef ShareTree = ({String name, Color swatch, List<PublishedGame> games});
 
 /// The sheet itself, injectable for tests: no store, a fake backend.
 class ShareSheet extends StatefulWidget {
@@ -79,12 +101,18 @@ class ShareSheet extends StatefulWidget {
     required this.games,
     required this.level,
     this.styles = const {},
+    this.trees = const [],
   });
 
   final SocialBackend backend;
   final List<PublishedGame> games;
   final int level;
   final Map<String, TreeStyle> styles;
+
+  /// The trees that can be shared alone (only ones holding games). The card
+  /// switches between the whole orchard and one of these; the public link
+  /// always covers the whole orchard, and says so.
+  final List<ShareTree> trees;
 
   @override
   State<ShareSheet> createState() => _ShareSheetState();
@@ -95,6 +123,12 @@ class _ShareSheetState extends State<ShareSheet> {
   bool _sharing = false;
   bool _working = false;
   String? _error;
+
+  /// The tree the card shows on its own, or null for the whole orchard.
+  String? _scope;
+
+  ShareTree? get _scoped =>
+      widget.trees.where((t) => t.name == _scope).firstOrNull;
 
   /// The live public link, or null while the tree is private.
   String? _handle;
@@ -117,9 +151,14 @@ class _ShareSheetState extends State<ShareSheet> {
   Future<void> _shareImage() async {
     setState(() => _sharing = true);
     final png = await _cardPng();
-    final text = _handle != null
-        ? 'My game orchard on Ludeck: $_link'
-        : 'My game orchard, grown on Ludeck';
+    final one = _scoped;
+    final text = one != null
+        ? (_handle != null
+            ? 'My ${one.name} tree on Ludeck. The whole orchard: $_link'
+            : 'My ${one.name} tree, grown on Ludeck')
+        : _handle != null
+            ? 'My game orchard on Ludeck: $_link'
+            : 'My game orchard, grown on Ludeck';
     final ok = await ShareOut.share(text: text, png: png);
     if (!mounted) return;
     setState(() => _sharing = false);
@@ -200,17 +239,52 @@ class _ShareSheetState extends State<ShareSheet> {
                 ),
               ),
               SizedBox(height: Tokens.space.md),
+              // What to share: the whole orchard or one tree. Above the card,
+              // because it changes the card.
+              if (widget.trees.isNotEmpty) ...[
+                SizedBox(
+                  height: 44,
+                  child: ListView(
+                    key: const Key('share-scope'),
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _ScopeChip(
+                        label: 'Whole orchard',
+                        selected: _scope == null,
+                        onTap: () => setState(() => _scope = null),
+                      ),
+                      for (final tr in widget.trees) ...[
+                        SizedBox(width: Tokens.space.xs),
+                        _ScopeChip(
+                          label: tr.name,
+                          swatch: tr.swatch,
+                          selected: _scope == tr.name,
+                          onTap: () => setState(() => _scope = tr.name),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                SizedBox(height: Tokens.space.md),
+              ],
               // What you are about to send, first.
               Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 260),
                   child: RepaintBoundary(
                     key: _card,
-                    child: OrchardStoryCard(
-                        games: widget.games,
-                        level: widget.level,
-                        trunkName: trunkGroupName,
-                        styles: widget.styles),
+                    child: AnimatedSwitcher(
+                      duration: Tokens.motion.maybe(Tokens.motion.swap,
+                          reduceMotion: MediaQuery.disableAnimationsOf(context)),
+                      switchInCurve: Tokens.motion.easeOut,
+                      child: OrchardStoryCard(
+                          key: ValueKey(_scope),
+                          games: _scoped?.games ?? widget.games,
+                          level: widget.level,
+                          trunkName: trunkGroupName,
+                          treeName: _scoped?.name,
+                          styles: widget.styles),
+                    ),
                   ),
                 ),
               ),
@@ -255,6 +329,13 @@ class _ShareSheetState extends State<ShareSheet> {
                                   'recommended a game are never shared.',
                           style: TextStyle(fontSize: Tokens.type.caption, color: t.textDim),
                         ),
+                        if (_scope != null) ...[
+                          SizedBox(height: Tokens.space.xxs),
+                          Text('The link always shows your whole orchard.',
+                              key: const Key('share-link-scope'),
+                              style: TextStyle(
+                                  fontSize: Tokens.type.caption, color: t.textDim)),
+                        ],
                       ],
                     ),
                   ),
@@ -321,6 +402,68 @@ class _ShareSheetState extends State<ShareSheet> {
                       ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+/// One choice of what to share: a capsule, filled white when chosen (the
+/// game sheet's answers look the same way, so a choice reads as a choice).
+class _ScopeChip extends StatelessWidget {
+  const _ScopeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.swatch,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  /// The tree's blossom colour, as a dot before its name.
+  final Color? swatch;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Tokens.palette;
+    final fg = selected ? p.bg : p.text;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: swatch == null ? 'Share the whole orchard' : 'Share only $label',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Material(
+        key: Key('share-scope-$label'),
+        color: selected ? p.text : p.text.withValues(alpha: 0.07),
+        shape: const StadiumBorder(),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: Tokens.space.md),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (swatch != null) ...[
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(color: swatch, shape: BoxShape.circle),
+                ),
+                SizedBox(width: Tokens.space.xs),
+              ],
+              Text(label,
+                  style: TextStyle(
+                      fontSize: Tokens.type.body,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      color: fg)),
+            ]),
           ),
         ),
       ),
