@@ -107,7 +107,12 @@ class RiveTreeController {
   void drop(int slot) => _state?._setNumber('drop', slot.toDouble());
 
   /// Which fruit the pointer last went down on, or -1. Read on long-press.
+  /// STALE by design of the file: only a press on the sky resets it, so the
+  /// host must check the press was really on that fruit ([clearPressed]).
   int get pressed => _state?._readNumber('pressed')?.round() ?? -1;
+
+  /// Forget the last pressed fruit, once a long-press has used (or refused) it.
+  void clearPressed() => _state?._setNumber('pressed', -1);
 
   /// The tree takes a weight: the canopy's own squash-and-recover, as when
   /// it is tapped. Played when a game is dropped onto it.

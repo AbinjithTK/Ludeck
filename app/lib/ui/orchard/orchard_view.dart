@@ -137,6 +137,10 @@ const double kHoldAbove = 70, kHeldW = 58;
 /// The hover target meaning "the ground tray", not a tree.
 const int kGroundTarget = -1;
 
+/// Whether a long-press at [at] is on the fruit card [card]: the card plus a
+/// finger's slack (the file's tap area is 16pt larger than the card).
+bool liftHits(Rect card, Offset at) => card.inflate(10).contains(at);
+
 /// How long after a shake the pick card rises: the tree shakes, the fruit
 /// falls and lands (the file's drop, ~1s), then the card.
 const Duration kPickDelay = Duration(milliseconds: 1000);
@@ -420,14 +424,20 @@ class _OrchardViewState extends State<OrchardView>
 
   // ---- lift, carry, land -------------------------------------------------
   void _liftFromTree(Branch tree, List<TreeItem> games, LongPressStartDetails d) {
-    final slot = _controllers[tree.id]?.pressed ?? -1;
+    final c = _controllers[tree.id];
+    final slot = c?.pressed ?? -1;
+    c?.clearPressed();
     if (slot < 0 || slot >= games.length || slot >= kTreeSlots) return;
     final at = _slotGlobal(games.length, slot);
-    _lift(games[slot], tree.id,
-        at == null
-            ? null
-            : Rect.fromCenter(center: at.$1, width: at.$2, height: at.$2 * 4 / 3),
-        d.globalPosition);
+    if (at == null) return;
+    final card = Rect.fromCenter(center: at.$1, width: at.$2, height: at.$2 * 4 / 3);
+    // The file's `pressed` is only reset by a press on the sky, so it can
+    // name a fruit touched long ago. A long-press anywhere else (the tray,
+    // the grass, a slow tap) lifted that fruit and a drop over the tray put
+    // it on the ground: games left their trees on device (2026-09-28). Lift
+    // only when the press is on the fruit itself.
+    if (!liftHits(card, d.globalPosition)) return;
+    _lift(games[slot], tree.id, card, d.globalPosition);
   }
 
   void _lift(TreeItem item, int? fromTree, Rect? origin, Offset at) {
