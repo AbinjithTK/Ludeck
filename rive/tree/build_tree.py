@@ -295,6 +295,14 @@ def build(debug, test_hooks=False, blossom="blossom", wood="plum"):
 
     if not debug:
         rml = splice_discovery(rml, test_hooks)
+    else:
+        # The measuring build (fit.py / export_slots.py) must see the tree
+        # the app ships, and the maturity stage moves the crown's targets.
+        j = rml.index("<StateMachine ")
+        rml = rml[:j] + D.mature_animations().strip() + "\n        " + rml[j:]
+        j = rml.index("</StateMachine>")
+        rml = rml[:j] + D.mature_layer() + "\n        " + rml[j:]
+        rml = rml.replace("</Rive>", D.mature_converters() + "</Rive>", 1)
     return rml, n_binds
 
 
@@ -363,11 +371,12 @@ def splice_discovery(rml, test_hooks=False):
 
     # new timelines, before the state machine
     j = rml.index("<StateMachine ")
-    rml = rml[:j] + (D.card_animations() + D.tree_animations()).strip() + "\n        " + rml[j:]
+    rml = rml[:j] + (D.card_animations() + D.tree_animations() + D.mature_animations()).strip() + "\n        " + rml[j:]
 
     # layers + listeners at the end of the state machine
     j = rml.index("</StateMachine>")
-    rml = rml[:j] + D.card_layers() + D.tree_layers() + D.listeners() + hook_lst + "\n        " + rml[j:]
+    rml = rml[:j] + D.card_layers() + D.tree_layers() + D.mature_layer() + D.listeners() + hook_lst + "\n        " + rml[j:]
+    rml = rml.replace("</Rive>", D.mature_converters() + "</Rive>", 1)
 
     # view model
     grown_prop = f'<ViewModelPropertyNumber name="grown" id="{D.P_GROWN}"/>'

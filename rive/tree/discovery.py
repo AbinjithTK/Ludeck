@@ -178,6 +178,82 @@ def drop_swing_keys(amp=0.22, frames=30):
     return out + [f'<KeyFrameDouble value="0" frame="{frames + 1}" interpolationType="linear"/>']
 
 
+# ------------------------------------------------------------ maturity
+# The source tree's growth blend runs out of new leaves around growth 5 of
+# 12: every leaf step has fired, and from there the only keyed change left is
+# the trunk group's scale, so an older tree just got TALLER and thinner, a
+# pole with a small crown on top (2026-09-28: "it stops growing more branches,
+# instead it increases the length"). Real trees past their youth thicken and
+# fill out instead. This second stage takes over from MATURE_FROM: the trunk
+# widens, the crown spreads and fills, and the trunk's length is held back so
+# the extra height the growth blend still adds is cancelled out.
+#
+# It rides its own layer on bones nothing else keys the SCALE of (the root
+# bone's scale; the centre crown target), so it composes with the growth
+# blend and with the shake, which keys only rotation.
+MATURE_FROM, MATURE_TO = 5.0, 12.0     # in `grown` units (0..12)
+ROOT_SX, ROOT_SY = 0.8450137, 0.9131274  # the root bone's rest scale (source)
+CROWN = "5:1232"                        # Brand_center_target
+CROWN_SX, CROWN_SY = 1.404753, 1.333102
+MATURE_WIDTH = 1.30     # root bone across its length: the trunk AND the crown's spread
+MATURE_LENGTH = 0.90    # root bone along its length: holds the height back
+MATURE_CROWN = 1.18     # the centre crown's own fullness
+# The three leaf masses (keyed by nothing: the leaf steps key the leaves
+# inside them). Growing them is what fills the crown out; they follow their
+# branch targets by translation, so they grow where the branches are.
+LEAF_GROUPS = ("5:187", "5:599", "5:864")   # right, left, centre
+LEAF_REST = 0.5110364
+MATURE_LEAVES = 1.32
+P_MATURE = "5:20010"    # converter group id for grown -> 0..100
+
+
+def mature_animations():
+    def leaves(s):
+        return "".join(keyed(g, [(16, [key(0, round(LEAF_REST * s, 6))]),
+                                 (17, [key(0, round(LEAF_REST * s, 6))])]) for g in LEAF_GROUPS)
+    rest = keyed(TRUNK_ROOT, [(16, [key(0, ROOT_SX)]), (17, [key(0, ROOT_SY)])]) + \
+        keyed(CROWN, [(16, [key(0, CROWN_SX)]), (17, [key(0, CROWN_SY)])]) + leaves(1)
+    # The bone points up, so its local x is the trunk's length and its local
+    # y is the trunk's width (and the horizontal spread of all it carries).
+    full = keyed(TRUNK_ROOT, [(16, [key(0, round(ROOT_SX * MATURE_LENGTH, 6))]),
+                              (17, [key(0, round(ROOT_SY * MATURE_WIDTH, 6))])]) + \
+        keyed(CROWN, [(16, [key(0, round(CROWN_SX * MATURE_CROWN, 6))]),
+                      (17, [key(0, round(CROWN_SY * MATURE_CROWN, 6))])]) + leaves(MATURE_LEAVES)
+    return f'''
+        <LinearAnimation duration="1" name="MatureYoung" id="5:20340">{rest}</LinearAnimation>
+        <LinearAnimation duration="1" name="MatureFull" id="5:20341">{full}</LinearAnimation>'''
+
+
+def mature_layer():
+    return f'''<StateMachineLayer name="Maturity" id="5:20350">
+                <AnyState x="0" y="3280"/><ExitState x="1000" y="3280"/>
+                <EntryState x="0" y="3200"><StateTransition stateToId="5:20351"></StateTransition></EntryState>
+                <BlendState1DViewModel id="5:20351" x="220" y="3200">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="{VM}-{P_GROWN}" propertyKey="636" converterId="{P_MATURE}"/>
+                    </BindablePropertyNumber>
+                    <BlendAnimation1D animationId="5:20340"/>
+                    <BlendAnimation1D value="100" animationId="5:20341"/>
+                </BlendState1DViewModel>
+            </StateMachineLayer>'''
+
+
+def mature_converters():
+    """grown MATURE_FROM..MATURE_TO -> 0..100, eased like the growth itself,
+    so the trunk thickens in the same 0.9s swell as a new game's growth."""
+    return f'''
+    <DataConverterGroup name="GrownToMaturity" id="{P_MATURE}">
+        <DataConverterGroupItem converterId="5:20011"/>
+        <DataConverterGroupItem converterId="5:20012"/>
+    </DataConverterGroup>
+    <DataConverterRangeMapper minInput="{MATURE_FROM}" maxInput="{MATURE_TO}" minOutput="0" maxOutput="100"
+                              clampLower="true" clampUpper="true" name="GrownToMaturityRange" id="5:20011"/>
+    <DataConverterInterpolator interpolationType="cubic" duration="0.9" name="MatureEase" id="5:20012">
+        <CubicEaseInterpolator x1="0.23" y1="1" x2="0.32" y2="1"/>
+    </DataConverterInterpolator>
+'''
+
+
 # ------------------------------------------------------------------ helpers
 def base(i):
     return 21000 + i * 100

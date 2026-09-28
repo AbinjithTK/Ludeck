@@ -719,7 +719,7 @@
                 </Fill>
             </Shape>
             <Node name="Trunk_texture" x="1.595215" y="-214.5053" id="5:142">
-                <Shape name="Trunk_texture" scaleX="1.456911" x="-39.05139" y="229.9215" blendModeValue="18" id="5:143">
+                <Shape name="Trunk_texture" opacity="0" scaleX="1.456911" x="-39.05139" y="229.9215" blendModeValue="18" id="5:143">
                     <PointsPath rotation="-0.07187049" scaleY="1.144732" y="-270.4311" isClosed="true" id="5:144">
                         <StraightVertex y="-4.988678" id="5:145"/>
                         <StraightVertex x="53.354" y="-6.923889" id="5:146"/>
@@ -4956,6 +4956,8 @@
             <KeyedObject objectId="5:20500"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0" frame="0"/></KeyedProperty></KeyedObject>
             <KeyedObject objectId="5:20510"><KeyedProperty propertyKey="18"><KeyFrameDouble value="0" frame="0"/></KeyedProperty></KeyedObject>
         </LinearAnimation>
+        <LinearAnimation duration="1" name="MatureYoung" id="5:20340"><KeyedObject objectId="5:1228"><KeyedProperty propertyKey="16"><KeyFrameDouble value="0.8450137" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.9131274" frame="0"/></KeyedProperty></KeyedObject><KeyedObject objectId="5:1232"><KeyedProperty propertyKey="16"><KeyFrameDouble value="1.404753" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="1.333102" frame="0"/></KeyedProperty></KeyedObject><KeyedObject objectId="5:187"><KeyedProperty propertyKey="16"><KeyFrameDouble value="0.511036" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.511036" frame="0"/></KeyedProperty></KeyedObject><KeyedObject objectId="5:599"><KeyedProperty propertyKey="16"><KeyFrameDouble value="0.511036" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.511036" frame="0"/></KeyedProperty></KeyedObject><KeyedObject objectId="5:864"><KeyedProperty propertyKey="16"><KeyFrameDouble value="0.511036" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.511036" frame="0"/></KeyedProperty></KeyedObject></LinearAnimation>
+        <LinearAnimation duration="1" name="MatureFull" id="5:20341"><KeyedObject objectId="5:1228"><KeyedProperty propertyKey="16"><KeyFrameDouble value="0.760512" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="1.187066" frame="0"/></KeyedProperty></KeyedObject><KeyedObject objectId="5:1232"><KeyedProperty propertyKey="16"><KeyFrameDouble value="1.657609" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="1.57306" frame="0"/></KeyedProperty></KeyedObject><KeyedObject objectId="5:187"><KeyedProperty propertyKey="16"><KeyFrameDouble value="0.674568" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.674568" frame="0"/></KeyedProperty></KeyedObject><KeyedObject objectId="5:599"><KeyedProperty propertyKey="16"><KeyFrameDouble value="0.674568" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.674568" frame="0"/></KeyedProperty></KeyedObject><KeyedObject objectId="5:864"><KeyedProperty propertyKey="16"><KeyFrameDouble value="0.674568" frame="0"/></KeyedProperty><KeyedProperty propertyKey="17"><KeyFrameDouble value="0.674568" frame="0"/></KeyedProperty></KeyedObject></LinearAnimation>
         <StateMachine name="State Machine 1" id="5:9700">
             <StateMachineLayer name="Tree trunk" id="5:10901">
                 <ExitState id="5:11892" x="0" y="0">
@@ -5597,6 +5599,16 @@
             <AnimationState x="220" y="2800" animationId="5:20320" id="5:20331"><StateTransition stateToId="5:20332"><TransitionViewModelCondition><TransitionPropertyViewModelComparator><BindablePropertyBoolean><DataBindContext sourcePathIds="5:9900-5:9976" propertyKey="634"/></BindablePropertyBoolean></TransitionPropertyViewModelComparator><TransitionValueBooleanComparator value="true"/></TransitionViewModelCondition></StateTransition></AnimationState>
             <AnimationState x="440" y="2800" animationId="5:20321" id="5:20332"><StateTransition stateToId="5:20333" enableExitTime="true" exitTimeIsPercetange="true" exitTime="100"></StateTransition></AnimationState>
             <AnimationState x="660" y="2800" animationId="5:20322" id="5:20333"><StateTransition stateToId="5:20331"><TransitionViewModelCondition><TransitionPropertyViewModelComparator><BindablePropertyBoolean><DataBindContext sourcePathIds="5:9900-5:9976" propertyKey="634"/></BindablePropertyBoolean></TransitionPropertyViewModelComparator><TransitionValueBooleanComparator value="false"/></TransitionViewModelCondition></StateTransition></AnimationState>
+            </StateMachineLayer><StateMachineLayer name="Maturity" id="5:20350">
+                <AnyState x="0" y="3280"/><ExitState x="1000" y="3280"/>
+                <EntryState x="0" y="3200"><StateTransition stateToId="5:20351"></StateTransition></EntryState>
+                <BlendState1DViewModel id="5:20351" x="220" y="3200">
+                    <BindablePropertyNumber>
+                        <DataBindContext sourcePathIds="5:9900-5:9901" propertyKey="636" converterId="5:20010"/>
+                    </BindablePropertyNumber>
+                    <BlendAnimation1D animationId="5:20340"/>
+                    <BlendAnimation1D value="100" animationId="5:20341"/>
+                </BlendState1DViewModel>
             </StateMachineLayer>
             <StateMachineListenerSingle targetId="5:21009" listenerTypeValue="click" name="TapGame1" id="5:21050">
                 <ListenerViewModelChange><BindablePropertyNumber propertyValue="0"><DataBindContext sourcePathIds="5:9900-5:9960" propertyKey="636" direction="true"/></BindablePropertyNumber></ListenerViewModelChange>
@@ -5698,4 +5710,14 @@
         <CubicEaseInterpolator x1="0.23" y1="1" x2="0.32" y2="1"/>
     </DataConverterInterpolator>
 <ImageAsset file="covers/cover1.png" name="cover1" id="5:9981"/><ImageAsset file="covers/cover2.png" name="cover2" id="5:9982"/><ImageAsset file="covers/cover3.png" name="cover3" id="5:9983"/><ImageAsset file="covers/cover4.png" name="cover4" id="5:9984"/><ImageAsset file="covers/cover5.png" name="cover5" id="5:9985"/><ImageAsset file="covers/cover6.png" name="cover6" id="5:9986"/>
+
+    <DataConverterGroup name="GrownToMaturity" id="5:20010">
+        <DataConverterGroupItem converterId="5:20011"/>
+        <DataConverterGroupItem converterId="5:20012"/>
+    </DataConverterGroup>
+    <DataConverterRangeMapper minInput="5.0" maxInput="12.0" minOutput="0" maxOutput="100"
+                              clampLower="true" clampUpper="true" name="GrownToMaturityRange" id="5:20011"/>
+    <DataConverterInterpolator interpolationType="cubic" duration="0.9" name="MatureEase" id="5:20012">
+        <CubicEaseInterpolator x1="0.23" y1="1" x2="0.32" y2="1"/>
+    </DataConverterInterpolator>
 </Rive>
