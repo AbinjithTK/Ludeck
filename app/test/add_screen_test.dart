@@ -151,14 +151,15 @@ void main() {
       await pump(tester, FixtureCatalog());
 
       expect(find.byKey(const Key('state-idle')), findsOneWidget);
-      // Until the proxy is deployed the catalogue is a handful of fixture
-      // titles. Letting someone conclude their game does not exist would be
-      // worse than saying where the results come from.
+      // Without the proxy, search is the bundled list. The screen says what it
+      // searches so nobody concludes a missing game does not exist, and shows
+      // no IGDB attribution, since no IGDB data is on screen.
       expect(
-        find.textContaining('not connected yet'),
+        find.textContaining('built-in list'),
         findsOneWidget,
         reason: 'catalogBaseUrl is empty, so the screen must say so',
       );
+      expect(find.byKey(const Key('igdb-attribution')), findsNothing);
     });
 
     testWidgets('results appear for a match', (tester) async {

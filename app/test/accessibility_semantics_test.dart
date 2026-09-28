@@ -84,7 +84,7 @@ void main() {
       expect(find.bySemanticsLabel('See what a visitor sees'), findsOneWidget);
       // The link itself must be readable, not only copyable -- a screen-reader
       // user cannot inspect the clipboard to find out what they just shared.
-      expect(find.bySemanticsLabel(RegExp(r'ludeck\.app/t/ada')), findsWidgets);
+      expect(find.bySemanticsLabel(RegExp(r'/t/\?h=ada')), findsWidgets);
 
       handle.dispose();
     });

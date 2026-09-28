@@ -35,6 +35,7 @@ import '../../domain/level.dart';
 import '../../domain/season.dart';
 import '../../services/share_out.dart';
 import '../../services/social/social_backend.dart';
+import '../../services/social/tree_links.dart';
 import '../../state/ludeck_store.dart';
 import '../orchard/orchard_view.dart' show treesOf;
 import '../orchard/tree_style.dart';
@@ -98,7 +99,7 @@ class _ShareSheetState extends State<ShareSheet> {
   /// The live public link, or null while the tree is private.
   String? _handle;
 
-  String get _link => 'https://ludeck.app/t/$_handle';
+  String get _link => treeLinkFor(_handle!);
 
   Future<Uint8List?> _cardPng() async {
     try {

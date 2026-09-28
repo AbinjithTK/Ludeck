@@ -10,6 +10,7 @@ import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/models.dart';
 import 'package:ludeck/services/social/fake_social_backend.dart';
 import 'package:ludeck/services/social/publish_export.dart';
+import 'package:ludeck/services/social/tree_links.dart';
 import 'package:ludeck/services/social/social_backend.dart';
 import 'package:ludeck/ui/publish/orchard_story_card.dart';
 import 'package:ludeck/ui/publish/share_sheet.dart';
@@ -76,7 +77,7 @@ void main() {
     await tester.tap(find.byKey(const Key('share-public')));
     await tester.pumpAndSettle();
     expect(store.trees.keys, ['ada']);
-    expect(find.text('https://ludeck.app/t/ada'), findsOneWidget);
+    expect(find.text(treeLinkFor('ada')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('share-copy')));
     await tester.pump();
@@ -87,7 +88,7 @@ void main() {
     await tester.tap(find.byKey(const Key('share-public')));
     await tester.pumpAndSettle();
     expect(store.trees, isEmpty);
-    expect(find.text('https://ludeck.app/t/ada'), findsNothing);
+    expect(find.text(treeLinkFor('ada')), findsNothing);
   });
 
   testWidgets('nothing private is on screen', (tester) async {

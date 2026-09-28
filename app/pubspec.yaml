@@ -40,6 +40,9 @@ dependencies:
   path_provider: ^2.1.6
   provider: ^6.1.5+1
   supabase_flutter: ^2.17.2
+  # Orchard links that open the app (lib/services/social/visit_links.dart).
+  # Already in the lockfile through supabase_flutter; pinned to that version.
+  app_links: 7.0.0
   shared_preferences: ^2.5.5
   vector_math: ^2.4.3
   # The game-discovery tree (assets/rive/tree_discovery.riv). Pinned exact:

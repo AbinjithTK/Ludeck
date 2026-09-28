@@ -229,6 +229,22 @@ class _AddScreenState extends State<AddScreen> {
             ),
           ),
           Expanded(child: _body()),
+          // IGDB's terms require visible attribution wherever its data shows.
+          if (catalogBaseUrl.isNotEmpty)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: Tokens.space.xs),
+                child: Text(
+                  'Game data and cover art from IGDB.com',
+                  key: const Key('igdb-attribution'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: Tokens.type.caption,
+                      color: Tokens.palette.textDim),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -244,9 +260,9 @@ class _AddScreenState extends State<AddScreen> {
           // a handful of fixture titles, and letting someone conclude their game
           // does not exist would be worse than saying so.
           body: catalogBaseUrl.isEmpty
-              ? 'The full catalogue is not connected yet, so this searches a '
-                  'small built-in list for now.'
-              : 'Type a title. Results come from IGDB.',
+              ? 'Searches a built-in list of about 5,000 games. It works '
+                  'offline.'
+              : 'Type a title to search thousands of games.',
         );
 
       case _Phase.searching:

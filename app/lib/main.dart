@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +16,8 @@ import 'services/cover_art_cache.dart';
 import 'services/share_resolver.dart';
 import 'services/social/social_backend.dart';
 import 'services/social/social_service.dart';
+import 'services/social/visit_links.dart';
+import 'ui/visit/visit_screen.dart';
 import 'services/entitlement_service.dart';
 import 'services/revenuecat_entitlement_source.dart';
 import 'state/ludeck_store.dart';
@@ -57,6 +61,12 @@ Future<void> main() async {
   final entitlements = await resolveEntitlementService(revenueCatKey);
   runApp(LudeckApp(repo: repo, social: social, entitlements: entitlements));
 }
+
+/// One link stream for the app's lifetime, shared. The startup gate can mount
+/// the home screen more than once (onboarding, then home), and each mount
+/// subscribes; a single-subscription stream throws on the second. Top-level
+/// finals are lazy, so nothing touches the platform until the first listen.
+final Stream<String> _appVisits = appVisitLinks().asBroadcastStream();
 
 class LudeckApp extends StatelessWidget {
   const LudeckApp(
@@ -133,6 +143,7 @@ class LudeckApp extends StatelessWidget {
         child: TreeScreen(
           metadata: LinkMetadataReader(),
           coverCache: CoverArtCache(),
+          visitLinks: _appVisits,
         ),
       ),
       ),
@@ -200,6 +211,7 @@ class TreeScreen extends StatefulWidget {
     this.catalog,
     this.metadata,
     this.coverCache,
+    this.visitLinks,
   });
 
   /// Reads a shared link's page title, which is what turns a link into a game.
@@ -222,6 +234,11 @@ class TreeScreen extends StatefulWidget {
   /// Game facts. Defaults to the fixture catalogue, which is what actually runs
   /// until the IGDB proxy is deployed.
   final CatalogSource? catalog;
+
+  /// Handles of shared orchards the user tapped a link to (tree_links.dart).
+  /// Null in tests, so no platform channel is touched; LudeckApp supplies
+  /// [appVisitLinks].
+  final Stream<String>? visitLinks;
 
   @override
   State<TreeScreen> createState() => _TreeScreenState();
@@ -251,11 +268,44 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     // The store is loaded where it is created, so there is nothing to load
     // here. A share that arrived with a cold start is drained after the first
     // frame, once the provider is reachable from this context.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _drainShare());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _drainShare();
+      _backfillCoversWhenLoaded();
+    });
+    _visits = widget.visitLinks?.listen(_openVisit);
+  }
+
+  StreamSubscription<String>? _visits;
+
+  /// A tapped orchard link: open that orchard, on top of whatever is showing.
+  void _openVisit(String handle) {
+    if (!mounted) return;
+    Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => VisitScreen(handle: handle)));
+  }
+
+  /// With the IGDB proxy configured, games that were added without art (from
+  /// the bundled catalogue, which carries none, or by hand) get their covers
+  /// once, in the background, by exact title (LudeckStore.backfillCovers).
+  /// Off on a plain build and in tests, which pass their own catalogue.
+  void _backfillCoversWhenLoaded() {
+    if (widget.catalog != null || catalogBaseUrl.isEmpty || !mounted) return;
+    final store = context.read<LudeckStore>();
+    var started = false;
+    void go() {
+      if (started || store.items == null) return;
+      started = true;
+      store.removeListener(go);
+      unawaited(store.backfillCovers(_catalog));
+    }
+
+    store.addListener(go);
+    go();
   }
 
   @override
   void dispose() {
+    _visits?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

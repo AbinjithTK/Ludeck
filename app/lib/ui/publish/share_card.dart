@@ -20,6 +20,7 @@ import 'package:flutter/services.dart';
 
 import '../../services/share_out.dart';
 import '../../services/social/social_backend.dart';
+import '../../services/social/tree_links.dart';
 import '../gamified/primitives.dart';
 import '../tokens.dart';
 import '../visit/visit_screen.dart';
@@ -50,7 +51,7 @@ class ShareCardScreen extends StatefulWidget {
 class _ShareCardScreenState extends State<ShareCardScreen> {
   bool get _hasLink => widget.handle.isNotEmpty;
 
-  String get _link => 'https://ludeck.app/t/${widget.handle}';
+  String get _link => treeLinkFor(widget.handle);
 
   final GlobalKey _card = GlobalKey();
   bool _sharing = false;

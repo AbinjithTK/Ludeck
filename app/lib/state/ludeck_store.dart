@@ -5,6 +5,7 @@ import '../data/models.dart';
 import '../data/repository.dart';
 import '../domain/branch_tree.dart';
 import '../domain/level.dart';
+import '../services/catalog_service.dart';
 
 /// The collection's state, and the only thing the UI mutates it through.
 ///
@@ -284,6 +285,44 @@ class LudeckStore extends ChangeNotifier {
   /// game, and re-reading the whole collection to fetch it would make opening a
   /// detail sheet cost a full load.
   Future<List<Source>> sourcesFor(int igdbId) => _repo.sourcesFor(igdbId);
+
+  /// Fills in covers for library games that have none, from [catalog].
+  ///
+  /// Games added before the bundled catalogue carried covers, and games from
+  /// the fixture, were stored with no art and stayed text-only forever. This
+  /// looks each one up by id first (a game added from the bundle shares its
+  /// synthetic id), then by an EXACT normalised title match -- never a fuzzy
+  /// one, because a wrong cover is worse than none. Returns how many were
+  /// filled. Never throws: a catalogue failure leaves the placeholder.
+  Future<int> backfillCovers(CatalogSource catalog) async {
+    final missing = (_items ?? const <TreeItem>[])
+        .where((i) => i.game.coverUrl == null || i.game.coverUrl!.isEmpty)
+        .map((i) => i.game)
+        .toList();
+    var filled = 0;
+    for (final g in missing) {
+      String? url;
+      try {
+        url = (await catalog.byId(g.igdbId))?.coverUrl;
+        if (url == null) {
+          final want = normaliseTitle(g.title);
+          for (final hit in await catalog.search(g.title)) {
+            if (normaliseTitle(hit.title) == want && hit.coverUrl != null) {
+              url = hit.coverUrl;
+              break;
+            }
+          }
+        }
+      } catch (_) {
+        url = null;
+      }
+      if (url == null || url.isEmpty) continue;
+      await applyCoverUrl(g.igdbId, url);
+      filled++;
+    }
+    return filled;
+  }
+
 
   /// Records a cover found for a game that had none, and patches it into the
   /// in-memory list directly rather than through [_write].
