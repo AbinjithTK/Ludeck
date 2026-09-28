@@ -220,6 +220,7 @@ def debug_markers():
 
 def build(debug, test_hooks=False, blossom="blossom", wood="plum"):
     rml = convert(blossom, wood)
+    rml = split_trunk(rml)
     # Shaken-loose petals take this tree's blossom, from two of the source's
     # own rose shades run through the same retint as the canopy.
     D.PETALS = (_tone("FFF4A6C8", blossom, wood), _tone("FFE5739F", blossom, wood))
@@ -294,6 +295,33 @@ def build(debug, test_hooks=False, blossom="blossom", wood="plum"):
     if not debug:
         rml = splice_discovery(rml, test_hooks)
     return rml, n_binds
+
+
+def split_trunk(rml):
+    """Put a joint low in the trunk so the shake can BEND it (discovery.BEND).
+
+    The root bone (5:1228, 162.585 long) becomes a short root plus a new mid
+    bone carrying the rest of the chain. Both segments sit at rotation 0 along
+    the same axis and their lengths sum to the old one, so at rest every child
+    bone's world transform is exactly what it was and the skin (whose tendons
+    bind the original bones) deforms identically: the tree's rest pose is
+    byte-for-byte unchanged in pixels. Only the shake and rustle key the joint.
+    """
+    root = re.search(r'<RootBone rotation="-1\.570796"[^>]*id="5:1228">', rml)
+    assert root, "trunk root bone moved"
+    tag = root.group(0)
+    assert f'length="{D.TRUNK_LEN}"' in tag, "trunk root length changed"
+    lower = D.TRUNK_SPLIT
+    upper = round(D.TRUNK_LEN - lower, 4)
+    new_tag = tag.replace(f'length="{D.TRUNK_LEN}"', f'length="{lower}"')
+    child = '<Bone length="179.5153" id="5:1229">'
+    start = root.start()
+    close = rml.index("</RootBone>", start)
+    body = rml[root.end():close]
+    assert body.count(child) == 1, "trunk chain changed"
+    body = body.replace(child, f'<Bone name="Trunk_mid" length="{upper}" id="{D.TRUNK_MID}">{child}', 1)
+    body = body.rstrip() + "</Bone>\n"
+    return rml[:start] + new_tag + body + rml[close:]
 
 
 def insert_after(rml, anchor, text):

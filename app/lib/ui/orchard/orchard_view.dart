@@ -1021,6 +1021,7 @@ class _TreePageState extends State<_TreePage>
                   games: games.map((i) => i.game).toList(),
                   looks: games.map(lookOf).toList(),
                   grownTarget: games.length,
+                  onlyGrow: false,
                   planted: planted,
                   controller: w.controller,
                   onFruitTap: w.onFruit,

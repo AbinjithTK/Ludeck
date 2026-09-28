@@ -100,6 +100,16 @@ void main() {
   });
 
   group('growth curve', () {
+    test('an orchard tree follows its games down as well as up', () {
+      // Moving a game off a tree is the user's own action, so the tree eases
+      // back to the size of what it now holds (DECISIONS.md, amended
+      // 2026-09-28). The search screen's tree keeps nextGrown's only-grow.
+      expect(followGrown(6), 6);
+      expect(followGrown(2), 2, reason: 'four games moved off: smaller');
+      expect(followGrown(0), 0);
+      expect(followGrown(40), kTreeSlots.toDouble());
+      expect(nextGrown(6, 2), 6, reason: 'the discovery tree never shrinks');
+    });
     test('every game grows the tree, the first ones the most', () {
       var last = treeSize(0);
       var lastStep = double.infinity;

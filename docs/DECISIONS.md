@@ -188,6 +188,12 @@ normal action.
 healthy tree. This forbids a whole class of otherwise ordinary features: overdue
 badges, decay timers, "you haven't played this in 90 days" nudges, empty-state guilt.
 
+*Amended 2026-09-28 (Abin):* an orchard tree's size follows the games it holds, so
+it eases smaller when the user moves a game off it. The rule above is about time and
+neglect, and it still holds absolutely: nothing but the user's own move ever makes a
+tree smaller, and a shake never removes a game. The search screen's discovery tree
+still only grows (`onlyGrow`), because a new result set is a browse, not a loss.
+
 **Gamification may only reward what already happened, never mark what has not.**
 Seasons, not streaks. A streak punishes a missed day; a season simply ends and a new
 one starts.

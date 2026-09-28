@@ -116,20 +116,48 @@ SHAKE_DECAY = 5.5          # 1/s once it lets go
 SWING_AMP = 0.16           # a hanging fruit's swing, radians
 PETALS = ("FFF4A6C8", "FFE5739F")   # set per blossom by build_tree.build()
 
+# The shake and the rustle BEND the trunk; they no longer rotate the Tree node.
+# Rotating the whole tree about its foot tipped the root flare and the ground
+# with it, so it read as a pole rocking on its base (2026-09-28). The trunk is a
+# skinned 4-bone chain; the growth blend already keys the rotation of its two
+# middle bones (5:1229, 5:1230), and a later layer would overwrite that pose, so
+# build_tree.py splits the root bone at TRUNK_SPLIT and the bend lives on the
+# three bones nothing else keys: the root (barely: the foot stays put), the new
+# mid joint (most of it) and the crown bone (a late whip).
+TRUNK_ROOT, TRUNK_MID, TRUNK_TOP = "5:1228", "5:19990", "5:1231"
+TRUNK_ROOT_REST = -1.570796   # the root bone points up; its rest must be keyed back
+TRUNK_LEN = 162.585           # the source root bone's length
+TRUNK_SPLIT = 80.0            # the mid joint, in bone units up from the foot
+BEND = ((TRUNK_ROOT, 0.22, 0), (TRUNK_MID, 1.0, 2), (TRUNK_TOP, 0.7, 5))
+#       bone         share of SHAKE_AMP, lag in frames (the top answers last)
 
-def shake_keys(amp, hz, drive, decay, frames, delay=0, step=2, fade_in=0.06):
+
+def bone_rest(bone):
+    return TRUNK_ROOT_REST if bone == TRUNK_ROOT else 0.0
+
+
+def bend_keys(amp_keys):
+    """KeyedObjects bending the trunk: amp_keys(share, lag, rest) -> keys."""
+    return "".join(keyed(b, [(15, amp_keys(share, lag, bone_rest(b)))]) for b, share, lag in BEND)
+
+
+def bend_rest():
+    return "".join(keyed(b, [(15, [key(0, bone_rest(b))])]) for b, _, _ in BEND)
+
+
+def shake_keys(amp, hz, drive, decay, frames, delay=0, step=2, fade_in=0.06, rest=0.0):
     """Keyframes of a driven then freely decaying sway, sampled every `step`
     frames: a sine whose envelope rises over `fade_in` s, holds while the hand
-    drives it, then decays exponentially. Ends exactly at 0."""
-    out = [f'<KeyFrameDouble value="0" frame="0" interpolationType="linear"/>']
+    drives it, then decays exponentially. Ends exactly at `rest`."""
+    out = [f'<KeyFrameDouble value="{rest}" frame="0" interpolationType="linear"/>']
     for f in range(step, frames, step):
         t = (f - delay) / 60
         if t <= 0:
             continue
         env = min(1.0, t / fade_in) if t < drive else math.exp(-decay * (t - drive))
-        v = amp * env * math.sin(2 * math.pi * hz * t)
-        out.append(f'<KeyFrameDouble value="{v:.4f}" frame="{f}" interpolationType="linear"/>')
-    out.append(f'<KeyFrameDouble value="0" frame="{frames}" interpolationType="linear"/>')
+        v = rest + amp * env * math.sin(2 * math.pi * hz * t)
+        out.append(f'<KeyFrameDouble value="{v:.5f}" frame="{f}" interpolationType="linear"/>')
+    out.append(f'<KeyFrameDouble value="{rest}" frame="{frames}" interpolationType="linear"/>')
     return out
 
 
@@ -469,15 +497,24 @@ def petal_keys():
 
 def tree_animations():
     s = TREE_SCALE
-    rest_rot = keyed(TREE, [(15, [key(0, 0)])])
+    rest_rot = keyed(TREE, [(15, [key(0, 0)])]) + bend_rest()
+    # The rustle (a fruit landing): the same damped bend, one quick push.
+    rustle = [(0, 0), (7, 0.032), (16, -0.02), (25, 0.009), (34, -0.003), (42, 0)]
+
+    def rustle_keys(share, lag, rest):
+        return [key(min(42, f + lag) if f else 0, round(rest + v * share * 1.25, 5),
+                    EASE_IO if f < 42 else None) for f, v in rustle]
+
+    def shake_bend(share, lag, rest):
+        return shake_keys(SHAKE_AMP * share, SHAKE_HZ, SHAKE_DRIVE, SHAKE_DECAY,
+                          SHAKE_FRAMES, delay=lag, rest=rest)
     return f'''
         <LinearAnimation duration="1" name="TreeRest" id="5:20300">{rest_rot}</LinearAnimation>
         <LinearAnimation duration="42" name="TreeRustle" id="5:20301">
-            {keyed(TREE, [(15, [key(0, 0, EASE_IO), key(7, 0.032, EASE_IO), key(16, -0.02, EASE_IO),
-                                key(25, 0.009, EASE_IO), key(34, -0.003, EASE_IO), key(42, 0)])])}
+            {bend_keys(rustle_keys)}
         </LinearAnimation>
         <LinearAnimation duration="{SHAKE_FRAMES}" name="TreeShake" id="5:20302">
-            {keyed(TREE, [(15, shake_keys(SHAKE_AMP, SHAKE_HZ, SHAKE_DRIVE, SHAKE_DECAY, SHAKE_FRAMES))])}
+            {bend_keys(shake_bend)}
             {petal_keys()}
         </LinearAnimation>
         <LinearAnimation duration="144" loopValue="pingPong" name="Unplanted" id="5:20320">

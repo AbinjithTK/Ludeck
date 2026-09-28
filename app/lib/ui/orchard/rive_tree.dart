@@ -84,6 +84,14 @@ double nextGrown(double current, int target) {
   return want > current ? want : current;
 }
 
+/// The tree's next size when it follows what it holds: exactly [target].
+///
+/// An orchard tree is its games, so it grows as they are hung and eases back
+/// when the user moves one off (DECISIONS.md, 2026-09-28: only the user's own
+/// action shrinks a tree; nothing ever shrinks it with time or neglect). A
+/// shake never removes a game, so a shake never shrinks a tree.
+double followGrown(int target) => target.clamp(0, kTreeSlots).toDouble();
+
 /// Growth-curve exponent. MUST equal SHAPE in rive/tree/fit.py: the fruit
 /// placement is solved against the canopy at exactly these sizes.
 const double kTreeGrowthShape = 1.8;
@@ -131,7 +139,13 @@ class RiveTree extends StatefulWidget {
     this.fit = rv.Fit.cover,
     this.asset = kDefaultTreeAsset,
     this.looks = const [],
+    this.onlyGrow = true,
   });
+
+  /// True (the search screen's discovery tree) never lets the tree get
+  /// smaller: a new result set is a browse, not a collection. False (an
+  /// orchard tree) follows [grownTarget] down as well as up ([followGrown]).
+  final bool onlyGrow;
 
   /// Fruit, in slot order (slot 0 is the canopy centre). Only the first
   /// [kTreeSlots] hang.
@@ -141,7 +155,7 @@ class RiveTree extends StatefulWidget {
   /// entries are [FruitLook.plain].
   final List<FruitLook> looks;
 
-  /// How big the tree should be (0..12). Only ever raised internally.
+  /// How big the tree should be (0..12). See [onlyGrow].
   final int grownTarget;
 
   /// False shows the empty patch; flipping to true plays seed -> sapling.
@@ -263,7 +277,9 @@ class _RiveTreeState extends State<RiveTree> {
     for (var i = 0; i < hung.length; i++) {
       _loadCover(i, gen);
     }
-    _grownTo = nextGrown(_grownTo, widget.grownTarget);
+    _grownTo = widget.onlyGrow
+        ? nextGrown(_grownTo, widget.grownTarget)
+        : followGrown(widget.grownTarget);
     _setNumber('grown', treeSize(_grownTo));
     _setNumber('found', hung.length.toDouble());
   }
