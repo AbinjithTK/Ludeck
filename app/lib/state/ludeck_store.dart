@@ -166,6 +166,13 @@ class LudeckStore extends ChangeNotifier {
   Future<void> unplace(int igdbId, int branchId) =>
       _write(() => _repo.unplace(igdbId, branchId));
 
+  /// Removes a game from Ludeck entirely: the honest hard delete the user
+  /// asks for from the game sheet. Unlike `shelved` (Set aside), which keeps
+  /// everything recorded, this destroys the game and, through the schema's
+  /// `ON DELETE CASCADE` relations, its entry, placements, sources and
+  /// roadmap position. There is no undo, so the UI gates it behind a confirm.
+  Future<void> removeGame(int igdbId) => _write(() => _repo.purgeGame(igdbId));
+
   Future<void> setProgress(int igdbId, Progress value) => _write(() async {
         // Detect the TRANSITION into finished so the tree can play a one-shot
         // harvest burst on the real event -- not on the finished STATE, which

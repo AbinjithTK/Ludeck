@@ -416,4 +416,35 @@ void main() {
       expect(await store.sourcesFor(item.game.igdbId), hasLength(1));
     });
   });
+
+  group('removeGame is the honest hard delete', () {
+    test('a removed game is gone from the collection, unlike setAside',
+        () async {
+      final item = await anyItem();
+      final id = item.game.igdbId;
+      expect(store.items!.any((i) => i.game.igdbId == id), isTrue);
+
+      await store.removeGame(id);
+
+      expect(store.items!.any((i) => i.game.igdbId == id), isFalse,
+          reason: 'removeGame destroys the game, it does not just hide it');
+      expect(store.error, isNull);
+    });
+
+    test('removing a game filed on a tree also clears its placement',
+        () async {
+      final item = await anyItem();
+      final id = item.game.igdbId;
+      await store.createBranch('Shelf');
+      final branch = store.branches.single.id;
+      await store.place(id, branch);
+      expect((await repo.placements()).values.expand((e) => e), contains(id));
+
+      await store.removeGame(id);
+
+      // The placement is gone by the schema's ON DELETE CASCADE, not by hand.
+      expect((await repo.placements()).values.expand((e) => e).contains(id),
+          isFalse);
+    });
+  });
 }
