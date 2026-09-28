@@ -76,6 +76,16 @@ class GameSheet extends StatelessWidget {
     return t == null ? 'On the ground' : 'On ${t.name}';
   }
 
+  /// The consoles this game is owned on, in enum order, or null when the game
+  /// is a wishlist entry with no copies. Null (not '') so the caller can drop
+  /// the whole line rather than render an empty one.
+  String? get _platforms {
+    final owned = item.platforms;
+    if (owned.isEmpty) return null;
+    final ordered = Platform.values.where(owned.contains).map((p) => p.label);
+    return ordered.join('  ·  ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = Tokens.palette;
@@ -133,6 +143,23 @@ class GameSheet extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               fontSize: Tokens.type.caption, color: p.textDim)),
+                      if (_platforms case final plats?) ...[
+                        SizedBox(height: Tokens.space.xxs),
+                        Row(children: [
+                          Icon(Icons.videogame_asset_rounded,
+                              size: Tokens.type.caption + 2, color: p.textDim),
+                          SizedBox(width: Tokens.space.xxs),
+                          Expanded(
+                            child: Text(plats,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                semanticsLabel: 'Owned on $plats',
+                                style: TextStyle(
+                                    fontSize: Tokens.type.caption,
+                                    color: p.textDim)),
+                          ),
+                        ]),
+                      ],
                     ],
                   ),
                 ),

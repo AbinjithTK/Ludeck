@@ -1,21 +1,29 @@
 // The game sheet: every answer visible at once, the current one marked for a
 // screen reader as well as by eye, and each tap reported once.
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Form;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/models.dart';
 import 'package:ludeck/ui/orchard/game_sheet.dart';
 import 'package:ludeck/ui/tokens.dart';
 
-TreeItem _item(Progress p, {int? rating}) => TreeItem(
+TreeItem _item(Progress p, {int? rating, List<Copy> copies = const []}) =>
+    TreeItem(
       game: const Game(igdbId: 7, title: 'Hades'),
       entry: Entry(
           igdbId: 7,
           ownership: Ownership.owned,
           progress: p,
           rating: rating),
-      copies: const [],
+      copies: copies,
+    );
+
+Copy _copy(Platform plat) => Copy(
+      igdbId: 7,
+      platform: plat,
+      form: Form.digital,
+      acquired: Acquired.bought,
     );
 
 Future<void> _pump(WidgetTester tester, Widget sheet) =>
@@ -185,5 +193,46 @@ void main() {
         ));
     expect(find.byKey(const Key('game-sheet-remove')), findsNothing);
     expect(find.text('Remove from Ludeck'), findsNothing);
+  });
+
+  testWidgets('the detail sheet lists every console the game is owned on',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(
+        tester,
+        GameSheet(
+          // Copies added out of enum order to prove the line is ordered.
+          item: _item(Progress.playing,
+              copies: [_copy(Platform.switch_), _copy(Platform.pc)]),
+          trees: const [],
+          currentTree: null,
+          onProgress: (_) {},
+          onOwnership: (_) {},
+          onTree: (_) {},
+        ));
+    // Rendered in enum order (PC before Switch) with the mid-dot separator.
+    expect(find.text('PC  ·  Nintendo Switch'), findsOneWidget);
+    // Announced to a screen reader as one owned-on phrase.
+    expect(find.bySemanticsLabel('Owned on PC  ·  Nintendo Switch'),
+        findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('no platform line for a wishlist game with no copies',
+      (tester) async {
+    await _pump(
+        tester,
+        GameSheet(
+          item: _item(Progress.untouched), // copies default to const []
+          trees: const [],
+          currentTree: null,
+          onProgress: (_) {},
+          onOwnership: (_) {},
+          onTree: (_) {},
+        ));
+    expect(find.byIcon(Icons.videogame_asset_rounded), findsNothing);
+    for (final label in Platform.values.map((p) => p.label)) {
+      expect(find.textContaining(label), findsNothing, reason: label);
+    }
   });
 }
