@@ -178,7 +178,7 @@ class _ShareSheetState extends State<ShareSheet> {
     final t = Tokens.palette;
     return DecoratedBox(
       decoration: ShapeDecoration(
-        color: t.surface,
+        color: Tokens.cosmos.hillTop,
         shape: RoundedSuperellipseBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(Tokens.radius.sheet))),
       ),

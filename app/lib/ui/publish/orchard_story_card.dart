@@ -40,72 +40,101 @@ class OrchardStoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final harvested = games.where((g) => g.status == Progress.finished).length;
+    final playing = games.where((g) => g.status == Progress.playing).length;
     final trees = portraitFromPublished(games, trunkName, styles: styles);
     final t = Tokens.palette;
-    // Hierarchy: the orchard is the picture; one line of title over the sky;
-    // the three numbers that say what it holds; the name of the app, small.
-    // No frame, no boxes: the sky runs to the card's edge.
-    Widget stat(int n, String word) => Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('$n',
-                style: TextStyle(
-                    fontSize: Tokens.type.title,
-                    fontWeight: FontWeight.w700,
-                    color: t.text,
-                    height: 1.05,
-                    fontFeatures: const [FontFeature.tabularFigures()])),
-            Text(word, style: TextStyle(fontSize: Tokens.type.caption, color: t.textDim)),
-          ],
-        );
+    final n = games.length;
+
+    // Hierarchy, read top to bottom in one pass (2026-09-28, replacing a
+    // title and a three-number grid stacked over the sky, which put the
+    // loudest type on top of the trees):
+    //   1. the orchard, alone in its sky: the picture is the message;
+    //   2. one sentence in the soil: how many games it holds;
+    //   3. one quiet line: what has come of them;
+    //   4. the app's name, small, opposite the eyebrow in the empty sky.
+    // Text sits on the dark ground, never over the trees, so it keeps its
+    // contrast whatever the blossom colours are.
+    final facts = [
+      if (harvested > 0) '$harvested finished',
+      if (playing > 0) '$playing in hand',
+      'level $level',
+    ].join('  ·  ');
+    // The trunk group's name is internal (games on no tree), not a title.
+    final eyebrow = trees.length == 1 && trees.first.name != trunkName
+        ? trees.first.name
+        : 'My orchard';
+
     return AspectRatio(
       aspectRatio: 4 / 5,
       child: ClipRSuperellipse(
         borderRadius: BorderRadius.circular(Tokens.radius.sheet),
-        child: Stack(fit: StackFit.expand, children: [
-          trees.isEmpty
-              ? const OrchardPortrait(trees: [])
-              : OrchardPortrait(trees: trees),
-          Padding(
-            padding: EdgeInsets.all(Tokens.space.md),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(
-                    child: Text(trees.length == 1 ? trees.first.name : 'My orchard',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: Tokens.type.display,
-                            fontWeight: FontWeight.w700,
-                            color: t.text,
-                            letterSpacing: Tokens.type.trackingDisplay,
-                            height: Tokens.type.leadingDisplay)),
-                  ),
-                  // Top right, in the empty sky: at the foot it sat on the
-                  // trees' name labels.
-                  Padding(
-                    padding: EdgeInsets.only(top: Tokens.space.xxs),
-                    child: Text('Ludeck',
+        child: ColoredBox(
+          color: Tokens.cosmos.hillDeep,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(
+              child: Stack(fit: StackFit.expand, children: [
+                OrchardPortrait(trees: trees, showNames: trees.length > 1),
+                Positioned(
+                  left: Tokens.space.md,
+                  right: Tokens.space.md,
+                  top: Tokens.space.md,
+                  child: Row(children: [
+                    Expanded(
+                      child: Text(eyebrow.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: Tokens.type.caption,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.4,
+                              color: t.text.withValues(alpha: 0.72))),
+                    ),
+                    SizedBox(width: Tokens.space.sm),
+                    Text('Ludeck',
                         style: TextStyle(
                             fontSize: Tokens.type.caption,
-                            fontWeight: FontWeight.w700,
-                            color: t.text.withValues(alpha: 0.7),
-                            letterSpacing: 1.2)),
-                  ),
-                ]),
-                SizedBox(height: Tokens.space.sm),
-                Wrap(spacing: Tokens.space.lg, runSpacing: Tokens.space.xs, children: [
-                  stat(games.length, games.length == 1 ? 'game' : 'games'),
-                  stat(harvested, 'finished'),
-                  stat(level, 'level'),
-                ]),
-              ],
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                            color: t.text.withValues(alpha: 0.55))),
+                  ]),
+                ),
+              ]),
             ),
-          ),
-        ]),
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                  Tokens.space.md, 0, Tokens.space.md, Tokens.space.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text.rich(
+                    TextSpan(children: [
+                      TextSpan(
+                          text: '$n',
+                          style: const TextStyle(
+                              fontFeatures: [FontFeature.tabularFigures()])),
+                      TextSpan(text: n == 1 ? ' game in my orchard' : ' games in my orchard'),
+                    ]),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: Tokens.type.title,
+                        fontWeight: FontWeight.w700,
+                        color: t.text,
+                        letterSpacing: Tokens.type.trackingTitle,
+                        height: 1.15),
+                  ),
+                  SizedBox(height: Tokens.space.xxs),
+                  Text(facts,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: Tokens.type.caption, color: t.textDim)),
+                ],
+              ),
+            ),
+          ]),
+        ),
       ),
     );
   }

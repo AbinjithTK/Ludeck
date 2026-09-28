@@ -411,13 +411,15 @@ class MeadowBackPainter extends CustomPainter {
     canvas.clipPath(land);
     for (var k = ((s - size.width) / 160).floor(); k <= ((s + 2 * size.width) / 160).ceil(); k++) {
       final x = k * 160 + (_hash(k, 71) - 0.5) * 90 - s;
-      final y = ridgeY(x + s, size.width, groundY) + 26 + _hash(k, 72) * 30;
+      // Well below the crest and faint: nearer the ridge, a 0.55 hollow sat
+      // at a trunk's foot and read as a hole under the tree (2026-09-28).
+      final y = ridgeY(x + s, size.width, groundY) + 44 + _hash(k, 72) * 30;
       final r = 60 + _hash(k, 73) * 70;
       canvas.drawOval(
           Rect.fromCenter(center: Offset(x, y), width: r * 2.4, height: r * 0.7),
           Paint()
             ..shader = RadialGradient(colors: [
-              c.hillDeep.withValues(alpha: 0.55),
+              c.hillDeep.withValues(alpha: 0.3),
               c.hillDeep.withValues(alpha: 0),
             ]).createShader(Rect.fromCenter(center: Offset(x, y), width: r * 2.4, height: r * 0.7)));
     }

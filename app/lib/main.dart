@@ -34,6 +34,7 @@ import 'ui/shell/add_menu.dart';
 // stay on disk (and in git) unimported, so reverting is one import away.
 import 'ui/orchard/orchard_view.dart';
 import 'ui/orchard/tree_style.dart';
+import 'ui/orchard/game_sheet.dart';
 import 'ui/found/found_moment.dart';
 import 'domain/branch_tree.dart';
 
@@ -580,7 +581,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     await store.createBranch(name, parentId: parentId);
   }
 
-  /// The branch node's context menu (long-press or the ⋯): rename, add a game
+  /// The branch node's context menu (long-press or the â‹¯): rename, add a game
   /// here, add a sub-branch, delete. Replaces the old jump to the Branches
   /// screen -- every branch action now lives on the node itself.
   void _branchMenu(LudeckStore store, Branch branch) {
@@ -762,160 +763,53 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     // different subtree, and reading the provider from it after the screen has
     // rebuilt is how a "deactivated widget's ancestor" error appears.
     final store = context.read<LudeckStore>();
+    // Each branch in the tree's own blossom colour: a sub-branch takes its
+    // root tree's, so the choices match the trees on the meadow.
+    final roots = treesOf(store.branches);
+    final styles = resolveTreeStyles(
+        roots.map((b) => b.id).toList(), store.treeStyles);
+    final byId = {for (final b in store.branches) b.id: b};
+    Color swatchOf(Branch b) {
+      var r = b;
+      for (var i = 0; i < 16 && r.parentId != null && byId[r.parentId] != null; i++) {
+        r = byId[r.parentId]!;
+      }
+      final idx = roots.indexWhere((x) => x.id == r.id);
+      return (styles[r.id] ?? TreeStyle.defaultFor(idx < 0 ? 0 : idx))
+          .blossom
+          .swatch;
+    }
+
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Tokens.palette.surface,
-      builder: (sheetContext) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: EdgeInsets.fromLTRB(Tokens.space.md, Tokens.space.md,
-                    Tokens.space.md, Tokens.space.xs),
-                child: Text(item.game.title,
-                    style: Theme.of(context).textTheme.titleMedium),
-              ),
-              _sheetHeading('How far did you get'),
-              for (final p in Progress.values)
-                _sheetOption(
-                  tree: p.tree,
-                  label: p.label,
-                  selected: p == item.entry.progress,
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    _setProgressAndMaybeRate(store, item, p);
-                  },
-                ),
-              Divider(color: Tokens.palette.bg, height: Tokens.space.md),
-              _sheetHeading('Do you have it'),
-              for (final o in Ownership.values)
-                _sheetOption(
-                  tree: o.tree,
-                  label: o.label,
-                  selected: o == item.entry.ownership,
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    store.setOwnership(item.game.igdbId, o);
-                  },
-                ),
+      isScrollControlled: true,
+      backgroundColor: Tokens.palette.bg.withValues(alpha: 0),
+      builder: (sheetContext) {
+        void then(VoidCallback act) {
+          Navigator.of(sheetContext).pop();
+          act();
+        }
 
-              // Filing, as a plain list of choices.
-              //
-              // This is the NON-DRAG path to placing a game on a branch, and it
-              // is the primary one rather than a fallback. The previous tree
-              // offered press-and-hold drag as the only way to file anything,
-              // and `branch_screen.dart` already says it plainly: "drag and drop
-              // is the least accessible interaction". A screen-reader user could
-              // not file a game at all, and neither could anyone with a motor
-              // impairment or a cracked digitiser.
-              //
-              // Only shown when branches exist. Offering "put this on a branch"
-              // with no branches to name would be a dead control, and creating
-              // one belongs to the branches screen, not to a status sheet.
-              if (store.branches.isNotEmpty) ...[
-                Divider(color: Tokens.palette.bg, height: Tokens.space.md),
-                _sheetHeading('Which tree'),
-                _sheetOption(
-                  tree: 'On the ground',
-                  label: 'Not on a tree yet',
-                  selected: _branchIdFor(store, item) == null,
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    _fileGame(store, item, null);
-                  },
-                ),
-                for (final b in store.branches)
-                  _sheetOption(
-                    tree: b.name,
-                    label: 'Hang it here',
-                    selected: _branchIdFor(store, item) == b.id,
-                    onTap: () {
-                      Navigator.of(sheetContext).pop();
-                      _fileGame(store, item, b.id);
-                    },
-                  ),
-              ],
-
-              // Only for a game that has actually been harvested, and only as
-              // something the user reaches for.
-              //
-              // The rating sheet asks once, on the harvest, and skipping it is a
-              // real answer. Without this row a skip would make the rating
-              // permanently unreachable, which is a functional hole rather than
-              // restraint. It is not a nag: no badge, no count, nothing appears
-              // unless the user opens this sheet themselves.
-              if (item.isHarvested) ...[
-                Divider(color: Tokens.palette.bg, height: Tokens.space.md),
-                _sheetHeading('What did you think'),
-                ListTile(
-                  dense: true,
-                  leading: Icon(
-                    item.entry.rating == null
-                        ? Icons.star_border
-                        : Icons.star,
-                    size: 14,
-                    color: item.entry.rating == null
-                        ? Tokens.palette.textDim
-                        : Tokens.palette.accent,
-                  ),
-                  title: Text(
-                    item.entry.rating == null
-                        ? 'Rate it'
-                        : 'Rated ${item.entry.rating} out of 5',
-                    style: TextStyle(
-                      fontSize: Tokens.type.body,
-                      color: Tokens.palette.text,
-                    ),
-                  ),
-                  onTap: () {
-                    Navigator.of(sheetContext).pop();
-                    _askForRating(store, item);
-                  },
-                ),
-              ],
-              SizedBox(height: Tokens.space.md),
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.88),
+          child: GameSheet(
+            item: item,
+            trees: [
+              for (final b in store.branches)
+                (id: b.id, name: b.name, swatch: swatchOf(b)),
             ],
+            currentTree: _branchIdFor(store, item),
+            onProgress: (p) => then(() => _setProgressAndMaybeRate(store, item, p)),
+            onOwnership: (o) =>
+                then(() => store.setOwnership(item.game.igdbId, o)),
+            onTree: (id) => then(() => _fileGame(store, item, id)),
+            onRate: () => then(() => _askForRating(store, item)),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
-
-  Widget _sheetHeading(String text) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            Tokens.space.md, Tokens.space.xs, Tokens.space.md, Tokens.space.xxs),
-        child: Text(text,
-            style: TextStyle(
-                fontSize: Tokens.type.caption, color: Tokens.palette.textDim)),
-      );
-
-  Widget _sheetOption({
-    required String tree,
-    required String label,
-    required bool selected,
-    required VoidCallback onTap,
-  }) =>
-      ListTile(
-        dense: true,
-        leading: Icon(
-          selected ? Icons.circle : Icons.circle_outlined,
-          size: 14,
-          color: selected ? Tokens.palette.accent : Tokens.palette.textDim,
-        ),
-        title: Text(
-          tree,
-          style: TextStyle(
-            fontSize: Tokens.type.body,
-            color: selected ? Tokens.palette.text : Tokens.palette.textDim,
-          ),
-        ),
-        subtitle: Text(label,
-            style: TextStyle(
-                fontSize: Tokens.type.caption, color: Tokens.palette.textDim)),
-        onTap: onTap,
-      );
 
   @override
   Widget build(BuildContext context) {

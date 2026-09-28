@@ -221,6 +221,7 @@ def debug_markers():
 def build(debug, test_hooks=False, blossom="blossom", wood="plum"):
     rml = convert(blossom, wood)
     rml = split_trunk(rml)
+    rml = drop_bark_marks(rml)
     # Shaken-loose petals take this tree's blossom, from two of the source's
     # own rose shades run through the same retint as the canopy.
     D.PETALS = (_tone("FFF4A6C8", blossom, wood), _tone("FFE5739F", blossom, wood))
@@ -295,6 +296,20 @@ def build(debug, test_hooks=False, blossom="blossom", wood="plum"):
     if not debug:
         rml = splice_discovery(rml, test_hooks)
     return rml, n_binds
+
+
+def drop_bark_marks(rml):
+    """Hide the source's bark marks (Shape "Trunk_texture").
+
+    They are four flat slivers on an unskinned node, so they do not follow
+    the trunk's bones: at rest they read as tape wrapped round the trunk, and
+    once the shake bends it they slide off it. On a pale wood they cross into
+    a lattice (device, 2026-09-28). The trunk's own light and shadow shapes
+    are skinned and carry the form on their own.
+    """
+    out, n = re.subn(r'(<Shape name="Trunk_texture" )', r'\1opacity="0" ', rml)
+    assert n == 1, f"expected one Trunk_texture shape, found {n}"
+    return out
 
 
 def split_trunk(rml):
