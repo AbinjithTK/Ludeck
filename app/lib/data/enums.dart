@@ -54,6 +54,22 @@ enum Progress {
   const Progress(this.label, this.tree);
   final String label;
   final String tree;
+
+  /// Whether reaching this progress means you must OWN the game.
+  ///
+  /// You cannot install, play or finish a game you only wishlist -- reaching
+  /// any of those states is proof you have it. So the sheet couples the two
+  /// axes here: moving a "Want it" game to Installed / Playing / Finished
+  /// flips ownership to "Own it" automatically, because leaving it on the
+  /// wishlist would be a state that cannot be true (2026-09-28, Abin).
+  ///
+  /// "Not started" and "Set aside" do NOT imply ownership: you can note a
+  /// wishlist game as not started, and setting one aside says nothing about
+  /// whether you ever bought it.
+  bool get impliesOwned => switch (this) {
+        Progress.installed || Progress.playing || Progress.finished => true,
+        Progress.untouched || Progress.abandoned => false,
+      };
 }
 
 /// Digital or a physical object on a shelf. Physical is what makes `released`

@@ -447,4 +447,56 @@ void main() {
           isFalse);
     });
   });
+
+  group('progress couples to ownership', () {
+    /// Seeds one game with an explicit ownership + progress and loads it.
+    Future<TreeItem> seed(Ownership o, Progress p, {int id = 900001}) async {
+      await repo.upsert(TreeItem(
+        game: Game(igdbId: id, title: 'Coupled $id'),
+        entry: Entry(igdbId: id, ownership: o, progress: p),
+        copies: const [],
+      ));
+      await store.load();
+      return store.items!.firstWhere((i) => i.game.igdbId == id);
+    }
+
+    Ownership ownershipOf(int id) =>
+        store.items!.firstWhere((i) => i.game.igdbId == id).entry.ownership;
+
+    test('a wishlist game moved to Installed becomes owned', () async {
+      final it = await seed(Ownership.spotted, Progress.untouched);
+      await store.setProgress(it.game.igdbId, Progress.installed);
+      expect(ownershipOf(it.game.igdbId), Ownership.owned,
+          reason: 'you cannot install a game you only wishlist');
+    });
+
+    test('Playing and Finished also flip a wishlist game to owned', () async {
+      for (final p in [Progress.playing, Progress.finished]) {
+        final it = await seed(Ownership.spotted, Progress.untouched,
+            id: 900000 + p.index);
+        await store.setProgress(it.game.igdbId, p);
+        expect(ownershipOf(it.game.igdbId), Ownership.owned, reason: p.name);
+      }
+    });
+
+    test('Not started and Set aside do NOT change ownership', () async {
+      for (final p in [Progress.untouched, Progress.abandoned]) {
+        final it = await seed(Ownership.spotted, Progress.installed,
+            id: 900010 + p.index);
+        // installed already flipped it to owned on seed-load? No: seed writes
+        // directly via repo.upsert, bypassing the coupling. So it is spotted.
+        await store.setProgress(it.game.igdbId, p);
+        expect(ownershipOf(it.game.igdbId), Ownership.spotted,
+            reason: '$p does not prove you own it');
+      }
+    });
+
+    test('a game already given away keeps that ownership', () async {
+      final it = await seed(Ownership.released, Progress.untouched);
+      await store.setProgress(it.game.igdbId, Progress.playing);
+      expect(ownershipOf(it.game.igdbId), Ownership.released,
+          reason: 'the coupling only rescues a wishlist entry, never overrides '
+              'a deliberate "gave it away"');
+    });
+  });
 }

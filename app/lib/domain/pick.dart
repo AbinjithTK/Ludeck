@@ -118,24 +118,33 @@ String _reasonFor(TreeItem item, double? hoursFree) {
   }
 }
 
-/// Shake the tree: one game, at random, from everything hanging on it.
+/// Shake the tree: one game, at random, from the OWNED games hanging on it.
 ///
-/// The roulette. Every fruit that hangs can fall: a roulette where two of six
-/// fruit ever came down read as broken (2026-09-28, when only owned,
-/// unfinished games could fall), and so does a fruit you can see that never
-/// comes down (a given-away game kept on the tree). It is still not uniform:
-/// what you can play tonight falls far more often than a bud, a finished
-/// game or one given away, and [reason] says honestly why each one came down.
+/// The roulette. Only a game you actually own can fall -- a shake suggests
+/// something to play tonight, and you cannot play a wishlist game you have
+/// not bought or one you have given away (2026-09-28, Abin: "make shake only
+/// drop the games that is owned"). Owned games at every progress still fall,
+/// including finished and set-aside ones, so an owned collection never
+/// shrinks to a couple of eligible fruit -- that was the earlier failure the
+/// all-fruit version fixed, and this keeps it by filtering on ownership, not
+/// on progress. It is still not uniform: what you can pick up tonight falls
+/// far more often than a finished or set-aside game, and [reason] says
+/// honestly why each one came down.
 ///
 /// [fallen] is what already fell this round: a game does not fall twice
-/// until every other game on the tree has had its turn (a shuffle bag, so a
-/// run of shakes goes round the whole tree instead of re-rolling the same
-/// favourite). When the round is spent it starts again, still never handing
-/// back [avoid], the one that just fell, while there is another. Null when
-/// nothing on the tree can fall.
+/// until every other OWNED game on the tree has had its turn (a shuffle bag,
+/// so a run of shakes goes round the whole tree instead of re-rolling the
+/// same favourite). When the round is spent it starts again, still never
+/// handing back [avoid], the one that just fell, while there is another. Null
+/// when nothing OWNED on the tree can fall.
 Pick? shakePick(List<TreeItem> items, math.Random rnd,
     {int? avoid, Set<int> fallen = const {}}) {
-  final pool = [...items];
+  // Only owned games are eligible: a wishlist bud or a game given away is on
+  // the tree to look at, not to be told to play tonight.
+  final pool = [
+    for (final i in items)
+      if (i.entry.ownership == Ownership.owned) i,
+  ];
   if (pool.isEmpty) return null;
   var bag = pool.where((i) => !fallen.contains(i.game.igdbId)).toList();
   if (bag.isEmpty) bag = pool; // the round is spent: a new one

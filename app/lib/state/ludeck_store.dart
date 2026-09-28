@@ -182,8 +182,20 @@ class LudeckStore extends ChangeNotifier {
             ?.where((i) => i.game.igdbId == igdbId)
             .map((i) => i.entry.progress)
             .firstOrNull;
+        final ownedBefore = _items
+            ?.where((i) => i.game.igdbId == igdbId)
+            .map((i) => i.entry.ownership)
+            .firstOrNull;
         final harvestsBefore = _harvestCount();
         await _repo.setProgress(igdbId, value);
+        // Couple the two axes: reaching a progress that means you HAVE the
+        // game (installed / playing / finished) flips a wishlist entry to
+        // owned, because "Want it + Playing" is a state that cannot be true.
+        // Only a wishlist (spotted) entry is touched -- a game already owned,
+        // or one given away (released), keeps its ownership.
+        if (value.impliesOwned && ownedBefore == Ownership.spotted) {
+          await _repo.setOwnership(igdbId, Ownership.owned);
+        }
         if (value == Progress.finished && before != Progress.finished) {
           _justHarvested = igdbId;
           // A level-up is the SAME event, larger: if this harvest crossed a

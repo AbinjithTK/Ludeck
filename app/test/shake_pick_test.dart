@@ -1,7 +1,8 @@
-// The shake (the orchard's roulette): every game on the tree can fall, what
-// you can play tonight falls most, a run of shakes goes round the whole tree
-// before anything falls twice, and "shake again" never hands back the same
-// game while there is another.
+// The shake (the orchard's roulette): only an OWNED game on the tree can fall
+// (you cannot play a wishlist bud or a game given away), owned games at every
+// progress fall, what you can play tonight falls most, a run of shakes goes
+// round the whole tree before anything falls twice, and "shake again" never
+// hands back the same game while there is another.
 
 import 'dart:math' as math;
 
@@ -21,14 +22,14 @@ TreeItem item(int id,
     );
 
 void main() {
-  test('every game hanging on the tree can fall', () {
+  test('every OWNED game on the tree can fall; a wishlist or given-away one never does', () {
     final tree = [
       item(1, p: Progress.finished),
-      item(2, o: Ownership.spotted),
+      item(2, o: Ownership.spotted), // wishlist: on the tree to look at, not to play
       item(3, p: Progress.abandoned),
       item(4, shelved: true),
       item(5, p: Progress.playing),
-      item(6, o: Ownership.released),
+      item(6, o: Ownership.released), // given away: no longer yours to play
     ];
     final seen = <int>{};
     final rnd = math.Random(3);
@@ -37,12 +38,20 @@ void main() {
       expect(p.reason, isNotEmpty, reason: 'every pick says why');
       seen.add(p.item.game.igdbId);
     }
-    expect(seen, {1, 2, 3, 4, 5, 6},
-        reason: 'before 2026-09-28 only owned, unfinished games fell: on a '
-            'real six-game tree that was two of six, and read as broken. A '
-            'given-away game kept on the tree (Red Dead Redemption 2 on '
-            'device) hung there and never came down either');
+    expect(seen, {1, 3, 4, 5},
+        reason: '2026-09-28, Abin: "make shake only drop the games that is '
+            'owned". Owned games at EVERY progress still fall (finished, '
+            'set-aside, shelved included), so an owned collection never '
+            'shrinks to a couple of eligible fruit -- the filter is on '
+            'ownership, not progress. But a wishlist bud (2) and a game given '
+            'away (6) can never fall: you cannot play what you do not have.');
     expect(shakePick(const [], rnd), isNull, reason: 'an empty tree drops nothing');
+  });
+
+  test('a tree of only wishlist / given-away games drops nothing', () {
+    final tree = [item(1, o: Ownership.spotted), item(2, o: Ownership.released)];
+    expect(shakePick(tree, math.Random(1)), isNull,
+        reason: 'nothing owned is on it, so the shake has nothing to suggest');
   });
 
   test('a game in hand falls six times as often as a finished one', () {

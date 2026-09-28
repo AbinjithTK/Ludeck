@@ -533,9 +533,15 @@ class MeadowFrontPainter extends CustomPainter {
         scroll: scroll.value,
         groundY: groundY,
         spacing: 13,
-        minH: 5,
-        maxH: 15,
-        sink: 4,
+        // Front grass is a low fringe the trunk's foot stands IN, not a
+        // hedge: its blades were as tall as the flowers (maxH 15), so a tall
+        // blade drew OVER a flower that is meant to be the nearest thing on
+        // the meadow (2026-09-28, Abin: "some grass is on top of the flowers
+        // that is really in front"). Shorter blades, sunk a little deeper,
+        // keep the foot-in-grass reading while staying below the flowers.
+        minH: 4,
+        maxH: 9,
+        sink: 5,
         depthBand: 22,
         nearScale: 0.45,
         salt: 29,
