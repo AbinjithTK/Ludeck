@@ -149,4 +149,41 @@ void main() {
         ));
     expect(find.text('Rated 4 out of 5'), findsOneWidget);
   });
+
+  testWidgets('remove is offered, announced, and reports once when onRemove set',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    var removed = 0;
+    await _pump(
+        tester,
+        GameSheet(
+          item: _item(Progress.playing),
+          trees: const [],
+          currentTree: null,
+          onProgress: (_) {},
+          onOwnership: (_) {},
+          onTree: (_) {},
+          onRemove: () => removed++,
+        ));
+    expect(find.text('Remove from Ludeck'), findsOneWidget);
+    expect(find.bySemanticsLabel('Remove from Ludeck'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('game-sheet-remove')));
+    expect(removed, 1);
+    handle.dispose();
+  });
+
+  testWidgets('no remove row when onRemove is not given', (tester) async {
+    await _pump(
+        tester,
+        GameSheet(
+          item: _item(Progress.playing),
+          trees: const [],
+          currentTree: null,
+          onProgress: (_) {},
+          onOwnership: (_) {},
+          onTree: (_) {},
+        ));
+    expect(find.byKey(const Key('game-sheet-remove')), findsNothing);
+    expect(find.text('Remove from Ludeck'), findsNothing);
+  });
 }

@@ -902,11 +902,56 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               // snack bar would open behind it.
               onTree: (id) => _fileGame(store, live, id, quiet: true),
               onRate: () => closeThen(() => _askForRating(store, live)),
+              onRemove: () =>
+                  closeThen(() => _confirmRemoveGame(store, live)),
               onClose: () => Navigator.of(sheetContext).pop(),
             );
           }),
         );
       },
+    );
+  }
+
+  /// Confirms and hard-deletes a game from Ludeck.
+  ///
+  /// This is NOT "Set aside": shelving keeps everything the user recorded and
+  /// only hides the game. Removing destroys the game and, by the schema's
+  /// cascade, its progress, ownership, placements and rating. There is no
+  /// undo, so it is always gated behind a dialog that names the game and says
+  /// so plainly.
+  Future<void> _confirmRemoveGame(LudeckStore store, TreeItem item) async {
+    final title = item.game.title;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Remove $title?',
+            style: Theme.of(context).textTheme.titleMedium),
+        content: Text(
+          'This deletes $title from Ludeck along with its progress, '
+          'rating and where it hangs. It cannot be undone. To keep the '
+          'record and only hide it, use "Set aside" instead.',
+          style: TextStyle(fontSize: Tokens.type.body, color: Tokens.palette.text),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('Keep it', style: TextStyle(color: Tokens.palette.text)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('Remove', style: TextStyle(color: Tokens.palette.danger)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await store.removeGame(item.game.igdbId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Removed $title from Ludeck.',
+            style: TextStyle(color: Tokens.palette.text)),
+      ),
     );
   }
 

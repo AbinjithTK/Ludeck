@@ -42,6 +42,7 @@ class GameSheet extends StatelessWidget {
     required this.onOwnership,
     required this.onTree,
     this.onRate,
+    this.onRemove,
     this.onClose,
   });
 
@@ -60,6 +61,10 @@ class GameSheet extends StatelessWidget {
 
   /// Opens the rating sheet. Only offered for a harvested game.
   final VoidCallback? onRate;
+
+  /// Removes the game from Ludeck entirely (the honest hard delete). The
+  /// caller confirms first and destroys the record; null hides the action.
+  final VoidCallback? onRemove;
 
   /// Closes the sheet. Choices apply in place and no longer dismiss it, so
   /// the close button is the plain way out (a swipe down or a tap on the
@@ -197,6 +202,11 @@ class GameSheet extends StatelessWidget {
                     ),
                   ],
                 ),
+              // Removing the game entirely: the honest hard delete, apart from
+              // every other choice because it is not a status and it cannot be
+              // undone. Quiet, at the very bottom, so it is reachable but never
+              // the obvious thing to press.
+              if (onRemove != null) _RemoveRow(onRemove: onRemove!),
             ],
           ),
         ),
@@ -337,6 +347,56 @@ class _CloseButton extends StatelessWidget {
           child: SizedBox.square(
             dimension: 44,
             child: Icon(Icons.close_rounded, size: 22, color: p.textDim),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The remove action, kept apart and quiet.
+///
+/// It is NOT a `_Choice`: a filled capsule among the answers would read as
+/// one more status, and this destroys the record rather than setting one.
+/// It sits alone at the bottom as a low-key destructive row in the danger
+/// tone, so it is reachable but never the first thing the eye lands on. The
+/// caller shows the confirm dialog; this only asks.
+class _RemoveRow extends StatelessWidget {
+  const _RemoveRow({required this.onRemove});
+
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final danger = Tokens.palette.danger;
+    return Padding(
+      padding: EdgeInsets.only(top: Tokens.space.lg),
+      child: Semantics(
+        button: true,
+        label: 'Remove from Ludeck',
+        excludeSemantics: true,
+        onTap: onRemove,
+        child: Material(
+          key: const Key('game-sheet-remove'),
+          color: danger.withValues(alpha: 0.08),
+          shape: const StadiumBorder(),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: onRemove,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Center(
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.delete_outline_rounded, size: 18, color: danger),
+                  SizedBox(width: Tokens.space.xxs + 2),
+                  Text('Remove from Ludeck',
+                      style: TextStyle(
+                          fontSize: Tokens.type.body,
+                          fontWeight: FontWeight.w600,
+                          color: danger)),
+                ]),
+              ),
+            ),
           ),
         ),
       ),
