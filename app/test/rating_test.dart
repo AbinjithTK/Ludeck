@@ -154,7 +154,7 @@ void main() {
       expect(itemNamed('Hollow Knight').entry.progress, Progress.playing);
 
       await openStatusSheet(tester, 'Hollow Knight');
-      await tapInSheet(tester, 'Harvested');
+      await tapInSheet(tester, 'Finished');
 
       // Bounded wait for the sheet, not a fixed one: the write's continuation
       // shares real time with the ground tray building its fruit images, so
@@ -169,7 +169,7 @@ void main() {
     testWidgets('a tapped rating is written through the store', (tester) async {
       await pump(tester);
       await openStatusSheet(tester, 'Hollow Knight');
-      await tapInSheet(tester, 'Harvested');
+      await tapInSheet(tester, 'Finished');
 
       await tapStar(tester, 5);
 
@@ -181,7 +181,7 @@ void main() {
     testWidgets('skipping writes no rating at all', (tester) async {
       await pump(tester);
       await openStatusSheet(tester, 'Hollow Knight');
-      await tapInSheet(tester, 'Harvested');
+      await tapInSheet(tester, 'Finished');
       await tapInSheet(tester, 'Skip');
 
       final after = itemNamed('Hollow Knight');
@@ -197,7 +197,7 @@ void main() {
       expect(itemNamed('Hades').entry.progress, Progress.finished);
 
       await openStatusSheet(tester, 'Hades');
-      await tapInSheet(tester, 'Harvested');
+      await tapInSheet(tester, 'Finished');
 
       // The harvest already happened. Asking again would make the sheet a nag.
       expect(find.text('How was it? Optional.'), findsNothing);
@@ -207,7 +207,7 @@ void main() {
       await pump(tester);
 
       await openStatusSheet(tester, 'Hollow Knight');
-      await tapInSheet(tester, 'Harvested');
+      await tapInSheet(tester, 'Finished');
       await tapInSheet(tester, 'Skip');
 
       // Rating it after a skip stays possible, but only when the user asks.

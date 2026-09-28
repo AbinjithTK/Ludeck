@@ -34,12 +34,71 @@ void main() {
           onOwnership: (_) {},
           onTree: (_) {},
         ));
-    expect(tester.getSemantics(find.bySemanticsLabel('In hand, Playing')),
+    expect(tester.getSemantics(find.bySemanticsLabel('Playing')),
         matchesSemantics(isButton: true, isSelected: true, hasSelectedState: true,
-            hasTapAction: true, label: 'In hand, Playing'));
+            hasTapAction: true, label: 'Playing'));
     expect(find.text('Cozy'), findsOneWidget);
-    expect(find.text('In hand  ·  On Cozy'), findsOneWidget);
+    expect(find.text('Playing  ·  On Cozy'), findsOneWidget);
     handle.dispose();
+  });
+
+  testWidgets('answers are plain words, not the orchard vocabulary',
+      (tester) async {
+    // 2026-09-28: "say what a person can understand easily, real actions,
+    // instead of things like harvested".
+    await _pump(
+        tester,
+        GameSheet(
+          item: _item(Progress.playing),
+          trees: const [],
+          currentTree: null,
+          onProgress: (_) {},
+          onOwnership: (_) {},
+          onTree: (_) {},
+        ));
+    for (final w in ['Not started', 'Installed', 'Playing', 'Finished',
+        'Set aside', 'Want it', 'Own it', 'Gave it away']) {
+      expect(find.text(w), findsOneWidget, reason: w);
+    }
+    for (final w in ['Growing', 'Within reach', 'In hand', 'Harvested',
+        'Pressed', 'Bud', 'On the tree', 'Given away']) {
+      expect(find.text(w), findsNothing, reason: w);
+    }
+  });
+
+  testWidgets('the close button closes; it is announced as Close',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    var closed = 0;
+    await _pump(
+        tester,
+        GameSheet(
+          item: _item(Progress.playing),
+          trees: const [],
+          currentTree: null,
+          onProgress: (_) {},
+          onOwnership: (_) {},
+          onTree: (_) {},
+          onClose: () => closed++,
+        ));
+    expect(find.bySemanticsLabel('Close'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('game-sheet-close')));
+    expect(closed, 1);
+    handle.dispose();
+  });
+
+  testWidgets('no close button when nothing can close it', (tester) async {
+    await _pump(
+        tester,
+        GameSheet(
+          item: _item(Progress.playing),
+          trees: const [],
+          currentTree: null,
+          onProgress: (_) {},
+          onOwnership: (_) {},
+          onTree: (_) {},
+        ));
+    expect(find.byKey(const Key('game-sheet-close')), findsNothing);
   });
 
   testWidgets('a tap reports its answer', (tester) async {
@@ -55,7 +114,7 @@ void main() {
           onOwnership: (_) {},
           onTree: (id) => tree = id,
         ));
-    await tester.tap(find.text('Harvested'));
+    await tester.tap(find.text('Finished'));
     expect(got, Progress.finished);
     await tester.tap(find.text('On the ground'));
     expect(tree, isNull);

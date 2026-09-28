@@ -56,7 +56,7 @@ class OrchardStoryCard extends StatelessWidget {
     // contrast whatever the blossom colours are.
     final facts = [
       if (harvested > 0) '$harvested finished',
-      if (playing > 0) '$playing in hand',
+      if (playing > 0) '$playing playing now',
       'level $level',
     ].join('  ·  ');
     // The trunk group's name is internal (games on no tree), not a title.

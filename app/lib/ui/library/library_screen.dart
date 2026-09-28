@@ -45,7 +45,7 @@ class LibraryScreen extends StatelessWidget {
       return 'Your library \u00B7 $games ${games == 1 ? 'game' : 'games'}';
     }
     return 'Your library \u00B7 $games ${games == 1 ? 'game' : 'games'}, '
-        '$buds ${buds == 1 ? 'bud' : 'buds'}';
+        '$buds on your wishlist';
   }
 
   @override

@@ -42,6 +42,7 @@ class GameSheet extends StatelessWidget {
     required this.onOwnership,
     required this.onTree,
     this.onRate,
+    this.onClose,
   });
 
   final TreeItem item;
@@ -59,6 +60,11 @@ class GameSheet extends StatelessWidget {
 
   /// Opens the rating sheet. Only offered for a harvested game.
   final VoidCallback? onRate;
+
+  /// Closes the sheet. Choices apply in place and no longer dismiss it, so
+  /// the close button is the plain way out (a swipe down or a tap on the
+  /// scrim still works too).
+  final VoidCallback? onClose;
 
   String get _where {
     final t = trees.where((t) => t.id == currentTree).firstOrNull;
@@ -117,7 +123,7 @@ class GameSheet extends StatelessWidget {
                               height: 1.15,
                               color: p.text)),
                       SizedBox(height: Tokens.space.xxs),
-                      Text('${e.progress.tree}  ·  $_where',
+                      Text('${e.progress.label}  ·  $_where',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -125,14 +131,17 @@ class GameSheet extends StatelessWidget {
                     ],
                   ),
                 ),
+                if (onClose != null) ...[
+                  SizedBox(width: Tokens.space.xs),
+                  _CloseButton(onTap: onClose!),
+                ],
               ]),
               _Section(
                 title: 'How far did you get',
                 children: [
                   for (final v in Progress.values)
                     _Choice(
-                      label: v.tree,
-                      hint: v.label,
+                      label: v.label,
                       selected: v == e.progress,
                       onTap: () => onProgress(v),
                     ),
@@ -143,8 +152,7 @@ class GameSheet extends StatelessWidget {
                 children: [
                   for (final v in Ownership.values)
                     _Choice(
-                      label: v.tree,
-                      hint: v.label,
+                      label: v.label,
                       selected: v == e.ownership,
                       onTap: () => onOwnership(v),
                     ),
@@ -228,7 +236,7 @@ class _Section extends StatelessWidget {
 }
 
 /// One answer: a capsule, filled white when it is the current one. White,
-/// not gold: gold means harvested, and a selected "Bud" is not a harvest.
+/// not gold: gold means finished, and a selected "Want it" is not a finish.
 class _Choice extends StatelessWidget {
   const _Choice({
     required this.label,
@@ -295,6 +303,40 @@ class _Choice extends StatelessWidget {
                         color: fg)),
               ]),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+/// The sheet's close button: a quiet round glyph at the header's end, the
+/// same weight as an unselected choice so it never competes with the answers.
+class _CloseButton extends StatelessWidget {
+  const _CloseButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = Tokens.palette;
+    return Semantics(
+      button: true,
+      label: 'Close',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: Material(
+        key: const Key('game-sheet-close'),
+        color: p.text.withValues(alpha: 0.07),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          // 44pt: the minimum comfortable touch target, like every choice.
+          child: SizedBox.square(
+            dimension: 44,
+            child: Icon(Icons.close_rounded, size: 22, color: p.textDim),
           ),
         ),
       ),

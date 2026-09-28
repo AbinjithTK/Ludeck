@@ -791,7 +791,12 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       isScrollControlled: true,
       backgroundColor: Tokens.palette.bg.withValues(alpha: 0),
       builder: (sheetContext) {
-        void then(VoidCallback act) {
+        // Choices apply IN PLACE and the sheet stays open: it used to pop on
+        // every tap, so answering one question closed the other two
+        // (2026-09-28, "choosing one makes the window close"). Only a step
+        // that opens the rating sheet closes this one first, because the two
+        // sheets cannot stack.
+        void closeThen(VoidCallback act) {
           Navigator.of(sheetContext).pop();
           act();
         }
@@ -799,19 +804,41 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
         return ConstrainedBox(
           constraints: BoxConstraints(
               maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.88),
-          child: GameSheet(
-            item: item,
-            trees: [
-              for (final b in store.branches)
-                (id: b.id, name: b.name, swatch: swatchOf(b)),
-            ],
-            currentTree: _branchIdFor(store, item),
-            onProgress: (p) => then(() => _setProgressAndMaybeRate(store, item, p)),
-            onOwnership: (o) =>
-                then(() => store.setOwnership(item.game.igdbId, o)),
-            onTree: (id) => then(() => _fileGame(store, item, id)),
-            onRate: () => then(() => _askForRating(store, item)),
-          ),
+          // Re-read on every store change so the sheet shows the answer just
+          // chosen; [item] is the snapshot from when it opened. Listens to
+          // the store instance itself, not a Provider lookup: the sheet's
+          // route lives in the Navigator, which need not be under the
+          // provider (the widget tests mount it below MaterialApp).
+          child: ListenableBuilder(listenable: store, builder: (_, _) {
+            final live = store.items
+                    ?.where((i) => i.game.igdbId == item.game.igdbId)
+                    .firstOrNull ??
+                item;
+            return GameSheet(
+              item: live,
+              trees: [
+                for (final b in store.branches)
+                  (id: b.id, name: b.name, swatch: swatchOf(b)),
+              ],
+              currentTree: _branchIdFor(store, live),
+              onProgress: (p) {
+                final harvest = p == Progress.finished &&
+                    live.entry.progress != Progress.finished &&
+                    live.entry.rating == null;
+                if (harvest) {
+                  closeThen(() => _setProgressAndMaybeRate(store, live, p));
+                } else {
+                  _setProgressAndMaybeRate(store, live, p);
+                }
+              },
+              onOwnership: (o) => store.setOwnership(live.game.igdbId, o),
+              // Quiet: the sheet itself now shows where the game hangs, and a
+              // snack bar would open behind it.
+              onTree: (id) => _fileGame(store, live, id, quiet: true),
+              onRate: () => closeThen(() => _askForRating(store, live)),
+              onClose: () => Navigator.of(sheetContext).pop(),
+            );
+          }),
         );
       },
     );

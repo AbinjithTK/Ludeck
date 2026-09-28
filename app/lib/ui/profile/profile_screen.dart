@@ -435,8 +435,8 @@ class _Ladder extends StatelessWidget {
   String get _meaning {
     if (ladder.neededForNext == 0) return 'The top of the ladder';
     final n = ladder.neededForNext;
-    final games = n == 1 ? 'harvest' : 'harvests';
-    return '$n more $games to level ${ladder.level + 1}';
+    final games = n == 1 ? 'game' : 'games';
+    return 'Finish $n more $games to reach level ${ladder.level + 1}';
   }
 
   @override
@@ -465,11 +465,13 @@ class _Ladder extends StatelessWidget {
       );
 }
 
-/// The season: five numbers on one line, each over its word in the
-/// metaphor's own vocabulary.
+/// The season: five numbers on one line, each over a plain word.
 ///
-/// The words come from `Progress.tree` and `Ownership.tree` rather than being
-/// typed here, so a reworded metaphor cannot leave this screen behind.
+/// Plain words, not the metaphor (2026-09-28): "Harvested", "Pressed" and
+/// "Bud" made a person learn the app's vocabulary to read their own
+/// collection. The first and third come from `Progress.label`, so a reworded
+/// label cannot leave this screen behind; "To play" and "Wishlist" name a
+/// bucket, not one enum value, so they are written here.
 class _SeasonBlock extends StatelessWidget {
   const _SeasonBlock({required this.season, required this.branches});
 
@@ -484,22 +486,22 @@ class _SeasonBlock extends StatelessWidget {
 
     final stats = <({String word, int count, String sentence})>[
       (
-        word: Progress.finished.tree,
+        word: Progress.finished.label,
         count: season.harvested,
         sentence: games(season.harvested, 'you finished'),
       ),
       (
-        word: Progress.untouched.tree,
+        word: 'To play',
         count: season.stillGrowing,
         sentence: games(season.stillGrowing, 'still to play'),
       ),
       (
-        word: Progress.abandoned.tree,
+        word: Progress.abandoned.label,
         count: season.pressed,
         sentence: games(season.pressed, 'you set aside'),
       ),
       (
-        word: Ownership.spotted.tree,
+        word: 'Wishlist',
         count: season.seeds,
         sentence: games(season.seeds, 'someone recommended'),
       ),

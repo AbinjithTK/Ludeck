@@ -303,7 +303,7 @@ class _VisitBody extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Level ${tree.level}  ·  ${tree.harvestedCount} harvested',
+                      'Level ${tree.level}  ·  ${tree.harvestedCount} finished',
                       style: TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim),
                     ),
                   ],
@@ -517,8 +517,8 @@ class _VisitRow extends StatelessWidget {
                     ),
                     Text(
                       game.rating != null
-                          ? '${game.status.tree} · ${game.rating}/5'
-                          : game.status.tree,
+                          ? '${game.status.label} · ${game.rating}/5'
+                          : game.status.label,
                       style: TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim),
                     ),
                   ],

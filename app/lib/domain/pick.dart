@@ -98,8 +98,8 @@ String _reasonFor(TreeItem item, double? hoursFree) {
   switch (item.entry.progress) {
     case Progress.playing:
       return hours == null
-          ? 'Already in hand.'
-          : 'Already in hand, about $hours ${hours == 1 ? 'hour' : 'hours'} left.';
+          ? 'You are playing this now.'
+          : 'You are playing this now, about $hours ${hours == 1 ? 'hour' : 'hours'} left.';
     case Progress.installed:
       return 'Installed and ready to pick back up.';
     case Progress.untouched:
@@ -171,7 +171,7 @@ String _shakeReason(TreeItem i) {
     return 'Given away a while back. Miss it?';
   }
   if (i.entry.ownership != Ownership.owned) {
-    return 'A bud: not yours yet. Worth picking up?';
+    return "On your wishlist. Worth picking up?";
   }
   if (i.entry.shelved) return 'On the shelf a while. Another look?';
   return switch (i.entry.progress) {

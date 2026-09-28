@@ -171,11 +171,10 @@ class TreeHeader extends StatelessWidget {
                         // bare score. At the top of the ladder it says so rather
                         // than showing a next step that does not exist.
                         ladder.neededForNext == 0
-                            ? 'Level ${ladder.level} \u00B7 every harvest counts'
-                            : 'Level ${ladder.level} \u00B7 '
-                                '${ladder.neededForNext} more '
-                                '${ladder.neededForNext == 1 ? 'harvest' : 'harvests'} '
-                                'to ${ladder.level + 1}',
+                            ? 'Level ${ladder.level} \u00B7 every finished game counts'
+                            : 'Level ${ladder.level} \u00B7 finish '
+                                '${ladder.neededForNext} more to reach '
+                                '${ladder.level + 1}',
                         style: text.labelSmall,
                       ),
                       SizedBox(height: Tokens.space.xxs),
@@ -275,12 +274,12 @@ class TreeHeader extends StatelessWidget {
                       StatChip(
                           icon: Icons.check_circle,
                           value: '$harvested',
-                          label: 'harvested'),
+                          label: 'finished'),
                       SizedBox(width: Tokens.space.sm),
                       StatChip(
                           icon: Icons.circle_outlined,
                           value: '$seeds',
-                          label: seeds == 1 ? 'bud' : 'buds'),
+                          label: 'on wishlist'),
                       SizedBox(width: Tokens.space.sm),
                       StatChip(
                           icon: Icons.account_tree_outlined,

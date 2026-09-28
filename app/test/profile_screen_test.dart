@@ -120,7 +120,7 @@ void main() {
       ]);
 
       expect(find.text('Level 2'), findsOneWidget);
-      expect(find.text('2 more harvests to level 3'), findsOneWidget);
+      expect(find.text('Finish 2 more games to reach level 3'), findsOneWidget);
     });
 
     testWidgets('one remaining harvest is singular', (tester) async {
@@ -130,7 +130,7 @@ void main() {
         _item(2, 'Celeste', progress: Progress.finished),
       ]);
 
-      expect(find.text('1 more harvest to level 3'), findsOneWidget);
+      expect(find.text('Finish 1 more game to reach level 3'), findsOneWidget);
     });
 
     testWidgets('the season buckets match the collection', (tester) async {
@@ -146,10 +146,10 @@ void main() {
         branches: 3,
       );
 
-      expect(_countFor(tester, Progress.finished.tree), 1);
-      expect(_countFor(tester, Progress.abandoned.tree), 1);
-      expect(_countFor(tester, Progress.untouched.tree), 2);
-      expect(_countFor(tester, Ownership.spotted.tree), 1);
+      expect(_countFor(tester, Progress.finished.label), 1);
+      expect(_countFor(tester, Progress.abandoned.label), 1);
+      expect(_countFor(tester, 'To play'), 2);
+      expect(_countFor(tester, 'Wishlist'), 1);
       // The home calls them trees; the profile used to say branches.
       expect(_countFor(tester, 'Trees'), 3);
     });
@@ -163,7 +163,7 @@ void main() {
             progress: Progress.finished, ownership: Ownership.released),
       ]);
 
-      expect(_countFor(tester, Progress.finished.tree), 0);
+      expect(_countFor(tester, Progress.finished.label), 0);
       expect(find.text('Level 1'), findsOneWidget);
     });
 
@@ -172,7 +172,7 @@ void main() {
         _item(1, 'Hades', progress: Progress.finished, shelved: true),
       ]);
 
-      expect(_countFor(tester, Progress.finished.tree), 0);
+      expect(_countFor(tester, Progress.finished.label), 0);
     });
 
     testWidgets('one tree reads in the singular', (tester) async {
@@ -183,19 +183,24 @@ void main() {
     });
   });
 
-  group('the words are the frozen vocabulary', () {
-    testWidgets('labels come from the enums, not from this screen',
+  group('the words are plain', () {
+    testWidgets('the season uses words a person already knows',
         (tester) async {
-      // Typed metaphor words would silently survive a rewording of the enum.
+      // 2026-09-28: "say what a person can understand easily ... instead of
+      // things like harvested". The orchard vocabulary is the picture's, not
+      // the text's.
       await _pump(tester, items: [_item(1, 'Hades')]);
 
       for (final word in [
-        Progress.finished.tree,
-        Progress.abandoned.tree,
-        Progress.untouched.tree,
-        Ownership.spotted.tree,
+        Progress.finished.label,
+        Progress.abandoned.label,
+        'To play',
+        'Wishlist',
       ]) {
         expect(find.text(word), findsOneWidget, reason: '$word must be shown');
+      }
+      for (final word in ['Harvested', 'Pressed', 'Growing', 'Bud']) {
+        expect(find.text(word), findsNothing, reason: '$word is jargon');
       }
     });
 

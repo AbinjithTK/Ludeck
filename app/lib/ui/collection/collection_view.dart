@@ -162,17 +162,17 @@ class _CollectionViewState extends State<CollectionView> {
     // A seed is defined by ownership; every other bucket is a progress state
     // of an owned game. Order runs most-active to least, seeds last.
     final buckets = <_Group>[
-      _Group('playing', 'In hand',
+      _Group('playing', Progress.playing.label,
           where((i) => !i.isSeed && i.entry.progress == Progress.playing)),
-      _Group('installed', 'Within reach',
+      _Group('installed', Progress.installed.label,
           where((i) => !i.isSeed && i.entry.progress == Progress.installed)),
-      _Group('untouched', 'Growing',
+      _Group('untouched', Progress.untouched.label,
           where((i) => !i.isSeed && i.entry.progress == Progress.untouched)),
-      _Group('finished', 'Harvested',
+      _Group('finished', Progress.finished.label,
           where((i) => !i.isSeed && i.entry.progress == Progress.finished)),
-      _Group('abandoned', 'Set aside',
+      _Group('abandoned', Progress.abandoned.label,
           where((i) => !i.isSeed && i.entry.progress == Progress.abandoned)),
-      _Group('buds', 'Buds', where((i) => i.isSeed)),
+      _Group('buds', 'Wishlist', where((i) => i.isSeed)),
     ];
 
     return buckets.where((g) => g.items.isNotEmpty).toList();
@@ -298,7 +298,7 @@ class _GameRow extends StatelessWidget {
     // sense read aloud without the picture. Seeds report
     // who recommended them, since that is the seed's whole point.
     final statusLabel = item.isSeed
-        ? 'Seed from ${entry.recommendedBy ?? 'somewhere'}'
+        ? 'Recommended by ${entry.recommendedBy ?? 'someone'}'
         : entry.progress.label;
 
     final platforms = _orderedPlatforms(item.platforms);

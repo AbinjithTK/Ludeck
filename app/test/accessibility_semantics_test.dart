@@ -62,8 +62,8 @@ void main() {
       // The branches icon carries no visible text at all.
       expect(find.bySemanticsLabel('Branches'), findsOneWidget);
       // The counts, which a large-type user loses visually by design.
-      expect(find.bySemanticsLabel('1 harvested'), findsOneWidget);
-      expect(find.bySemanticsLabel('2 buds'), findsOneWidget);
+      expect(find.bySemanticsLabel('1 finished'), findsOneWidget);
+      expect(find.bySemanticsLabel('2 on wishlist'), findsOneWidget);
       expect(find.bySemanticsLabel('0 branches'), findsOneWidget);
 
       handle.dispose();

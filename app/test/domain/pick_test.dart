@@ -147,9 +147,9 @@ void main() {
   });
 
   group('the reason is true of the item actually chosen', () {
-    test('a playing game states it is already in hand', () {
+    test('a playing game states you are playing it', () {
       final items = [item(1, 'A', progress: Progress.playing, seconds: 32400)];
-      expect(choosePick(items)!.reason, contains('Already in hand'));
+      expect(choosePick(items)!.reason, contains('You are playing this now'));
     });
 
     test('an untouched game within the time budget names the fit', () {

@@ -4,9 +4,12 @@
 /// finished it and then sold it", which is a normal collector state, and it
 /// forces a sale to destroy the completion record.
 ///
-/// Each value carries TWO labels. `label` is plain language. `tree` is the
-/// metaphor word from DESIGN.md. The metaphor is a display layer: what is
-/// persisted is `name`, so the metaphor can change without a migration.
+/// Each value carries TWO labels. `label` is plain language, and it is what
+/// the app SHOWS (2026-09-28, Abin: "say what a person can understand easily,
+/// real actions, instead of things like harvested"). `tree` is the metaphor
+/// word from DESIGN.md, kept only as reference for the art (a harvested fruit
+/// is gold, a bud is a closed flower) and never put in front of the user.
+/// What is persisted is `name`, so either can change without a migration.
 library;
 
 /// Do I have it?
@@ -19,11 +22,11 @@ enum Ownership {
   /// recommendation arriving on YOUR tree is a bud on it. The social act of
   /// taking a cutting from someone else's tree keeps the graft word. `name` is
   /// what persists, so this cost no migration.
-  spotted('Spotted', 'Bud'),
-  owned('Owned', 'On the tree'),
+  spotted('Want it', 'Bud'),
+  owned('Own it', 'On the tree'),
 
   /// Sold, traded, refunded, or lapsed out of a subscription.
-  released('Let go', 'Given away');
+  released('Gave it away', 'Given away');
 
   const Ownership(this.label, this.tree);
   final String label;

@@ -20,6 +20,15 @@ import 'package:ludeck/data/repository.dart';
 import 'package:ludeck/state/ludeck_store.dart';
 import 'package:ludeck/ui/collection/collection_view.dart';
 
+/// A section heading by its word. Scoped to the heading widget: since the
+/// headings use the plain status words (2026-09-28), "Playing" is both a
+/// heading and the status word on every row under it.
+Finder heading(String word) => find.descendant(
+      of: find.byWidgetPredicate(
+          (w) => w.runtimeType.toString() == '_GroupHeading'),
+      matching: find.text(word),
+    );
+
 void main() {
   late Repository repo;
   late LudeckStore store;
@@ -99,8 +108,8 @@ void main() {
       // by branch here would produce one unnamed heap of the whole collection,
       // which is strictly less information than the status grouping.
       expect(store.branches, isEmpty);
-      expect(find.text('In hand'), findsOneWidget);
-      expect(find.text('Harvested'), findsOneWidget);
+      expect(heading('Playing'), findsOneWidget);
+      expect(heading('Finished'), findsOneWidget);
       expect(find.text('On the ground'), findsNothing);
     });
 
@@ -111,8 +120,8 @@ void main() {
       expect(find.text('Finished someday'), findsOneWidget);
       expect(find.text('Short evenings'), findsOneWidget);
       // Status headings are gone: the sectioning is the user's now.
-      expect(find.text('In hand'), findsNothing);
-      expect(find.text('Growing'), findsNothing);
+      expect(heading('Playing'), findsNothing);
+      expect(heading('Not started'), findsNothing);
     });
 
     testWidgets('unplaced games land in a section, last', (tester) async {
@@ -177,19 +186,19 @@ void main() {
       expect(find.text('Hollow Knight'), findsOneWidget);
 
       // Open by default: a collection that opens closed hides its own content.
-      await tester.tap(find.text('In hand'));
+      await tester.tap(heading('Playing'));
       await tester.pumpAndSettle();
 
       expect(find.text('Hollow Knight'), findsNothing);
       // The heading itself stays, so the section is findable again.
-      expect(find.text('In hand'), findsOneWidget);
+      expect(heading('Playing'), findsOneWidget);
     });
 
     testWidgets('collapsing one section leaves the others open',
         (tester) async {
       await pump(tester);
 
-      await tester.tap(find.text('In hand'));
+      await tester.tap(heading('Playing'));
       await tester.pumpAndSettle();
 
       expect(find.text('Hollow Knight'), findsNothing);
@@ -200,7 +209,7 @@ void main() {
         (tester) async {
       await pump(tester);
 
-      await tester.tap(find.text('Growing'));
+      await tester.tap(heading('Not started'));
       await tester.pumpAndSettle();
       expect(find.text('Astro Bot'), findsNothing);
 
@@ -256,7 +265,7 @@ void main() {
       await pump(tester);
 
       // A seed's whole point is where it came from.
-      expect(find.bySemanticsLabel(RegExp(r'Pentiment, Seed from Priya')),
+      expect(find.bySemanticsLabel(RegExp(r'Pentiment, Recommended by Priya')),
           findsOneWidget);
     });
 
@@ -270,9 +279,9 @@ void main() {
       // `hasExpandedState` / `isExpanded` are what a screen reader announces;
       // the chevron communicates the state to sighted users only.
       expect(
-        tester.getSemantics(find.text('Growing')),
+        tester.getSemantics(heading('Not started')),
         isSemantics(
-          label: 'Growing, 4 games',
+          label: 'Not started, 4 games',
           isHeader: true,
           isButton: true,
           hasExpandedState: true,
@@ -287,11 +296,11 @@ void main() {
       final handle = tester.ensureSemantics();
       await pump(tester);
 
-      await tester.tap(find.text('Growing'));
+      await tester.tap(heading('Not started'));
       await tester.pumpAndSettle();
 
       expect(
-        tester.getSemantics(find.text('Growing')),
+        tester.getSemantics(heading('Not started')),
         isSemantics(hasExpandedState: true, isExpanded: false),
       );
       handle.dispose();
@@ -302,8 +311,8 @@ void main() {
       await pump(tester);
 
       expect(
-        tester.getSemantics(find.text('In hand')),
-        isSemantics(label: 'In hand, 1 game'),
+        tester.getSemantics(heading('Playing')),
+        isSemantics(label: 'Playing, 1 game'),
       );
       handle.dispose();
     });
@@ -321,7 +330,7 @@ void main() {
 
       // Before this, a rating replaced the word, so the right-hand column
       // carried two different kinds of information depending on the row.
-      expect(find.text('Finished'), findsWidgets);
+      expect(heading('Finished'), findsWidgets);
       expect(find.byIcon(Icons.star), findsNWidgets(4));
     });
 

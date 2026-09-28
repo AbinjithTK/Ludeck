@@ -190,7 +190,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       SizedBox(height: Tokens.space.md),
                       _benefit('What to play tonight, narrowed by the time you '
                           'actually have and the console within reach'),
-                      _benefit('How a season went, harvested and set aside '
+                      _benefit('How a season went, finished and set aside '
                           'side by side'),
                       _benefit('What you have spent, per platform'),
                       _benefit('How long the rest of the collection would take'),
