@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'data/enums.dart';
 import 'data/models.dart';
 import 'ui/common/name_dialog.dart';
+import 'ui/publish/share_sheet.dart';
 import 'data/repository.dart';
 import 'services/catalog_service.dart';
 import 'services/share_intake.dart';
@@ -589,7 +590,12 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   /// The branch node's context menu (long-press or the â‹¯): rename, add a game
   /// here, add a sub-branch, delete. Replaces the old jump to the Branches
   /// screen -- every branch action now lives on the node itself.
-  void _branchMenu(LudeckStore store, Branch branch) {
+  /// A tree's (or branch's) own menu: everything about THIS tree in one
+  /// place, opened by tapping its name. [customise] is the tree's look
+  /// (colours, wood, props), passed in by the orchard, which owns that sheet.
+  void _branchMenu(LudeckStore store, Branch branch, {VoidCallback? customise}) {
+    final shareable = branch.parentId == null &&
+        store.tree.gamesUnder(branch.id).isNotEmpty;
     HapticFeedback.selectionClick();
     showModalBottomSheet<void>(
       context: context,
@@ -609,6 +615,28 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                       fontWeight: FontWeight.w700)),
             ),
           ),
+          if (customise != null)
+            ListTile(
+              key: const Key('tree-menu-customise'),
+              leading: Icon(Icons.palette_outlined, color: Tokens.palette.text),
+              title: Text('Colours and wood',
+                  style: TextStyle(color: Tokens.palette.text)),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                customise();
+              },
+            ),
+          if (shareable)
+            ListTile(
+              key: const Key('tree-menu-share'),
+              leading: Icon(Icons.ios_share_rounded, color: Tokens.palette.text),
+              title: Text('Share this tree',
+                  style: TextStyle(color: Tokens.palette.text)),
+              onTap: () {
+                Navigator.of(sheet).pop();
+                showShareSheet(context, scope: branch.name);
+              },
+            ),
           ListTile(
             leading: Icon(Icons.edit_outlined, color: Tokens.palette.text),
             title: Text('Rename', style: TextStyle(color: Tokens.palette.text)),
@@ -639,9 +667,9 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
           ),
           ListTile(
             leading: Icon(Icons.delete_outline, color: Tokens.palette.danger),
-            title: Text('Delete branch',
+            title: Text(branch.parentId == null ? 'Delete tree' : 'Delete branch',
                 style: TextStyle(color: Tokens.palette.danger)),
-            subtitle: Text('Games move back to the trunk',
+            subtitle: Text('Its games go back on the ground',
                 style: TextStyle(
                     color: Tokens.palette.textDim,
                     fontSize: Tokens.type.caption)),
@@ -659,7 +687,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
   Future<void> _renameBranch(LudeckStore store, Branch branch) async {
     final name = await showNameDialog(
       context,
-      title: 'Rename branch',
+      title: branch.parentId == null ? 'Rename tree' : 'Rename branch',
       confirmLabel: 'Rename',
       initial: branch.name,
     );
@@ -885,7 +913,8 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               onUnfileGame: (item, tree) => store.unplace(item.game.igdbId, tree),
               onPlay: (item) =>
                   _setProgressAndMaybeRate(store, item, Progress.playing),
-              onRenameTree: (tree) => _branchMenu(store, tree),
+              onTreeMenu: (tree, customise) =>
+                  _branchMenu(store, tree, customise: customise),
               styles: resolveTreeStyles(
                   treesOf(store.branches).map((b) => b.id).toList(),
                   store.treeStyles),
@@ -900,16 +929,19 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
                   icon: Icons.grid_view_rounded,
                   label: 'Library',
                   onTap: _openLibrary,
+                  avatar: false,
                 ),
                 (
-                  icon: Icons.people_alt_outlined,
+                  icon: Icons.group_outlined,
                   label: 'Friends',
                   onTap: _openFriends,
+                  avatar: false,
                 ),
                 (
-                  icon: Icons.person_outline_rounded,
+                  icon: Icons.person_rounded,
                   label: 'You',
                   onTap: _openProfile,
+                  avatar: true,
                 ),
               ],
               bottomInset: Tokens.space.md,

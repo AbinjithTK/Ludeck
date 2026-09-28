@@ -46,7 +46,7 @@ import 'publish_screen.dart'
     show toPublishedForBranch, toPublishedOffBranch, trunkGroupName;
 
 /// Open the share sheet for the store's collection.
-Future<void> showShareSheet(BuildContext context) {
+Future<void> showShareSheet(BuildContext context, {String? scope}) {
   final store = context.read<LudeckStore>();
   final backend = context.read<SocialBackend>();
   final items = store.items ?? const <TreeItem>[];
@@ -86,7 +86,8 @@ Future<void> showShareSheet(BuildContext context) {
         games: games,
         level: level,
         styles: styles,
-        trees: shareTrees),
+        trees: shareTrees,
+        initialScope: scope),
   );
 }
 
@@ -102,6 +103,7 @@ class ShareSheet extends StatefulWidget {
     required this.level,
     this.styles = const {},
     this.trees = const [],
+    this.initialScope,
   });
 
   final SocialBackend backend;
@@ -114,6 +116,9 @@ class ShareSheet extends StatefulWidget {
   /// always covers the whole orchard, and says so.
   final List<ShareTree> trees;
 
+  /// Open on this tree alone (by name), as from a tree's own menu.
+  final String? initialScope;
+
   @override
   State<ShareSheet> createState() => _ShareSheetState();
 }
@@ -125,7 +130,9 @@ class _ShareSheetState extends State<ShareSheet> {
   String? _error;
 
   /// The tree the card shows on its own, or null for the whole orchard.
-  String? _scope;
+  late String? _scope = widget.trees.any((t) => t.name == widget.initialScope)
+      ? widget.initialScope
+      : null;
 
   ShareTree? get _scoped =>
       widget.trees.where((t) => t.name == _scope).firstOrNull;

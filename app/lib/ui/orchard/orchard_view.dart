@@ -76,7 +76,7 @@ class OrchardView extends StatefulWidget {
     this.onFileGame,
     this.onUnfileGame,
     this.onPlay,
-    this.onRenameTree,
+    this.onTreeMenu,
     this.styles = const {},
     this.onStyleTree,
     this.unfiled = const [],
@@ -104,7 +104,10 @@ class OrchardView extends StatefulWidget {
 
   /// Start playing [item] (the shaken-loose pick's "Play it").
   final Future<void> Function(TreeItem item)? onPlay;
-  final void Function(Branch tree)? onRenameTree;
+  /// Tapping a tree's name opens its menu (rename, colours and wood, share,
+  /// and the rest). [customise] opens this tree's look sheet, which the
+  /// orchard owns; null when looks cannot be changed.
+  final void Function(Branch tree, VoidCallback? customise)? onTreeMenu;
 
   /// Each tree's look (`resolveTreeStyles`). A tree missing here gets its
   /// default for its position.
@@ -726,12 +729,18 @@ class _OrchardViewState extends State<OrchardView>
                 if (slot < games.length) widget.onOpenGame(games[slot]);
               },
               onShelf: () => _openShelf(tree, games),
-              onRename: widget.onRenameTree == null
-                  ? null
-                  : () => widget.onRenameTree!(tree),
-              onCustomise: widget.onStyleTree == null
-                  ? null
-                  : () => _customise(tree, trees),
+              onMenu: () {
+                final customise = widget.onStyleTree == null
+                    ? null
+                    : () => _customise(tree, trees);
+                final menu = widget.onTreeMenu;
+                if (menu != null) {
+                  HapticFeedback.selectionClick();
+                  menu(tree, customise);
+                } else {
+                  customise?.call();
+                }
+              },
               onShake: () => _shake(tree, games),
               onLongPressStart: (d) {
                 _dismissPick();
@@ -951,8 +960,7 @@ class _TreePage extends StatefulWidget {
     required this.groundFromBottom,
     required this.onFruit,
     required this.onShelf,
-    required this.onRename,
-    required this.onCustomise,
+    required this.onMenu,
     required this.onShake,
     required this.onLongPressStart,
     required this.onLongPressMove,
@@ -969,8 +977,8 @@ class _TreePage extends StatefulWidget {
   final double groundFromBottom;
   final void Function(int slot) onFruit;
   final VoidCallback onShelf;
-  final VoidCallback? onRename;
-  final VoidCallback? onCustomise;
+  /// Tapping the tree's name: its own menu.
+  final VoidCallback onMenu;
   final VoidCallback onShake;
   final GestureLongPressStartCallback onLongPressStart;
   final GestureLongPressMoveUpdateCallback onLongPressMove;
@@ -1028,8 +1036,11 @@ class _TreePageState extends State<_TreePage>
             ),
           ),
         ),
-        // Name and count top-left, clear of the canopy; the customise button
-        // top-right, where a screen's own actions go.
+        // Name and count top-left, clear of the canopy. The name is the
+        // tree's own menu (rename, colours and wood, share): everything about
+        // THIS tree, behind the one word that names it. The palette button
+        // that sat by the count and the long press that hid rename are gone
+        // (2026-09-28, direction B).
         SafeArea(
           child: Padding(
             padding: EdgeInsets.fromLTRB(
@@ -1042,26 +1053,42 @@ class _TreePageState extends State<_TreePage>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                GestureDetector(
-                  onLongPress: w.onRename,
-                  child: Text(
-                    tree.name,
-                    key: const Key('orchard-tree-name'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: Tokens.type.displayFamily,
-                      fontSize: Tokens.type.display,
-                      fontWeight: FontWeight.w700,
-                      color: Tokens.palette.text,
-                      letterSpacing: Tokens.type.trackingDisplay,
-                      height: Tokens.type.leadingDisplay,
+                Semantics(
+                  container: true,
+                  button: true,
+                  label: '${tree.name}. Tree options',
+                  excludeSemantics: true,
+                  child: InkWell(
+                    key: const Key('orchard-tree-menu'),
+                    borderRadius: BorderRadius.circular(Tokens.radius.card),
+                    onTap: w.onMenu,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Flexible(
+                          child: Text(
+                            tree.name,
+                            key: const Key('orchard-tree-name'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: Tokens.type.displayFamily,
+                              fontSize: Tokens.type.display,
+                              fontWeight: FontWeight.w700,
+                              color: Tokens.palette.text,
+                              letterSpacing: Tokens.type.trackingDisplay,
+                              height: Tokens.type.leadingDisplay,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: Tokens.space.xxs),
+                        Icon(Icons.expand_more_rounded,
+                            size: 26, color: Tokens.palette.textDim),
+                      ]),
                     ),
                   ),
                 ),
-                SizedBox(height: Tokens.space.xxs),
-                Row(mainAxisSize: MainAxisSize.min, children: [
-                Flexible(child: Semantics(
+                Semantics(
                   container: true,
                   button: true,
                   label: '${_count(games.length)} on ${tree.name}. Show all',
@@ -1069,39 +1096,26 @@ class _TreePageState extends State<_TreePage>
                   child: InkWell(
                     borderRadius: BorderRadius.circular(Tokens.radius.card),
                     onTap: w.onShelf,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: Tokens.space.xs),
-                      child: Text(
-                        extra > 0
-                            ? '${_count(games.length)}  ·  +$extra on the shelf'
-                            : _count(games.length),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: Tokens.type.body,
-                            color: Tokens.palette.textDim),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 44),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: 1,
+                        child: Text(
+                          extra > 0
+                              ? '${_count(games.length)}  ·  +$extra on the shelf'
+                              : _count(games.length),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: Tokens.type.body,
+                              fontWeight: FontWeight.w500,
+                              color: Tokens.palette.textDim),
+                        ),
                       ),
                     ),
                   ),
-                )),
-                // This tree's own look, beside its own count: it belongs to
-                // the tree, not to the app's actions at the top right. The
-                // shake is not here any more: it is the orchard's one playful
-                // action, so it sits in the thumb's reach by the add button.
-                if (w.onCustomise != null)
-                  IconButton(
-                    key: const Key('orchard-customise'),
-                    onPressed: w.onCustomise,
-                    // IconButton's tooltip does not reach semantics; the
-                    // icon's label does.
-                    icon: Icon(Icons.palette_outlined,
-                        size: 20,
-                        color: Tokens.palette.textDim,
-                        semanticLabel: 'Customise ${tree.name}'),
-                    style: IconButton.styleFrom(
-                        minimumSize: const Size.square(44)),
-                  ),
-                ]),
+                ),
               ],
             ),
                 ),
@@ -1542,7 +1556,14 @@ class _ShelfItem extends StatelessWidget {
 
 
 /// One of the orchard's top-right icon buttons.
-typedef OrchardAction = ({IconData icon, String label, VoidCallback onTap});
+/// A place to go from the orchard. [avatar] draws the icon on a filled disc
+/// (the person's own place, You), so it reads apart from the others.
+typedef OrchardAction = ({
+  IconData icon,
+  String label,
+  VoidCallback onTap,
+  bool avatar,
+});
 
 /// The shake button's diameter: a step below the add button (56), which
 /// stays the primary action.
@@ -1584,40 +1605,42 @@ class ShakeGlyph extends CustomPainter {
   bool shouldRepaint(ShakeGlyph old) => false;
 }
 
-/// Width the header leaves free for [_TopActions] (three 44pt buttons in a
-/// glass pill). Measured, not guessed: 3 x 44 + 2 x 2 gaps + 2 x 4 inset.
-const double kTopActionsW = 3 * 44 + 2 * 2 + 2 * 4;
+/// Width the header leaves free for [_TopActions]: three 44pt glass circles
+/// with [kTopActionsGap] between them.
+const double kTopActionsGap = 8;
+const double kTopActionsW = 3 * 44 + 2 * kTopActionsGap;
 
-/// Library, Friends and You as quiet icon buttons in one glass pill: the
-/// places the app goes besides the orchard, out of the scene's way.
+/// Library, Friends and You as three separate glass circles: the places the
+/// app goes besides the orchard, out of the scene's way. They were one glass
+/// capsule, which read as a toolbar laid over the sky. You is drawn as a
+/// filled avatar disc so it cannot be mistaken for Friends' two outlines.
 class _TopActions extends StatelessWidget {
   const _TopActions({required this.actions});
   final List<OrchardAction> actions;
 
   @override
   Widget build(BuildContext context) {
-    return Glass(
-      child: Padding(
-      padding: const EdgeInsets.all(4),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        for (var i = 0; i < actions.length; i++) ...[
-          if (i > 0) const SizedBox(width: 2),
-          IconButton(
-            key: Key('orchard-action-${actions[i].label.toLowerCase()}'),
-            onPressed: () {
-              HapticFeedback.selectionClick();
-              actions[i].onTap();
-            },
-            icon: Icon(actions[i].icon,
-                size: 22,
-                color: Tokens.palette.text,
-                semanticLabel: actions[i].label),
-            style: IconButton.styleFrom(minimumSize: const Size.square(44)),
-          ),
-        ],
-      ]),
-    ),
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      for (var i = 0; i < actions.length; i++) ...[
+        if (i > 0) const SizedBox(width: kTopActionsGap),
+        GlassButton(
+          key: Key('orchard-action-${actions[i].label.toLowerCase()}'),
+          size: 44,
+          label: actions[i].label,
+          onTap: actions[i].onTap,
+          child: actions[i].avatar
+              ? Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                      color: Tokens.palette.text, shape: BoxShape.circle),
+                  alignment: Alignment.center,
+                  child: Icon(actions[i].icon, size: 20, color: Tokens.palette.bg),
+                )
+              : Icon(actions[i].icon, size: 22, color: Tokens.palette.text),
+        ),
+      ],
+    ]);
   }
 }
 
