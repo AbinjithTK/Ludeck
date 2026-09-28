@@ -676,15 +676,10 @@ class _OrchardViewState extends State<OrchardView>
         Positioned.fill(
           child: RepaintBoundary(
             child: CustomPaint(
-                painter: MeadowBackPainter(scroll: _scroll, groundFromBottom: treeBottom,
-                    halos: [
-                      for (final t in trees)
-                        (
-                          _styleOf(t, trees).blossom.swatch,
-                          treeZoom(gamesOnTree(t, shape, byId).length)
-                        ),
-                      null, // the patch
-                    ])),
+                // No halos: the blossom's low-alpha glow on the sky banded
+                // into visible rings on a phone screen (2026-09-28, "avoid
+                // the color noise"). HaloPainter is kept, unused.
+                painter: MeadowBackPainter(scroll: _scroll, groundFromBottom: treeBottom)),
           ),
         ),
         // The back grass, on its own layer: it sways every frame.

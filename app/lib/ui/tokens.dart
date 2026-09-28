@@ -137,11 +137,17 @@ class _Orchard {
   /// The blossom's light on the sky: [blossom] at this alpha, fading to 0.
   final double haloAlpha = 0.16;
 
-  /// Meadow grass: blades from [grassBack] (far, darker) to [grassFront],
-  /// and a thin rim catching the sky on the tallest.
+  /// Meadow grass: blades from [grassBack] (far, darker) to [grassFront].
+  /// No outline anywhere (2026-09-28: the white-edged blades and stroked seed
+  /// heads read as drawn lines on top of the hill). Instead the tallest blades
+  /// carry a soft filled sliver of [grassMoon] down their lit side near the
+  /// tip, and the odd seed head is a filled grain in [grassSeed] with a
+  /// little of the same moonlight on it, so the grass reads as one surface
+  /// with the hill that the moon is catching.
   final Color grassBack = const Color(0xFF2B2452);
   final Color grassFront = const Color(0xFF3B316B);
-  final Color grassRim = const Color(0x66C3B4F0);
+  final Color grassMoon = const Color(0x2EC8BEF2);
+  final Color grassSeed = const Color(0xFF41377A);
 
   // Props. Muted, moonlit versions of real colours: the scene is at night,
   // and nothing here may out-shine a cover.

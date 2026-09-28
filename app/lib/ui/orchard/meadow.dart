@@ -233,7 +233,7 @@ void _paintGrass(Canvas canvas, Size size,
     required List<Color> shades,
     double depthBand = 0,
     double nearScale = 0.3,
-    Color? rim,
+    Color? moon,
     Color? seed,
     double time = 0,
     double wind = 0,
@@ -242,7 +242,7 @@ void _paintGrass(Canvas canvas, Size size,
     double? period}) {
   final pw = period ?? size.width;
   final paths = List.generate(shades.length, (_) => Path());
-  final rimPath = Path(), seedPath = Path();
+  final moonPath = Path(), seedPath = Path(), stemPath = Path();
   final first = ((scroll - maxH * 2) / spacing).floor();
   final last = ((scroll + size.width + maxH * 2) / spacing).ceil();
   for (var k = first; k <= last; k++) {
@@ -281,19 +281,45 @@ void _paintGrass(Canvas canvas, Size size,
         ..cubicTo(c1.dx - w * 0.35, c1.dy, c2.dx - w * 0.15, c2.dy, tip.dx, tip.dy)
         ..cubicTo(c2.dx + w * 0.25, c2.dy, c1.dx + w * 0.45, c1.dy, xr + w / 2, rootY)
         ..close();
-      if (rim != null && h > maxH * 0.7) {
-        rimPath
-          ..moveTo(c2.dx, c2.dy)
-          ..quadraticBezierTo((c2.dx + tip.dx) / 2, (c2.dy + tip.dy) / 2 - 1, tip.dx, tip.dy);
+      // Moonlight on a tall blade: a soft filled sliver down its lit (left,
+      // toward the moon) edge over the top third, tapering into the tip. A
+      // fill, not a stroke, so it is light ON the blade, not a line round it.
+      if (moon != null && h > maxH * 0.6) {
+        final a = Offset.lerp(c1, c2, 0.75)!;
+        moonPath
+          ..moveTo(a.dx - w * 0.3, a.dy)
+          ..quadraticBezierTo(c2.dx - w * 0.2, c2.dy, tip.dx, tip.dy)
+          ..quadraticBezierTo(c2.dx + w * 0.05, c2.dy, a.dx + w * 0.05, a.dy)
+          ..close();
       }
-      // A seed head on the odd tall stem in a lush clump.
+      // A seed head on the odd tall stem in a lush clump: a hair-thin filled
+      // stem, and a grain (a slim filled oval along the stem) at its end.
       if (seed != null && j == n ~/ 2 && lush > 0.55 && r3 > 0.72) {
         final sh = h * 1.35;
-        final st = Offset(xr + math.sin(lean * 1.1) * sh, rootY - math.cos(lean * 1.1) * sh);
-        seedPath
-          ..moveTo(xr, rootY - h * 0.2)
-          ..quadraticBezierTo(xr + math.sin(lean * 0.6) * sh * 0.6, rootY - sh * 0.62, st.dx, st.dy)
-          ..addOval(Rect.fromCenter(center: st, width: 2.6 * near, height: 6.5 * near));
+        final ang = lean * 1.1;
+        final st = Offset(xr + math.sin(ang) * sh, rootY - math.cos(ang) * sh);
+        final mid = Offset(xr + math.sin(lean * 0.6) * sh * 0.6, rootY - sh * 0.62);
+        final sw = 0.55 * near;
+        stemPath
+          ..moveTo(xr - sw, rootY - h * 0.2)
+          ..quadraticBezierTo(mid.dx - sw * 0.6, mid.dy, st.dx, st.dy)
+          ..quadraticBezierTo(mid.dx + sw * 0.6, mid.dy, xr + sw, rootY - h * 0.2)
+          ..close();
+        final gw = 2.4 * near, gh = 6.5 * near;
+        final m = Matrix4.identity()
+          ..translateByDouble(st.dx, st.dy, 0, 1)
+          ..rotateZ(ang);
+        seedPath.addPath(
+            Path()..addOval(Rect.fromCenter(center: Offset(0, -gh * 0.3), width: gw, height: gh)),
+            Offset.zero,
+            matrix4: m.storage);
+        // The grain's moonlit side.
+        moonPath.addPath(
+            Path()
+              ..addOval(Rect.fromCenter(
+                  center: Offset(-gw * 0.18, -gh * 0.45), width: gw * 0.5, height: gh * 0.6)),
+            Offset.zero,
+            matrix4: m.storage);
       }
     }
   }
@@ -301,20 +327,11 @@ void _paintGrass(Canvas canvas, Size size,
     canvas.drawPath(paths[i], Paint()..color = shades[i]);
   }
   if (seed != null) {
-    canvas.drawPath(
-        seedPath,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.9
-          ..color = seed);
+    canvas.drawPath(stemPath, Paint()..color = shades.last);
+    canvas.drawPath(seedPath, Paint()..color = seed);
   }
-  if (rim != null) {
-    canvas.drawPath(
-        rimPath,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 0.8
-          ..color = rim);
+  if (moon != null) {
+    canvas.drawPath(moonPath, Paint()..color = moon);
   }
 }
 
@@ -476,8 +493,8 @@ class MeadowGrassPainter extends CustomPainter {
         nearScale: 0.15,
         salt: 11,
         shades: [o.grassBack, Color.lerp(o.grassBack, o.grassFront, 0.5)!, o.grassFront],
-        rim: o.grassRim,
-        seed: Color.lerp(o.grassFront, o.grassRim, 0.35),
+        moon: o.grassMoon,
+        seed: o.grassSeed,
         time: clock?.t ?? 0,
         wind: clock?.wind ?? 0,
         touch: clock?.touch,

@@ -242,8 +242,7 @@ class _TreePreviewState extends State<TreePreview> {
           return Stack(fit: StackFit.expand, children: [
             CustomPaint(
                 painter: MeadowBackPainter(scroll: _still, groundFromBottom: soil)),
-            CustomPaint(
-                painter: HaloPainter(tree: r, colour: widget.style.blossom.swatch)),
+            // No halo here either: it banded into rings (see orchard_view).
             CustomPaint(
                 painter: DecorPainter(
                     tree: r,
