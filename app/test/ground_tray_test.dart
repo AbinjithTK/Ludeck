@@ -216,7 +216,13 @@ void main() {
     testWidgets('collapsed shows the count; a tap opens the strip, another closes it',
         (tester) async {
       await pump(tester, five);
-      expect(find.text('5 on the ground'), findsOneWidget);
+      expect(find.textContaining('on the ground', findRichText: true), findsNothing,
+          reason: 'no words on the ground, only the count badge');
+      expect(find.descendant(
+              of: find.byKey(const Key('tray-count')), matching: find.text('5')),
+          findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('5 games on the ground')), findsOneWidget,
+          reason: 'a screen reader still hears what the number counts');
       expect(find.byKey(const Key('ground-strip')), findsNothing);
       final closed = tester.getRect(find.byType(GroundTray));
       final closedPill = tester.getSize(find.descendant(

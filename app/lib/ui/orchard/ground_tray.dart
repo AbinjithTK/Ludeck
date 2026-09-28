@@ -228,46 +228,11 @@ class _GroundTrayState extends State<GroundTray>
       );
     }
     final n = items.length;
-    final label = n == 1 ? '1 on the ground' : '$n on the ground';
-    // Merged onto the ambient style so the width below is measured in the
-    // font the label is actually drawn in, not TextPainter's platform default.
-    // The number is set in the display face, the words in the UI face: the
-    // count is the thing you read, the words say what it counts.
-    final style = DefaultTextStyle.of(context).style.merge(TextStyle(
-        fontFamily: Tokens.type.ui,
-        fontSize: Tokens.type.caption,
-        fontWeight: FontWeight.w600,
-        // No glass behind it any more: a soft shadow keeps it readable over
-        // the grass and flowers.
-        shadows: [
-          Shadow(blurRadius: 8, color: Tokens.palette.bg.withValues(alpha: 0.8)),
-        ],
-        color: Tokens.palette.textDim));
-    final span = TextSpan(style: style, children: [
-      TextSpan(
-          text: '$n',
-          style: TextStyle(
-              fontFamily: Tokens.type.displayFamily,
-              fontSize: Tokens.type.title,
-              fontWeight: FontWeight.w700,
-              color: Tokens.palette.text)),
-      const TextSpan(text: ' on the ground'),
-    ]);
-    assert(span.toPlainText() == label);
-    final scaler = MediaQuery.textScalerOf(context);
-
     return LayoutBuilder(builder: (context, box) {
-      final labelW = (TextPainter(
-            text: span,
-            textScaler: scaler,
-            maxLines: 1,
-            textDirection: TextDirection.ltr,
-          )..layout())
-              .width +
-          Tokens.space.md;
       final openW = box.maxWidth;
-      // Never wider than the space: at large text the label gives way.
-      final closedW = math.min(2 * kTrayInset + kPileW + labelW, openW);
+      // Closed, the tray is just the pile: the count rides on it as a badge,
+      // no words beside it (2026-09-28).
+      final closedW = math.min(2 * kTrayInset + kPileW, openW);
       _travel = math.max(1, openW - closedW);
 
       return AnimatedBuilder(
@@ -289,25 +254,6 @@ class _GroundTrayState extends State<GroundTray>
               child: TrayFade(
                 fade: kTrayFadeW * t,
                 child: Stack(clipBehavior: Clip.hardEdge, children: [
-                // The count, riding out to the right as the pile deals.
-                Positioned(
-                  left: kPileW,
-                  top: 0,
-                  bottom: 0,
-                  width: labelW,
-                  child: IgnorePointer(
-                    child: Opacity(
-                      opacity: (1 - t * 2.4).clamp(0.0, 1.0),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text.rich(span,
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.fade),
-                      ),
-                    ),
-                  ),
-                ),
                 Positioned(
                   left: 0,
                   top: 0,
@@ -331,6 +277,18 @@ class _GroundTrayState extends State<GroundTray>
                   )
                 else
                   ..._dealt(items, t, inner),
+                // The count, a badge on the pile's front corner. It melts
+                // away as the pile deals, since the open row IS the count.
+                Positioned(
+                  left: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: (1 - t * 2.4).clamp(0.0, 1.0),
+                      child: TrayCount(n),
+                    ),
+                  ),
+                ),
                 // The handle: the whole pile while closed, the chevron once
                 // open. On top, so a pull on the pile always reaches it.
                 // KEYED: the number of cards before it changes every frame of
@@ -342,7 +300,7 @@ class _GroundTrayState extends State<GroundTray>
                   left: 0,
                   top: 0,
                   bottom: 0,
-                  width: t < 0.5 ? math.min(kPileW + labelW, inner) : kChevronW,
+                  width: t < 0.5 ? math.min(kPileW, inner) : kChevronW,
                   child: _handle(n, t),
                 ),
               ]),
@@ -662,6 +620,55 @@ class _FruitImageState extends State<FruitImage> {
   }
 }
 
+
+/// The ground's count as a small badge on the pile. Moonlight white with the
+/// night's ink for the number: the same pairing as the You avatar and the
+/// selected chip, so it reads as the app's neutral "this many", and it stays
+/// off gold (finished) and off every blossom colour, which each mean
+/// something else. A ring of the meadow's deepest shade lifts it off the
+/// cover it sits on. Two digits and up grow into a pill; past 99 it caps.
+class TrayCount extends StatelessWidget {
+  const TrayCount(this.n, {super.key});
+  final int n;
+
+  static const double size = 24;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('tray-count'),
+      height: size,
+      constraints: const BoxConstraints(minWidth: size),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      alignment: Alignment.center,
+      decoration: ShapeDecoration(
+        color: Tokens.palette.text,
+        shape: StadiumBorder(
+            side: BorderSide(color: Tokens.cosmos.hillDeep, width: 2)),
+        shadows: [
+          BoxShadow(
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+              color: Tokens.palette.bg.withValues(alpha: 0.5)),
+        ],
+      ),
+      child: Text(
+        n > 99 ? '99+' : '$n',
+        maxLines: 1,
+        // The badge is a fixed shape; the count is spoken by the handle's
+        // label, and a screen reader user never needs it bigger here.
+        textScaler: TextScaler.noScaling,
+        style: TextStyle(
+          fontFamily: Tokens.type.displayFamily,
+          fontSize: 13,
+          height: 1,
+          fontWeight: FontWeight.w700,
+          color: Tokens.palette.bg,
+        ),
+      ),
+    );
+  }
+}
 
 /// Fades [child] out over its last [fade] points on the right, so a row of
 /// covers dissolves into the glass instead of stopping at a cut edge. The mask
