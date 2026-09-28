@@ -29,6 +29,7 @@ import 'ui/harvest/rating_sheet.dart';
 import 'ui/library/library_screen.dart';
 import 'ui/onboarding/onboarding_screen.dart';
 import 'ui/profile/profile_screen.dart';
+import 'ui/settings/settings_screen.dart';
 import 'ui/tokens.dart';
 import 'ui/shell/add_menu.dart';
 // The orchard replaced the node tree / roadmap / canopy as home. Those views
@@ -963,22 +964,10 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               addButton: AddMenu(onAction: _onAdd),
               actions: [
                 (
-                  icon: Icons.grid_view_rounded,
-                  label: 'Library',
-                  onTap: _openLibrary,
+                  icon: Icons.settings_rounded,
+                  label: 'Settings',
+                  onTap: _openSettings,
                   avatar: false,
-                ),
-                (
-                  icon: Icons.group_outlined,
-                  label: 'Friends',
-                  onTap: _openFriends,
-                  avatar: false,
-                ),
-                (
-                  icon: Icons.person_rounded,
-                  label: 'You',
-                  onTap: _openProfile,
-                  avatar: true,
                 ),
               ],
               bottomInset: Tokens.space.md,
@@ -994,6 +983,17 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
 
   void _openFriends() => Navigator.of(context)
       .push(MaterialPageRoute(builder: (_) => const FriendsScreen()));
+
+  /// The orchard's one header button. It opens Settings, which is where
+  /// Library, Friends and You now live: three separate glass circles read as
+  /// a toolbar over the sky and, at a glance, Friends and You were the same
+  /// shape. Settings pushes each of them as its own route, unchanged.
+  void _openSettings() => Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => SettingsScreen(
+            onLibrary: _openLibrary,
+            onFriends: _openFriends,
+            onProfile: _openProfile,
+          )));
 
   /// The games on no branch (and not shelved), for the orchard's ground pile.
   List<TreeItem> _unfiled(List<TreeItem> items, LudeckStore store) {

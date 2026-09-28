@@ -211,25 +211,27 @@ void main() {
     expect(name.top, lessThan(915 * 0.2), reason: 'the name should lead the screen');
   });
 
-  testWidgets('header: the name opens the tree menu; three separate 44pt '
-      'buttons top right, each labelled', (tester) async {
+  testWidgets('header: the name opens the tree menu; one 44pt Settings '
+      'button top right, labelled', (tester) async {
     await plant(tester, 1, 2);
     await pump(tester);
     expect(find.byKey(const Key('orchard-customise')), findsNothing,
         reason: 'the palette button by the count is gone');
     final menu = tester.getSize(find.byKey(const Key('orchard-tree-menu')).first);
     expect(menu.height, greaterThanOrEqualTo(44));
+
+    // Library, Friends and You moved into Settings; the header now carries a
+    // single Settings circle in their place.
     for (final label in ['Library', 'Friends', 'You']) {
-      final b = find.byKey(Key('orchard-action-${label.toLowerCase()}'));
-      expect(b, findsOneWidget);
-      final s = tester.getSize(b);
-      expect(s.width, greaterThanOrEqualTo(44));
-      expect(s.height, greaterThanOrEqualTo(44));
-      expect(find.bySemanticsLabel(label), findsWidgets);
+      expect(find.byKey(Key('orchard-action-${label.toLowerCase()}')), findsNothing,
+          reason: '$label moved into Settings and is no longer a header circle');
     }
-    final lib = tester.getRect(find.byKey(const Key('orchard-action-library')));
-    final you = tester.getRect(find.byKey(const Key('orchard-action-you')));
-    expect(you.left - lib.right, greaterThan(44), reason: 'separate circles with gaps');
+    final settings = find.byKey(const Key('orchard-action-settings'));
+    expect(settings, findsOneWidget);
+    final s = tester.getSize(settings);
+    expect(s.width, greaterThanOrEqualTo(44));
+    expect(s.height, greaterThanOrEqualTo(44));
+    expect(find.bySemanticsLabel('Settings'), findsWidgets);
 
     await tester.tap(find.bySemanticsLabel('Tree 1. Tree options'));
     await tester.pumpAndSettle();

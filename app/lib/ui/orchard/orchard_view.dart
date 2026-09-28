@@ -1604,15 +1604,18 @@ class ShakeGlyph extends CustomPainter {
   bool shouldRepaint(ShakeGlyph old) => false;
 }
 
-/// Width the header leaves free for [_TopActions]: three 44pt glass circles
-/// with [kTopActionsGap] between them.
+/// Width the header leaves free for [_TopActions]: one 44pt glass circle.
+/// (It was three -- Library, Friends and You -- until they moved into
+/// Settings, which is now the single button here.)
 const double kTopActionsGap = 8;
-const double kTopActionsW = 3 * 44 + 2 * kTopActionsGap;
+const double kTopActionsW = 44;
 
-/// Library, Friends and You as three separate glass circles: the places the
-/// app goes besides the orchard, out of the scene's way. They were one glass
-/// capsule, which read as a toolbar laid over the sky. You is drawn as a
-/// filled avatar disc so it cannot be mistaken for Friends' two outlines.
+/// The header's action circles. Today there is one -- Settings -- but the
+/// widget stays list-driven: Library, Friends and You used to be three
+/// separate circles here, which read as a toolbar laid over the sky and, at
+/// a glance, Friends (two outlines) and You (one) were the same shape. They
+/// moved into Settings; [avatar] still draws a filled disc if a future
+/// action wants it.
 class _TopActions extends StatelessWidget {
   const _TopActions({required this.actions});
   final List<OrchardAction> actions;
