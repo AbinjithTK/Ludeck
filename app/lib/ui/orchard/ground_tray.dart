@@ -24,6 +24,7 @@
 //  - reduce motion: it opens and closes instantly
 
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -89,7 +90,12 @@ class GroundTray extends StatefulWidget {
     required this.onLiftMove,
     required this.onLiftEnd,
     this.lifted,
+    this.receiving = false,
   });
+
+  /// A fruit taken off a tree is being held over the tray: it will go back
+  /// on the ground if dropped here, so the tray says so.
+  final bool receiving;
 
   final List<TreeItem> items;
 
@@ -186,7 +192,29 @@ class _GroundTrayState extends State<GroundTray>
   @override
   Widget build(BuildContext context) {
     final items = widget.items;
-    if (items.isEmpty) return const SizedBox.shrink();
+    if (items.isEmpty) {
+      if (!widget.receiving) return const SizedBox.shrink();
+      // Nothing on the ground yet, but a fruit is on its way down.
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: _Glass(
+          lit: true,
+          child: SizedBox(
+            height: kTrayH - 2,
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: Tokens.space.lg),
+              child: Center(
+                widthFactor: 1,
+                child: Text('Put it on the ground',
+                    style: TextStyle(
+                        fontSize: Tokens.type.caption,
+                        color: Tokens.palette.text)),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final n = items.length;
     final label = n == 1 ? '1 on the ground' : '$n on the ground';
     final style =
@@ -215,15 +243,11 @@ class _GroundTrayState extends State<GroundTray>
           final inner = w - 2 * kTrayInset;
           return Align(
             alignment: Alignment.centerLeft,
-            child: Container(
+            child: _Glass(
+              lit: widget.receiving,
+              child: Container(
               width: w,
               height: kTrayH,
-              decoration: BoxDecoration(
-                color: Tokens.cosmos.panelDeep,
-                borderRadius: BorderRadius.circular(kTrayH / 2),
-                border: Border.all(color: Tokens.cosmos.panelEdge),
-              ),
-              clipBehavior: Clip.antiAlias,
               padding: const EdgeInsets.all(kTrayInset - 1),
               child: Stack(clipBehavior: Clip.hardEdge, children: [
                 // The count, riding out to the right as the pile deals.
@@ -284,6 +308,7 @@ class _GroundTrayState extends State<GroundTray>
                   child: _handle(n, t),
                 ),
               ]),
+            ),
             ),
           );
         },
@@ -555,3 +580,43 @@ class _FruitImageState extends State<FruitImage> {
   }
 }
 
+
+/// Frosted glass, the way a material sits over a live scene: the meadow
+/// behind is blurred and tinted, not merely darkened, so the controls take
+/// the scene's own colour and belong to it. [lit] brightens the edge when the
+/// tray is a drop target.
+class _Glass extends StatelessWidget {
+  const _Glass({required this.child, this.lit = false});
+  final Widget child;
+  final bool lit;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = BorderRadius.circular(kTrayH / 2);
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    return AnimatedScale(
+      scale: lit ? 1.03 : 1,
+      duration: Tokens.motion.maybe(Tokens.motion.swap, reduceMotion: reduce),
+      curve: Tokens.motion.easeOut,
+      child: ClipRRect(
+        borderRadius: r,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: AnimatedContainer(
+            duration: Tokens.motion.maybe(Tokens.motion.swap, reduceMotion: reduce),
+            decoration: BoxDecoration(
+              color: Tokens.cosmos.panelDeep,
+              borderRadius: r,
+              border: Border.all(
+                  color: lit
+                      ? Tokens.palette.text.withValues(alpha: 0.7)
+                      : Tokens.cosmos.panelEdge,
+                  width: lit ? 1.5 : 1),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}

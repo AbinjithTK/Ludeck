@@ -735,3 +735,63 @@ class DecorPainter extends CustomPainter {
       old.pageIndex != pageIndex ||
       !setEquals(old.decor, decor);
 }
+
+/// Where a tree meets the meadow: a soft contact shadow at the trunk's foot,
+/// so the tree stands ON the ground instead of floating over it. On the empty
+/// patch ([patch]) it is a mound of turned earth waiting for a seed instead.
+/// Feathered radial fills only: no hard edge anywhere, so it blends with the
+/// ridge and the grass painted over and under it.
+class GroundContactPainter extends CustomPainter {
+  GroundContactPainter({
+    required this.tree,
+    required this.groundY,
+    required this.pageIndex,
+    this.patch = false,
+  });
+
+  final Rect tree;
+  final double groundY;
+  final int pageIndex;
+  final bool patch;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = tree.width / kTreeArtW;
+    final x = tree.left + kTreeBaseX * s;
+    final y = ridgeY(pageIndex * size.width + x, size.width, groundY) + 2;
+    final c = Tokens.cosmos;
+    void soft(double w, double h, Color colour, double alpha, {double dy = 0}) {
+      canvas.save();
+      canvas.translate(x, y + dy);
+      canvas.scale(1, h / w);
+      final r = w / 2;
+      canvas.drawCircle(
+          Offset.zero,
+          r,
+          Paint()
+            ..shader = RadialGradient(colors: [
+              colour.withValues(alpha: alpha),
+              colour.withValues(alpha: alpha * 0.45),
+              colour.withValues(alpha: 0),
+            ], stops: const [0, 0.55, 1])
+                .createShader(Rect.fromCircle(center: Offset.zero, radius: r)));
+      canvas.restore();
+    }
+
+    if (patch) {
+      // Turned earth: a low dark mound with a faint lit top.
+      soft(130 * s, 22 * s, c.hillDeep, 0.9);
+      soft(84 * s, 10 * s, c.hillRim, 0.10, dy: -3 * s);
+      return;
+    }
+    soft(150 * s, 20 * s, c.hillDeep, 0.75); // the canopy's shade
+    soft(54 * s, 9 * s, c.hillDeep, 0.9); // the trunk's own foot
+  }
+
+  @override
+  bool shouldRepaint(GroundContactPainter old) =>
+      old.tree != tree ||
+      old.groundY != groundY ||
+      old.pageIndex != pageIndex ||
+      old.patch != patch;
+}

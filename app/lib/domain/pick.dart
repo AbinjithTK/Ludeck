@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../data/enums.dart';
 import '../data/models.dart';
 
@@ -114,4 +116,38 @@ String _reasonFor(TreeItem item, double? hoursFree) {
       // Unreachable: both are filtered out before a candidate can be chosen.
       return 'Not started yet.';
   }
+}
+
+/// Shake the tree: one game, at random, from what on it can be played now.
+///
+/// The roulette. Not uniform: a game already in hand is three times as likely
+/// to fall as one not started, and an installed one twice, because the point
+/// of shaking is to get something you will actually pick up tonight. Anything
+/// finished, set aside, not owned (a bud) or shelved never falls. [avoid] is
+/// the last game that fell: "shake again" never hands back the same game while
+/// there is another. Null when nothing on the tree can fall.
+Pick? shakePick(List<TreeItem> items, math.Random rnd, {int? avoid}) {
+  var pool = items
+      .where((i) =>
+          !i.entry.shelved &&
+          i.entry.ownership == Ownership.owned &&
+          i.entry.progress != Progress.finished &&
+          i.entry.progress != Progress.abandoned)
+      .toList();
+  if (pool.isEmpty) return null;
+  if (avoid != null && pool.length > 1) {
+    pool = pool.where((i) => i.game.igdbId != avoid).toList();
+  }
+  int weight(TreeItem i) => switch (i.entry.progress) {
+        Progress.playing => 3,
+        Progress.installed => 2,
+        _ => 1,
+      };
+  final total = pool.fold<int>(0, (s, i) => s + weight(i));
+  var r = rnd.nextInt(total);
+  for (final i in pool) {
+    r -= weight(i);
+    if (r < 0) return Pick(item: i, reason: _reasonFor(i, null));
+  }
+  return Pick(item: pool.last, reason: _reasonFor(pool.last, null));
 }

@@ -289,7 +289,10 @@ def planting_components():
             </Shape>
             <Shape name="Soil">
                 <Ellipse width="96" height="18" name="P"/>
-                <Fill name="F"><SolidColor colorValue="FF0B0A1C" name="C"/></Fill>
+                <!-- Transparent: the app paints the patch's tilled earth on
+                     the meadow itself; a flat black oval here floated over
+                     the grass like a hole in the picture. -->
+                <Fill name="F"><SolidColor colorValue="000B0A1C" name="C"/></Fill>
             </Shape>
         </Node>'''
 

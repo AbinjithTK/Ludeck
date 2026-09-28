@@ -92,6 +92,28 @@ void main() {
     expect(find.bySemanticsLabel('Plant a new tree'), findsOneWidget);
   });
 
+  testWidgets('shake the tree: a game falls and its card offers to play it',
+      (tester) async {
+    await plant(tester, 1, 4);
+    await pump(tester);
+    expect(find.byType(PickCard), findsNothing);
+    await tester.tap(find.byKey(const Key('orchard-shake')));
+    await tester.pump(kPickDelay + const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
+    expect(find.byType(PickCard), findsOneWidget);
+    expect(find.textContaining('Fell from Tree 1'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('pick-again')));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(kPickDelay + const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
+    expect(find.byType(PickCard), findsOneWidget, reason: 'shook again');
+
+    await tester.tap(find.byKey(const Key('pick-close')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PickCard), findsNothing, reason: 'put back');
+  });
+
   testWidgets('games on no tree sit in the ground tray, which opens into covers',
       (tester) async {
     await pump(tester);

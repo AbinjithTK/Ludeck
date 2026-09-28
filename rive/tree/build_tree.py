@@ -169,7 +169,10 @@ def _tone(argb, blossom="blossom", wood="plum"):
     kind = classify(argb)
     deg, l, s = _hls(argb)
     if kind == "grass":
-        return a + HILL_TOP[2:]
+        # Invisible: the app paints the meadow's grass (meadow.dart), live and
+        # continuous across trees. Kept as silhouettes, these tufts read as a
+        # black block at every trunk's foot on device (2026-09-27).
+        return "00" + HILL_TOP[2:]
     if kind == "bark":
         w = WOODS[wood]
         if w is None:

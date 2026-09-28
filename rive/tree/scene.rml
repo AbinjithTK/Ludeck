@@ -613,7 +613,10 @@
             </Shape>
             <Shape name="Soil">
                 <Ellipse width="96" height="18" name="P"/>
-                <Fill name="F"><SolidColor colorValue="FF0B0A1C" name="C"/></Fill>
+                <!-- Transparent: the app paints the patch's tilled earth on
+                     the meadow itself; a flat black oval here floated over
+                     the grass like a hole in the picture. -->
+                <Fill name="F"><SolidColor colorValue="000B0A1C" name="C"/></Fill>
             </Shape>
         </Node>
         <Node name="CanopyTap" id="5:20200">
@@ -664,7 +667,7 @@
                     <StraightVertex x="101.6226" y="-3.051758e-05" id="5:140"/>
                 </PointsPath>
                 <Fill id="5:1315">
-                    <SolidColor colorValue="FF1A1531" id="5:141"/>
+                    <SolidColor colorValue="001A1531" id="5:141"/>
                 </Fill>
             </Shape>
             <Node name="Trunk_texture" x="1.595215" y="-214.5053" id="5:142">
@@ -2112,7 +2115,7 @@
             </KeyedObject>
             <KeyedObject objectId="5:141">
                 <KeyedProperty propertyKey="37">
-                    <KeyFrameColor interpolationType="1" value="FF1A1531"/>
+                    <KeyFrameColor interpolationType="1" value="001A1531"/>
                 </KeyedProperty>
             </KeyedObject>
             <KeyedObject objectId="5:600">
@@ -2495,7 +2498,7 @@
             </KeyedObject>
             <KeyedObject objectId="5:141">
                 <KeyedProperty propertyKey="37">
-                    <KeyFrameColor interpolationType="1" value="FF1A1531"/>
+                    <KeyFrameColor interpolationType="1" value="001A1531"/>
                 </KeyedProperty>
             </KeyedObject>
             <KeyedObject objectId="5:174">
@@ -3768,7 +3771,7 @@
             </KeyedObject>
             <KeyedObject objectId="5:141">
                 <KeyedProperty propertyKey="37">
-                    <KeyFrameColor interpolationType="1" value="FF1A1531"/>
+                    <KeyFrameColor interpolationType="1" value="001A1531"/>
                 </KeyedProperty>
             </KeyedObject>
             <KeyedObject objectId="5:174">

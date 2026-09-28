@@ -17,6 +17,8 @@
 // a real button that opens the tree's full, accessible list.
 
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
@@ -24,8 +26,10 @@ import 'package:flutter/services.dart';
 // Prefixed: rive_native exports its own Animation / Image / Fit names.
 import 'package:rive/rive.dart' as rv;
 
+import '../../data/enums.dart';
 import '../../data/models.dart';
 import '../../domain/branch_tree.dart';
+import '../../domain/pick.dart';
 import '../common/name_dialog.dart';
 import '../tokens.dart';
 import 'fruit_flight.dart';
@@ -70,6 +74,8 @@ class OrchardView extends StatefulWidget {
     required this.onPlantTree,
     required this.onMoveGame,
     this.onFileGame,
+    this.onUnfileGame,
+    this.onPlay,
     this.onRenameTree,
     this.styles = const {},
     this.onStyleTree,
@@ -92,6 +98,12 @@ class OrchardView extends StatefulWidget {
 
   /// Hang [item], from the ground, on tree [treeId].
   final Future<void> Function(TreeItem item, int treeId)? onFileGame;
+
+  /// Take [item] off tree [fromTree] and put it back on the ground.
+  final Future<void> Function(TreeItem item, int fromTree)? onUnfileGame;
+
+  /// Start playing [item] (the shaken-loose pick's "Play it").
+  final Future<void> Function(TreeItem item)? onPlay;
   final void Function(Branch tree)? onRenameTree;
 
   /// Each tree's look (`resolveTreeStyles`). A tree missing here gets its
@@ -121,6 +133,13 @@ class OrchardView extends StatefulWidget {
 /// How far above the finger a held card's centre sits, so the finger never
 /// hides the cover being placed. And the held card's width.
 const double kHoldAbove = 70, kHeldW = 58;
+
+/// The hover target meaning "the ground tray", not a tree.
+const int kGroundTarget = -1;
+
+/// How long after a shake the pick card rises: the tree shakes, the fruit
+/// falls and lands (the file's drop, ~1s), then the card.
+const Duration kPickDelay = Duration(milliseconds: 1000);
 
 class _OrchardViewState extends State<OrchardView>
     with SingleTickerProviderStateMixin {
@@ -166,6 +185,88 @@ class _OrchardViewState extends State<OrchardView>
   /// The soil line's distance from the bottom, from the last layout.
   double _treeBottom = 0;
 
+  /// The tray's whole row: a fruit held over it goes back on the ground.
+  final GlobalKey _trayKey = GlobalKey();
+
+  // ---- the shake (roulette) ----------------------------------------------
+  final math.Random _rnd = math.Random();
+  Pick? _pick;
+  Branch? _pickTree;
+  int? _lastPickId;
+  Timer? _pickTimer;
+  int _pickPage = 0;
+
+  /// Shake [tree]: a random playable game on it falls (the file's drop), and
+  /// a card rises with what fell and why. Only fruit that is HANGING can fall,
+  /// so the pool is the first [kTreeSlots] games.
+  void _shake(Branch tree, List<TreeItem> games, {bool again = false}) {
+    final c = _controllers[tree.id];
+    final hanging = games.take(kTreeSlots).toList();
+    final pick = shakePick(hanging, _rnd, avoid: again ? _lastPickId : null);
+    _pickTimer?.cancel();
+    if (pick == null) {
+      // Nothing can fall: the tree still answers, and says why in words.
+      HapticFeedback.lightImpact();
+      c?.rustle();
+      setState(() {
+        _pick = null;
+        _pickTree = tree;
+        _nothingToShake = true;
+      });
+      _pickTimer = Timer(const Duration(milliseconds: 2400), () {
+        if (mounted) setState(() => _nothingToShake = false);
+      });
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    final slot = hanging.indexWhere((i) => i.game.igdbId == pick.item.game.igdbId);
+    if (again && _pick != null) {
+      // The last pick hangs back first, then the tree shakes again.
+      c?.drop(-1);
+      setState(() => _pick = null);
+      _pickTimer = Timer(const Duration(milliseconds: 380), () {
+        if (!mounted) return;
+        c?.drop(slot);
+        _pickTimer = Timer(kPickDelay, () => _showPick(tree, pick));
+      });
+      return;
+    }
+    c?.drop(slot);
+    setState(() {
+      _nothingToShake = false;
+      _pickTree = tree;
+      _pickPage = _page.value.round();
+    });
+    _pickTimer = Timer(
+        MediaQuery.disableAnimationsOf(context) ? Duration.zero : kPickDelay,
+        () => _showPick(tree, pick));
+  }
+
+  bool _nothingToShake = false;
+
+  void _showPick(Branch tree, Pick pick) {
+    if (!mounted) return;
+    HapticFeedback.lightImpact(); // it has landed
+    setState(() {
+      _pick = pick;
+      _pickTree = tree;
+      _lastPickId = pick.item.game.igdbId;
+    });
+  }
+
+  /// Put the fruit back and take the card away.
+  void _dismissPick() {
+    _pickTimer?.cancel();
+    final t = _pickTree;
+    if (t != null) _controllers[t.id]?.drop(-1);
+    if (_pick != null || _nothingToShake) {
+      setState(() {
+        _pick = null;
+        _nothingToShake = false;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -173,6 +274,11 @@ class _OrchardViewState extends State<OrchardView>
       if (!_pages.hasClients) return;
       _scroll.value = _pages.offset;
       _page.value = _pages.page ?? 0;
+      // Swiping to another tree puts a shaken-loose pick back.
+      if ((_pick != null || _pickTimer?.isActive == true) &&
+          (_page.value - _pickPage).abs() > 0.5) {
+        _dismissPick();
+      }
     });
   }
 
@@ -199,6 +305,7 @@ class _OrchardViewState extends State<OrchardView>
 
   @override
   void dispose() {
+    _pickTimer?.cancel();
     _ambient.dispose();
     _clock.dispose();
     _pages.dispose();
@@ -338,6 +445,14 @@ class _OrchardViewState extends State<OrchardView>
       if ((r.contains(card) || r.contains(at)) && e.key != _heldFrom) over = e.key;
     }
     final here = _currentTree;
+    if (over == null && _heldFrom != null) {
+      // Off a tree and over the tray: back on the ground.
+      final box = _trayKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box != null && box.hasSize) {
+        final r = (box.localToGlobal(Offset.zero) & box.size).inflate(12);
+        if (r.contains(card) || r.contains(at)) over = kGroundTarget;
+      }
+    }
     if (over == null && here != null && here.id != _heldFrom) {
       final r = _canopyGlobal(_gamesOn(here).length);
       if (r != null && r.contains(card)) {
@@ -371,6 +486,18 @@ class _OrchardViewState extends State<OrchardView>
       _hoverTarget = null;
       _hoverCanopy = false;
     });
+
+    if (target == kGroundTarget && from != null) {
+      // Back on the ground: into the pile, where the tray keeps it.
+      final box = _trayKey.currentContext?.findRenderObject() as RenderBox?;
+      final pile = box != null && box.hasSize
+          ? box.localToGlobal(Offset(kTrayInset + kPileW / 2, box.size.height / 2))
+          : card;
+      _fly(item, from: card, velocity: v, to: pile, toWidth: 26);
+      HapticFeedback.lightImpact();
+      await widget.onUnfileGame?.call(item, from);
+      return;
+    }
 
     Future<void> commit() async {
       if (tree == null) return;
@@ -588,7 +715,11 @@ class _OrchardViewState extends State<OrchardView>
               onCustomise: widget.onStyleTree == null
                   ? null
                   : () => _customise(tree, trees),
-              onLongPressStart: (d) => _liftFromTree(tree, games, d),
+              onShake: () => _shake(tree, games),
+              onLongPressStart: (d) {
+                _dismissPick();
+                _liftFromTree(tree, games, d);
+              },
               onLongPressMove: (d) => _carry(d.globalPosition),
               onLongPressEnd: (d) => _land(d.globalPosition, d.velocity),
             );
@@ -638,13 +769,17 @@ class _OrchardViewState extends State<OrchardView>
           right: Tokens.space.md + Tokens.size.control + Tokens.space.sm,
           bottom: rowBottom,
           height: rowH,
-          child: GroundTray(
+          child: SizedBox.expand(
+            key: _trayKey,
+            child: GroundTray(
             items: widget.unfiled,
             onOpen: widget.onOpenGame,
             lifted: _held ?? _returning,
+            receiving: _hoverTarget == kGroundTarget,
             onLift: (item, from, at) => _lift(item, null, from, at),
             onLiftMove: _carry,
             onLiftEnd: _land,
+          ),
           ),
         ),
         if (widget.addButton != null)
@@ -663,6 +798,57 @@ class _OrchardViewState extends State<OrchardView>
           ),
 
         for (final f in _flights) f.$2,
+
+        // What the shake knocked loose, rising from the ground.
+        Positioned(
+          left: Tokens.space.md,
+          right: Tokens.space.md,
+          // Over the tray and dots, below the soil: the fruit that fell stays
+          // in view on the grass above the card.
+          bottom: rowBottom,
+          child: AnimatedSwitcher(
+            duration: Tokens.motion.maybe(Tokens.motion.grow,
+                reduceMotion: MediaQuery.disableAnimationsOf(context)),
+            reverseDuration: Tokens.motion.maybe(Tokens.motion.swap,
+                reduceMotion: MediaQuery.disableAnimationsOf(context)),
+            switchInCurve: Tokens.motion.easeOut,
+            switchOutCurve: Tokens.motion.easeOut,
+            transitionBuilder: (child, a) => FadeTransition(
+              opacity: a,
+              child: SlideTransition(
+                position: Tween(begin: const Offset(0, 0.25), end: Offset.zero)
+                    .animate(a),
+                child: child,
+              ),
+            ),
+            child: _pick != null
+                ? PickCard(
+                    key: ValueKey('pick-${_pick!.item.game.igdbId}'),
+                    pick: _pick!,
+                    treeName: _pickTree?.name ?? '',
+                    onPlay: () async {
+                      final item = _pick!.item;
+                      _dismissPick();
+                      await widget.onPlay?.call(item);
+                    },
+                    onAgain: () {
+                      final t = _pickTree;
+                      if (t != null) _shake(t, _gamesOn(t), again: true);
+                    },
+                    onOpen: () {
+                      final item = _pick!.item;
+                      _dismissPick();
+                      widget.onOpenGame(item);
+                    },
+                    onClose: _dismissPick,
+                  )
+                : _nothingToShake
+                    ? _NothingToShake(
+                        key: const ValueKey('pick-none'),
+                        treeName: _pickTree?.name ?? '')
+                    : const SizedBox.shrink(key: ValueKey('pick-off')),
+          ),
+        ),
 
         if (_held != null)
           _HeldFruit(
@@ -714,6 +900,7 @@ class _TreePage extends StatefulWidget {
     required this.onShelf,
     required this.onRename,
     required this.onCustomise,
+    required this.onShake,
     required this.onLongPressStart,
     required this.onLongPressMove,
     required this.onLongPressEnd,
@@ -731,6 +918,7 @@ class _TreePage extends StatefulWidget {
   final VoidCallback onShelf;
   final VoidCallback? onRename;
   final VoidCallback? onCustomise;
+  final VoidCallback onShake;
   final GestureLongPressStartCallback onLongPressStart;
   final GestureLongPressMoveUpdateCallback onLongPressMove;
   final GestureLongPressEndCallback onLongPressEnd;
@@ -757,6 +945,8 @@ class _TreePageState extends State<_TreePage>
       children: [
         GestureDetector(
           behavior: HitTestBehavior.translucent,
+          // Double-tap the tree to shake it, like the button.
+          onDoubleTap: w.onShake,
           onLongPressStart: w.onLongPressStart,
           onLongPressMoveUpdate: w.onLongPressMove,
           onLongPressEnd: w.onLongPressEnd,
@@ -841,6 +1031,27 @@ class _TreePageState extends State<_TreePage>
                 )),
                 // This tree's own look, beside its own name: it belongs to
                 // the tree, not to the app's actions at the top right.
+                // Labelled, not a bare icon: "shake the tree" is this app's
+                // own idea and a die alone would not say it.
+                TextButton.icon(
+                  key: const Key('orchard-shake'),
+                  onPressed: w.onShake,
+                  icon: Icon(Icons.casino_outlined,
+                      size: 18, color: Tokens.palette.text),
+                  label: Text('Shake',
+                      semanticsLabel: 'Shake ${tree.name} for something to play',
+                      style: TextStyle(
+                          fontSize: Tokens.type.caption,
+                          fontWeight: FontWeight.w600,
+                          color: Tokens.palette.text)),
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(44, 36),
+                    padding: EdgeInsets.symmetric(horizontal: Tokens.space.sm),
+                    backgroundColor: Tokens.cosmos.panel,
+                    shape: StadiumBorder(
+                        side: BorderSide(color: Tokens.cosmos.panelEdge)),
+                  ),
+                ),
                 if (w.onCustomise != null)
                   IconButton(
                     key: const Key('orchard-customise'),
@@ -1023,6 +1234,14 @@ class _Stage extends StatelessWidget {
           // No clip: the halo and fireflies are soft light wider than a page.
           // Clipped, each tree's glow ended in a hard vertical edge mid-swipe.
           return Stack(clipBehavior: Clip.none, children: [
+            Positioned.fill(
+                child: IgnorePointer(
+                    child: CustomPaint(
+                        painter: GroundContactPainter(
+                            tree: r,
+                            groundY: groundY,
+                            pageIndex: pageIndex,
+                            patch: st == null)))),
             if (st != null)
               Positioned.fill(
                   child: IgnorePointer(child: RepaintBoundary(child: decor(false)))),
@@ -1299,7 +1518,11 @@ class _TopActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: BackdropFilter(
+      filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+      child: Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: Tokens.cosmos.panelDeep,
@@ -1323,6 +1546,148 @@ class _TopActions extends StatelessWidget {
           ),
         ],
       ]),
+    ),
+    ),
     );
   }
+}
+
+/// What a shake knocked loose: the game, the true reason it is a good pick
+/// tonight (pick.dart), and what to do with it. Frosted glass over the
+/// meadow, so the fallen fruit stays in view above it.
+class PickCard extends StatelessWidget {
+  const PickCard({
+    super.key,
+    required this.pick,
+    required this.treeName,
+    required this.onPlay,
+    required this.onAgain,
+    required this.onOpen,
+    required this.onClose,
+  });
+
+  final Pick pick;
+  final String treeName;
+  final VoidCallback onPlay, onAgain, onOpen, onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = pick.item;
+    final playing = item.entry.progress == Progress.playing;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(Tokens.radius.panel),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: EdgeInsets.all(Tokens.space.sm),
+          decoration: BoxDecoration(
+            color: Tokens.cosmos.panelDeep,
+            borderRadius: BorderRadius.circular(Tokens.radius.panel),
+            border: Border.all(color: Tokens.cosmos.panelEdge),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Semantics(
+              button: true,
+              label: 'Open ${item.game.title}',
+              excludeSemantics: true,
+              child: GestureDetector(
+                onTap: onOpen,
+                child: FruitImage(
+                    game: item.game, look: lookOf(item), width: 66, radius: 8),
+              ),
+            ),
+            SizedBox(width: Tokens.space.sm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(children: [
+                    Expanded(
+                      child: Text('Fell from $treeName',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: Tokens.type.caption,
+                              color: Tokens.palette.textDim)),
+                    ),
+                    IconButton(
+                      key: const Key('pick-close'),
+                      onPressed: onClose,
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(Icons.close_rounded,
+                          size: 18,
+                          color: Tokens.palette.textDim,
+                          semanticLabel: 'Put it back'),
+                    ),
+                  ]),
+                  Text(item.game.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: Tokens.type.title,
+                          fontWeight: FontWeight.w700,
+                          color: Tokens.palette.text)),
+                  SizedBox(height: Tokens.space.xxs),
+                  Text(pick.reason,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: Tokens.type.caption,
+                          color: Tokens.palette.textDim)),
+                  SizedBox(height: Tokens.space.sm),
+                  Wrap(spacing: Tokens.space.xs, runSpacing: Tokens.space.xs, children: [
+                    FilledButton(
+                      key: const Key('pick-play'),
+                      onPressed: onPlay,
+                      style: FilledButton.styleFrom(
+                          backgroundColor: Tokens.palette.text,
+                          foregroundColor: Tokens.palette.bg,
+                          visualDensity: VisualDensity.compact),
+                      child: Text(playing ? 'Back to it' : 'Play it'),
+                    ),
+                    OutlinedButton.icon(
+                      key: const Key('pick-again'),
+                      onPressed: onAgain,
+                      style: OutlinedButton.styleFrom(
+                          foregroundColor: Tokens.palette.text,
+                          side: BorderSide(color: Tokens.cosmos.panelEdge),
+                          visualDensity: VisualDensity.compact),
+                      icon: const Icon(Icons.casino_outlined, size: 16),
+                      label: const Text('Shake again'),
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// A shake with nothing to drop still gets an answer, in words, and never a
+/// guilty one (DECISIONS.md: no nagging).
+class _NothingToShake extends StatelessWidget {
+  const _NothingToShake({super.key, required this.treeName});
+  final String treeName;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Container(
+          padding: EdgeInsets.symmetric(
+              horizontal: Tokens.space.md, vertical: Tokens.space.sm),
+          decoration: BoxDecoration(
+            color: Tokens.cosmos.panelDeep,
+            borderRadius: BorderRadius.circular(Tokens.radius.pill),
+            border: Border.all(color: Tokens.cosmos.panelEdge),
+          ),
+          child: Text(
+            'Nothing on $treeName to shake loose right now',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.text),
+          ),
+        ),
+      );
 }

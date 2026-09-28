@@ -886,6 +886,9 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               // the confirmation, so no snackbar on top of it.
               onFileGame: (item, tree) =>
                   _fileGame(store, item, tree, quiet: true),
+              onUnfileGame: (item, tree) => store.unplace(item.game.igdbId, tree),
+              onPlay: (item) =>
+                  _setProgressAndMaybeRate(store, item, Progress.playing),
               onRenameTree: (tree) => _branchMenu(store, tree),
               styles: resolveTreeStyles(
                   treesOf(store.branches).map((b) => b.id).toList(),
