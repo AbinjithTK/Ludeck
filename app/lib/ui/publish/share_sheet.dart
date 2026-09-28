@@ -225,6 +225,7 @@ class _ShareSheetState extends State<ShareSheet> {
                     foregroundColor: t.bg,
                     shape: const StadiumBorder(),
                     textStyle: TextStyle(
+                        fontFamily: Tokens.type.ui,
                         fontSize: Tokens.type.body, fontWeight: FontWeight.w700),
                   ),
                   icon: const Icon(Icons.ios_share_rounded, size: 20),

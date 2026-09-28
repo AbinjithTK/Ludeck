@@ -116,6 +116,7 @@ class _IntakeSheetState extends State<_IntakeSheet> {
               hasCandidates ? 'Add to your collection' : 'Nothing recognised',
               style: TextStyle(
                 color: Tokens.palette.text,
+                fontFamily: Tokens.type.displayFamily,
                 fontSize: Tokens.type.title,
                 height: Tokens.type.leadingTitle,
                 letterSpacing: Tokens.type.trackingTitle,

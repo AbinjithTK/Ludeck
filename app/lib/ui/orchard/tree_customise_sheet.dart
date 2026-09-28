@@ -88,6 +88,7 @@ class _TreeCustomiseSheetState extends State<TreeCustomiseSheet> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
+                        fontFamily: Tokens.type.displayFamily,
                         fontSize: Tokens.type.title,
                         fontWeight: FontWeight.w700,
                         color: Tokens.palette.text)),

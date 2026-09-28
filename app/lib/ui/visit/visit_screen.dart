@@ -296,6 +296,7 @@ class _VisitBody extends StatelessWidget {
                     Text(
                       tree.owner.displayName,
                       style: TextStyle(
+                        fontFamily: Tokens.type.displayFamily,
                         fontSize: Tokens.type.title,
                         fontWeight: FontWeight.w700,
                         color: Tokens.palette.text,

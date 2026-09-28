@@ -203,7 +203,9 @@ void _lettered(Canvas c, Rect r, String title, ColorFilter? filter) {
   final tp = TextPainter(
     text: TextSpan(
         text: letter,
+        // A TextPainter on a canvas inherits no theme: name the family.
         style: TextStyle(
+            fontFamily: Tokens.type.displayFamily,
             fontSize: 132,
             fontWeight: FontWeight.w800,
             color: Tokens.palette.text.withValues(alpha: 0.92))),
@@ -214,6 +216,7 @@ void _lettered(Canvas c, Rect r, String title, ColorFilter? filter) {
     text: TextSpan(
         text: title,
         style: TextStyle(
+            fontFamily: Tokens.type.ui,
             fontSize: 26,
             fontWeight: FontWeight.w600,
             color: Tokens.palette.textDim)),

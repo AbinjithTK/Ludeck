@@ -299,6 +299,7 @@ class _NodePlaceholder extends StatelessWidget {
           child: Text(
             initials.isEmpty ? '?' : initials,
             style: TextStyle(
+              fontFamily: Tokens.type.displayFamily,
               fontSize: Tokens.type.title,
               color: Tokens.palette.textDim,
               fontWeight: FontWeight.w600,

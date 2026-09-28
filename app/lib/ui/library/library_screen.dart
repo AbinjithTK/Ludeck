@@ -73,6 +73,7 @@ class LibraryScreen extends StatelessWidget {
                 Expanded(child: Text(
                 _libraryTitle(items),
                 style: TextStyle(
+                  fontFamily: Tokens.type.displayFamily,
                   fontSize: Tokens.type.title,
                   letterSpacing: Tokens.type.trackingTitle,
                   color: Tokens.palette.text,

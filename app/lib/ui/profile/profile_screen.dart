@@ -185,6 +185,7 @@ class ProfileBody extends StatelessWidget {
               child: Text(
                 'Your orchard',
                 style: TextStyle(
+                  fontFamily: Tokens.type.displayFamily,
                   fontSize: Tokens.type.display,
                   fontWeight: FontWeight.w700,
                   color: Tokens.palette.text,
@@ -210,7 +211,10 @@ class ProfileBody extends StatelessWidget {
                       backgroundColor: Tokens.palette.text,
                       foregroundColor: Tokens.palette.bg,
                       shape: const StadiumBorder(),
+                      // styleFrom's textStyle REPLACES the theme's, so it
+                      // must name the family itself.
                       textStyle: TextStyle(
+                          fontFamily: Tokens.type.ui,
                           fontSize: Tokens.type.body, fontWeight: FontWeight.w700),
                     ),
                     icon: const Icon(Icons.ios_share_rounded, size: 20),
@@ -442,6 +446,7 @@ class _Ladder extends StatelessWidget {
           Text(
             'Level ${ladder.level}',
             style: TextStyle(
+              fontFamily: Tokens.type.displayFamily,
               fontSize: Tokens.type.title,
               fontWeight: FontWeight.w700,
               color: Tokens.palette.text,
@@ -557,10 +562,13 @@ class _Stat extends StatelessWidget {
             Text(
               '$count',
               style: TextStyle(
+                fontFamily: Tokens.type.displayFamily,
                 fontSize: Tokens.type.title,
                 fontWeight: FontWeight.w700,
                 color: Tokens.palette.text,
-                fontFeatures: const [FontFeature.tabularFigures()],
+                // Proportional, not tabular: the display face's tabular "1"
+                // carries a typewriter foot, and five numbers set apart in
+                // their own columns have nothing to line up with.
               ),
             ),
             Text(

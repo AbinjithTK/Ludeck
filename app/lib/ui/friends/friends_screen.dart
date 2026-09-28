@@ -70,6 +70,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   Text(
                   'Friends',
                   style: TextStyle(
+                    fontFamily: Tokens.type.displayFamily,
                     fontSize: Tokens.type.title,
                     letterSpacing: Tokens.type.trackingTitle,
                     color: Tokens.palette.text,

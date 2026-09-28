@@ -104,6 +104,9 @@ class LudeckApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
+        // Every Text without its own family inherits this one; headlines opt
+        // into Tokens.type.displayFamily explicitly.
+        fontFamily: t.ui,
         scaffoldBackgroundColor: Tokens.palette.bg,
         colorScheme: ColorScheme.dark(
           surface: Tokens.palette.bg,
@@ -116,17 +119,19 @@ class LudeckApp extends StatelessWidget {
         // wrong somewhere: display text reads loose as it grows, body does not.
         textTheme: TextTheme(
           displaySmall: TextStyle(
+            fontFamily: t.displayFamily,
             fontSize: t.display,
             height: t.leadingDisplay,
             letterSpacing: t.trackingDisplay,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             color: Tokens.palette.text,
           ),
           titleMedium: TextStyle(
+            fontFamily: t.displayFamily,
             fontSize: t.title,
             height: t.leadingTitle,
             letterSpacing: t.trackingTitle,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             color: Tokens.palette.text,
           ),
           bodyMedium: TextStyle(
@@ -599,6 +604,7 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               child: Text(branch.name,
                   style: TextStyle(
                       color: Tokens.palette.text,
+                      fontFamily: Tokens.type.displayFamily,
                       fontSize: Tokens.type.title,
                       fontWeight: FontWeight.w700)),
             ),

@@ -86,16 +86,19 @@ class OrchardStoryCard extends StatelessWidget {
                           style: TextStyle(
                               fontSize: Tokens.type.caption,
                               fontWeight: FontWeight.w700,
-                              letterSpacing: 1.4,
+                              letterSpacing: Tokens.type.trackingEyebrow,
                               color: t.text.withValues(alpha: 0.72))),
                     ),
                     SizedBox(width: Tokens.space.sm),
+                    // The wordmark, in the headline face so it reads as a
+                    // mark and not as another caption.
                     Text('Ludeck',
                         style: TextStyle(
-                            fontSize: Tokens.type.caption,
+                            fontFamily: Tokens.type.displayFamily,
+                            fontSize: Tokens.type.body,
                             fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                            color: t.text.withValues(alpha: 0.55))),
+                            letterSpacing: Tokens.type.trackingTitle,
+                            color: t.text.withValues(alpha: 0.7))),
                   ]),
                 ),
               ]),
@@ -107,17 +110,12 @@ class OrchardStoryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text.rich(
-                    TextSpan(children: [
-                      TextSpan(
-                          text: '$n',
-                          style: const TextStyle(
-                              fontFeatures: [FontFeature.tabularFigures()])),
-                      TextSpan(text: n == 1 ? ' game in my orchard' : ' games in my orchard'),
-                    ]),
+                  Text(
+                    n == 1 ? '$n game in my orchard' : '$n games in my orchard',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
+                        fontFamily: Tokens.type.displayFamily,
                         fontSize: Tokens.type.title,
                         fontWeight: FontWeight.w700,
                         color: t.text,

@@ -226,6 +226,7 @@ class TreeHeader extends StatelessWidget {
                     child: Text(
                       '${ladder.level}',
                       style: TextStyle(
+                        fontFamily: Tokens.type.displayFamily,
                         fontSize: Tokens.type.title,
                         color: Tokens.palette.text,
                         fontWeight: FontWeight.w700,

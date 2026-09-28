@@ -610,6 +610,7 @@ class _Crumb extends StatelessWidget {
             label,
             style: current
                 ? TextStyle(
+                    fontFamily: Tokens.type.displayFamily,
                     fontSize: Tokens.type.title,
                     fontWeight: FontWeight.w700,
                     color: Tokens.palette.text)
@@ -654,6 +655,7 @@ class _EmptyCanopy extends StatelessWidget {
           children: [
             Text('Grow your first branch',
                 style: TextStyle(
+                    fontFamily: Tokens.type.displayFamily,
                     fontSize: Tokens.type.title,
                     fontWeight: FontWeight.w700,
                     color: Tokens.palette.text)),

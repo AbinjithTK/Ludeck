@@ -110,6 +110,7 @@ class GameSheet extends StatelessWidget {
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
+                              fontFamily: Tokens.type.displayFamily,
                               fontSize: Tokens.type.title,
                               fontWeight: FontWeight.w700,
                               letterSpacing: Tokens.type.trackingTitle,

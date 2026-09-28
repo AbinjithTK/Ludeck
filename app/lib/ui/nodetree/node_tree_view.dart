@@ -797,6 +797,7 @@ class _PrimaryButton extends StatelessWidget {
                     : Tokens.cosmos.panelEdge),
           ),
           textStyle: TextStyle(
+              fontFamily: Tokens.type.ui,
               fontSize: Tokens.type.body, fontWeight: FontWeight.w700),
         ),
         child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
@@ -846,6 +847,7 @@ class _EmptyTree extends StatelessWidget {
           Text('Grow your first branch',
               style: TextStyle(
                   color: Tokens.palette.text,
+                  fontFamily: Tokens.type.displayFamily,
                   fontSize: Tokens.type.title,
                   fontWeight: FontWeight.w700)),
           SizedBox(height: Tokens.space.sm),

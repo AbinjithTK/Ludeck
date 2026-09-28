@@ -470,11 +470,29 @@ class _Type {
   final double body = 15;
   final double caption = 13;
 
+  /// Two families, one job each (2026-09-28, "use better typography").
+  ///
+  /// [ui] is Plus Jakarta Sans: every label, body line, control and caption.
+  /// A geometric grotesk with open counters, so it stays legible at 13px on
+  /// a night sky where a thin humanist face (Roboto, what shipped) greys out.
+  ///
+  /// [displayFamily] is Bricolage Grotesque, used ONLY at [display] and
+  /// [title] size and for the big numbers: its squarer, inked terminals give
+  /// the headline a voice of its own, so hierarchy reads from the face and
+  /// not just from size. Two sizes on one family can only differ by size and
+  /// weight; that is why the old screens needed bold everywhere.
+  final String ui = 'PlusJakartaSans';
+  final String displayFamily = 'BricolageGrotesque';
+
   /// Tracking is size-specific. Large text reads too loose as it grows, so it
   /// tightens; body sits near zero. One fixed value would be wrong somewhere.
   final double trackingDisplay = -0.02 * 28;
   final double trackingTitle = -0.01 * 20;
   final double trackingBody = 0;
+
+  /// An eyebrow: a caption set in capitals, which needs air between letters
+  /// or it reads as a blob.
+  final double trackingEyebrow = 0.08 * 13;
 
   /// Leading tracks size inversely: tight on headings, looser on body.
   final double leadingDisplay = 1.05;

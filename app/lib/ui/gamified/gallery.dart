@@ -37,6 +37,7 @@ class PrimitivesGallery extends StatelessWidget {
                     child: Text(
                       'A',
                       style: TextStyle(
+                        fontFamily: Tokens.type.displayFamily,
                         fontSize: Tokens.type.display,
                         color: Tokens.palette.text,
                       ),

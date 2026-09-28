@@ -1055,6 +1055,7 @@ class _TreePageState extends State<_TreePage>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
+                      fontFamily: Tokens.type.displayFamily,
                       fontSize: Tokens.type.display,
                       fontWeight: FontWeight.w700,
                       color: Tokens.palette.text,
@@ -1203,6 +1204,7 @@ class _PatchPage extends StatelessWidget {
               children: [
                 Text('A new tree',
                     style: TextStyle(
+                        fontFamily: Tokens.type.displayFamily,
                         fontSize: Tokens.type.display,
                         fontWeight: FontWeight.w700,
                         color: Tokens.palette.text,
@@ -1468,6 +1470,7 @@ class _Shelf extends StatelessWidget {
                 Tokens.space.lg, Tokens.space.lg, Tokens.space.lg, Tokens.space.sm),
             child: Text(title,
                 style: TextStyle(
+                    fontFamily: Tokens.type.displayFamily,
                     fontSize: Tokens.type.title,
                     fontWeight: FontWeight.w700,
                     color: Tokens.palette.text)),
@@ -1698,6 +1701,7 @@ class PickCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
+                          fontFamily: Tokens.type.displayFamily,
                           fontSize: Tokens.type.title,
                           fontWeight: FontWeight.w700,
                           color: Tokens.palette.text)),

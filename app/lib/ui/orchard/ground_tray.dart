@@ -217,8 +217,10 @@ class _GroundTrayState extends State<GroundTray>
     }
     final n = items.length;
     final label = n == 1 ? '1 on the ground' : '$n on the ground';
-    final style =
-        TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim);
+    // Merged onto the ambient style so the width below is measured in the
+    // font the label is actually drawn in, not TextPainter's platform default.
+    final style = DefaultTextStyle.of(context).style.merge(
+        TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim));
     final scaler = MediaQuery.textScalerOf(context);
 
     return LayoutBuilder(builder: (context, box) {

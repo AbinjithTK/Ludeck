@@ -211,6 +211,7 @@ class _OnboardingPage extends StatelessWidget {
                 page.title,
                 textAlign: TextAlign.center,
                 style: TextStyle(
+                  fontFamily: Tokens.type.displayFamily,
                   fontSize: Tokens.type.title,
                   fontWeight: FontWeight.w700,
                   color: Tokens.palette.text,

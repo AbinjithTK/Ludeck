@@ -399,7 +399,8 @@ class _FoundMomentState extends State<FoundMoment>
                         style: TextStyle(
                             fontSize: Tokens.type.caption,
                             color: Tokens.palette.textDim,
-                            letterSpacing: 1.2)),
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: Tokens.type.trackingEyebrow)),
                   ),
                   SizedBox(height: Tokens.space.md),
                   SizedBox(
@@ -441,6 +442,7 @@ class _FoundMomentState extends State<FoundMoment>
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
+                                  fontFamily: Tokens.type.displayFamily,
                                   fontSize: Tokens.type.title,
                                   fontWeight: FontWeight.w700,
                                   color: Tokens.palette.text)),
