@@ -136,10 +136,16 @@ though the project itself lives in `us-east-1`. If it reports `us-east-1`, the
 function is being pinned somewhere it should not be; check that nothing is
 sending an `x-region` header or a `forceFunctionRegion` query parameter.
 
-## 7. Tell me the project ref
+## 7. Point the app at it
 
-Once step 6 comes back clean, tell me the project ref (not the secret, not
-the client secret, just the ref itself, which is not sensitive). I'll wire
-the app's catalogue lookups to
-`https://<ref>.supabase.co/functions/v1/igdb` and swap `CatalogService` off
-`fixtureTree()` onto the real proxy.
+Nothing to edit. The app derives the proxy URL from the project URL given at build
+time (`app/lib/services/http_catalog.dart`, `catalogBaseUrl`):
+
+```powershell
+--dart-define=SUPABASE_URL=https://<your-project-ref>.supabase.co `
+--dart-define=SUPABASE_PUBLISHABLE_KEY=<publishable key>
+```
+
+The full build command is in `docs/DEPLOY-COMMUNITY.md` step 6. Search then goes to
+`https://<ref>.supabase.co/functions/v1/igdb` first and falls back to the bundled
+catalogue when offline.

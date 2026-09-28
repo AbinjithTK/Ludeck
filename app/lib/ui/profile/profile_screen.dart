@@ -36,6 +36,7 @@ import '../../domain/branch_tree.dart';
 import '../../domain/level.dart';
 import '../../domain/season.dart';
 import '../../services/entitlement_service.dart';
+import '../../services/social/social_backend.dart';
 import '../../state/ludeck_store.dart';
 import '../paywall/paywall_screen.dart';
 import '../gamified/primitives.dart';
@@ -220,6 +221,7 @@ class ProfileBody extends StatelessWidget {
                 _SeasonBlock(season: season, branches: branches),
                 SizedBox(height: Tokens.space.xl),
                 const _ProRow(),
+                const _AccountRow(),
                 SizedBox(height: Tokens.space.sm),
                 Center(
                   child: TextButton(
@@ -287,6 +289,107 @@ class _ProRow extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Signed-in only: sign out, or delete the account (Google Play's in-app
+/// account deletion requirement). Signed out, there is no account, so nothing
+/// shows: the app never creates one until you publish.
+class _AccountRow extends StatefulWidget {
+  const _AccountRow();
+
+  @override
+  State<_AccountRow> createState() => _AccountRowState();
+}
+
+class _AccountRowState extends State<_AccountRow> {
+  bool _busy = false;
+
+  SocialBackend? get _backend {
+    try {
+      return Provider.of<SocialBackend>(context, listen: false);
+    } on ProviderNotFoundException {
+      return null;
+    }
+  }
+
+  Future<void> _signOut(SocialBackend b) async {
+    setState(() => _busy = true);
+    try {
+      await b.signOut();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _delete(SocialBackend b) async {
+    final sure = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Delete your account?'),
+        content: const Text(
+            'This removes your public orchard, your reactions and follows, and '
+            'your account from our server. It cannot be undone. The games on '
+            'this phone stay exactly as they are.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(c).pop(false),
+              child: const Text('Keep account')),
+          TextButton(
+            key: const Key('confirm-delete-account'),
+            onPressed: () => Navigator.of(c).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Tokens.palette.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (sure != true || !mounted) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await b.deleteAccount();
+      messenger?.showSnackBar(
+          const SnackBar(content: Text('Your account has been deleted.')));
+    } on SocialException {
+      messenger?.showSnackBar(const SnackBar(
+          content: Text('Could not delete right now. Nothing was removed.')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b = _backend;
+    final me = b?.currentProfile;
+    if (b == null || me == null) return const SizedBox.shrink();
+    final dim = TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim);
+    return Padding(
+      padding: EdgeInsets.only(top: Tokens.space.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Signed in as ${me.displayName}', style: dim, textAlign: TextAlign.center),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              TextButton(
+                onPressed: _busy ? null : () => _signOut(b),
+                style: TextButton.styleFrom(foregroundColor: Tokens.palette.textDim),
+                child: const Text('Sign out'),
+              ),
+              TextButton(
+                key: const Key('profile-delete-account'),
+                onPressed: _busy ? null : () => _delete(b),
+                style: TextButton.styleFrom(foregroundColor: Tokens.palette.danger),
+                child: const Text('Delete account'),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

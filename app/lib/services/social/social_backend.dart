@@ -171,6 +171,11 @@ abstract class SocialBackend {
 
   Future<void> signOut();
 
+  /// Permanently delete the signed-in account and everything published under
+  /// it (Google Play's account-deletion requirement). The on-device
+  /// collection is untouched: it was never on the server. Requires sign-in.
+  Future<void> deleteAccount();
+
   /// Publish (or re-publish) the caller's tree from the given public games.
   ///
   /// [isPublic] false means "unpublish" -- take it private again. The default is

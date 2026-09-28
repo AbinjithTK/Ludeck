@@ -14,6 +14,13 @@ you can click it. Run these yourself, in a terminal, in order.
 
 ## 0. You may already be most of the way there
 
+**State on 2026-09-28:** the Supabase CLI (2.101.0) is installed and already logged
+in. `supabase projects list` shows two projects, `gameworld` and `agentgame`, both
+in Singapore, and no Ludeck project. **The free plan allows two active projects per
+organisation**, so creating `ludeck` needs one of: pausing one of those two in the
+dashboard, a paid plan, or a new organisation. Decide that before step 2 of
+`docs/DEPLOY-PROXY.md`.
+
 If you already followed `docs/DEPLOY-PROXY.md` for the IGDB proxy, you are
 already logged in and already have a project. Skip straight to step 2.
 
@@ -36,101 +43,93 @@ supabase link --project-ref <your-project-ref>
 Get `<your-project-ref>` from `supabase projects list`, or from step 7 of
 `docs/DEPLOY-PROXY.md` if you already did that.
 
-## 3. Apply the migration
+## 3. Apply the migrations
 
 ```powershell
+cd F:\Abin\Ludeck\fallback-kotlin\supabase
 supabase db push
 ```
 
-This runs `migrations/0001_community.sql` against your linked project. It is
-idempotent (`create table if not exists`), so running it again later after a
-future migration is added is safe.
+This applies both migrations in order:
+- `0001_community.sql`: profiles, published trees and games, reactions, follows,
+  every table with RLS.
+- `0002_profiles_and_deletion.sql`: a trigger that creates each new user's profile
+  row (without it the first publish fails its foreign key), and
+  `delete_my_account()`, which the app's Delete account button calls. Google Play
+  requires that button.
 
-**Verify RLS actually landed**, rather than trusting the push succeeded:
+**Verify** rather than trusting the push:
 
 ```powershell
 supabase db diff --linked
 ```
 
-An empty diff means the remote database now matches the migration file
-exactly, including every policy.
+An empty diff means the remote database matches the migration files exactly,
+including every policy, the trigger and the function.
 
-## 4. Turn on the auth provider
+## 4. Turn on Google sign-in
 
-The app's `SupabaseSocialBackend.signIn()` calls
-`_client.auth.signInWithOAuth(OAuthProvider.google)`. In the Supabase
-dashboard:
+The app signs in with `signInWithOAuth(OAuthProvider.google, redirectTo:
+'com.ludeck.android://login-callback')` (`SupabaseSocialBackend.signIn`). The
+manifest catches that link; the SDK finishes the sign-in.
 
-1. **Authentication → Providers → Google**
-2. Toggle it on, and follow Supabase's own instructions to create a Google
-   OAuth client (this needs a Google Cloud Console project -- Supabase's
-   dashboard links straight to it).
-3. Add the redirect URL Supabase's dashboard shows you into the Google OAuth
-   client's allowed redirect URIs.
+1. **Google Cloud Console, APIs & Services, Credentials:** create an OAuth client of
+   type **Web application**. Its authorised redirect URI is the callback Supabase
+   shows on its Google provider page (`https://<ref>.supabase.co/auth/v1/callback`).
+   The OAuth consent screen must be **In production** (not Testing), or only
+   listed test users can sign in, and that includes the Play reviewer.
+2. **Supabase, Authentication, Providers, Google:** turn it on and paste that
+   client's ID and secret.
+3. **Supabase, Authentication, URL Configuration, Redirect URLs:** add
+   `com.ludeck.android://login-callback`. Without it Supabase redirects to the
+   Site URL instead and the app never gets the session.
 
-**If you'd rather use a different provider** (Apple, GitHub, email magic
-link), that's a one-line change:
-`app/lib/services/social/supabase_social_backend.dart`, the single
-`OAuthProvider.google` in `signIn()`. Google was picked as the default because
-it needs no in-app password UI, not because it's frozen.
+This is a browser flow, so no Android OAuth client and no SHA-1 fingerprint are
+needed.
 
 ## 5. Get the app's connection details
 
-**Project URL and publishable key** (Settings → API in the dashboard, or):
+**Project URL and publishable key** (Settings, API keys in the dashboard, or):
 
 ```powershell
 supabase projects api-keys --project-ref <your-project-ref>
 ```
 
-Use the `anon` / `publishable` key here, never the `service_role` key. The
-`service_role` key bypasses every RLS policy in step 3 -- it must never ship
-in the app, and nothing in this codebase asks for it.
+Use the `anon` / `publishable` key, never the `service_role` key. The
+`service_role` key bypasses every RLS policy in step 3. It must never ship in the
+app, and nothing in this codebase asks for it. (Account deletion runs as a
+database function on the caller's own id precisely so no service key is needed.)
 
 ## 6. Wire the app to it
 
-Tell me (or edit directly) the two values from step 5, and I'll wire
-`main.dart`'s
+Nothing to edit. Both values go in at build time, and the same `SUPABASE_URL` also
+switches game search onto the IGDB proxy (`http_catalog.dart`, `catalogBaseUrl`):
 
-```dart
-final social = await resolveSocialBackend();
+```powershell
+flutter build appbundle --release `
+  --dart-define=SUPABASE_URL=https://<ref>.supabase.co `
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=<publishable key> `
+  --dart-define=REVENUECAT_GOOGLE_KEY=goog_...
 ```
 
-to
-
-```dart
-final social = await resolveSocialBackend(
-  supabaseUrl: '<your-project-url>',
-  supabasePublishableKey: '<your-publishable-key>',
-);
-```
-
-Until this line changes, the app runs in the **local-only mode it's in right
-now**: `FakeSocialBackend(configured: false)`. That's not a broken state --
-it's the honest one, and it's what a device walkthrough during Stage 8 of
-this build actually showed: tapping Public → "Save and share" produces
-*"Sharing isn't set up yet on this build. Nothing left this device."* rather
-than pretending to publish. The whole community feature (Stages 2-6 of this
-build) was built and tested against `FakeSocialBackend` for exactly this
-reason -- so it's provably correct before this wire-up step exists.
+A build without them runs local-only: publishing says "Sharing isn't set up yet on
+this build. Nothing left this device." and search uses the bundled catalogue.
 
 ## 7. Confirm it actually works
 
-After step 6, on a real device or emulator:
+On a device or emulator, from a build made with step 6's defines:
 
-1. Open the app, go to the profile screen, tap **Share your tree**.
-2. Choose **Public**, tap **Save and share**. This should now succeed instead
-   of showing the "not set up" message -- it calls `signIn()` first, which
-   opens a real Google consent screen.
-3. Note the handle shown on the resulting share card.
-4. On a second device (or a fresh app install, or `adb shell pm clear
-   com.ludeck.android` to reset the first one), go to **Share your tree →
-   Save and share → See what a visitor sees**, but change the handle in the
-   URL/deep-link to the one from step 3 -- or, until real deep-linking exists
-   (see the note below), edit `VisitScreen(handle: '...')`'s argument
-   temporarily to test it.
-5. Confirm the visited tree shows the games, react and follow work, and that
-   tapping **Plant** on a game adds it to the second device's soil.
-
+1. **Search** "hollow knight" in Add a game. Results beyond the bundled catalogue
+   mean the proxy answered.
+2. **Publish:** You, Share your orchard, turn on Public link. Google's consent
+   screen opens in the browser and returns to the app. A link appears.
+3. **The profile row exists:** Supabase, Table Editor, `profiles` has one row whose
+   handle is the `g…` in that link.
+4. **Delete:** You, Delete account, Delete. Then check that `profiles`,
+   `published_trees` and `published_games` have no rows for that user, and that
+   Authentication, Users no longer lists them.
+5. **Visiting** a tree from a second install needs the public web page or deep
+   link, which does not exist yet (below).
 ## What this does NOT include
 
 **Real deep-linking / sharing the link outside the app.** `ShareCardScreen`'s

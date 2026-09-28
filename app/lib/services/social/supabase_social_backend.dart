@@ -16,10 +16,19 @@
 // takes the URL and anon key the operator supplies at deploy time. With none,
 // the app uses FakeSocialBackend as its local-only mode instead of this class.
 
+import 'dart:async';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../data/enums.dart';
 import 'social_backend.dart';
+
+/// A signed-in user's public handle. MUST match `public.handle_for` in
+/// migration 0002, which creates the profile row with it: 'g' plus the first
+/// ten hex digits of the user id. 11 chars of [a-z0-9], inside 0001's
+/// `^[a-z0-9_]{3,30}$` check.
+String handleFor(String userId) =>
+    'g${userId.replaceAll('-', '').toLowerCase().substring(0, 10)}';
 
 class SupabaseSocialBackend implements SocialBackend {
   SupabaseSocialBackend(this._client);
@@ -46,17 +55,22 @@ class SupabaseSocialBackend implements SocialBackend {
   SocialProfile? get currentProfile {
     final user = _client.auth.currentUser;
     if (user == null) return null;
-    // The handle/display live on the profile row; currentProfile returns the
-    // lightweight identity known from the session. A caller needing the full
-    // row reads it explicitly.
+    // The profile row is created by migration 0002's trigger with exactly
+    // these values, so the session alone is enough to know them.
     final meta = user.userMetadata ?? const {};
+    final name = (meta['full_name'] as String?) ?? (meta['name'] as String?);
     return SocialProfile(
       id: user.id,
-      handle: (meta['handle'] as String?) ?? user.id,
-      displayName: (meta['display_name'] as String?) ?? 'You',
+      handle: handleFor(user.id),
+      displayName: (name == null || name.isEmpty) ? 'Gardener' : name,
       avatarSeed: meta['avatar_seed'] as String?,
     );
   }
+
+  /// Where Google sends the browser back to. Must be listed under
+  /// Authentication > URL Configuration > Redirect URLs in Supabase, and is
+  /// caught by the VIEW intent filter in AndroidManifest.xml.
+  static const redirectUrl = 'com.ludeck.android://login-callback';
 
   Never _rethrow(Object e) {
     if (e is AuthException) {
@@ -82,17 +96,45 @@ class SupabaseSocialBackend implements SocialBackend {
 
   @override
   Future<SocialProfile> signIn() async {
+    final existing = currentProfile;
+    if (existing != null) return existing;
     try {
-      // OAuth opens the system browser; the app resumes via its deep link. The
-      // provider choice is the operator's -- Google is the least-friction
-      // default and needs no password surface in-app.
-      await _client.auth.signInWithOAuth(OAuthProvider.google);
-      // The session arrives on the auth stream; callers await currentProfile.
+      // OAuth opens the system browser and returns immediately. The session
+      // arrives later, when Google redirects to [redirectUrl] and the SDK's
+      // deep-link handler exchanges the code, so WAIT for it: returning
+      // straight after the launch always saw a null user and failed.
+      final signedIn = _client.auth.onAuthStateChange
+          .firstWhere((s) => s.event == AuthChangeEvent.signedIn)
+          .timeout(const Duration(minutes: 3));
+      final launched = await _client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: redirectUrl,
+      );
+      if (!launched) throw const SocialException(SocialFailure.unauthorized);
+      await signedIn;
       final p = currentProfile;
       if (p == null) {
         throw const SocialException(SocialFailure.unauthorized);
       }
       return p;
+    } on SocialException {
+      rethrow;
+    } on TimeoutException {
+      // The person closed the browser or never finished: not signed in.
+      throw const SocialException(SocialFailure.unauthorized, 'sign-in not finished');
+    } catch (e) {
+      _rethrow(e);
+    }
+  }
+
+  @override
+  Future<void> deleteAccount() async {
+    _requireUid();
+    try {
+      // migration 0002: deletes the caller's auth user; the schema cascades
+      // profile, published tree and games, reactions and follows.
+      await _client.rpc('delete_my_account');
+      await _client.auth.signOut();
     } catch (e) {
       _rethrow(e);
     }

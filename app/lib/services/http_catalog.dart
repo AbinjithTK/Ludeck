@@ -256,14 +256,16 @@ class HttpCatalog implements CatalogSource {
       raw.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
 }
 
-/// Where the proxy lives, once it exists.
-///
-/// Empty today, and that is the whole reason `resolveCatalog` returns the
-/// fixture. Filling this in is the one-line swap: no caller changes.
-const String catalogBaseUrl = '';
+/// Where the proxy lives: the `igdb` Edge Function on the project given at
+/// build time (`--dart-define=SUPABASE_URL=https://<ref>.supabase.co`, the
+/// same define the social backend reads). Empty on a plain build, which keeps
+/// search on the bundled catalogue.
+const String _supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+const String catalogBaseUrl =
+    _supabaseUrl == '' ? '' : '$_supabaseUrl/functions/v1/igdb';
 
-/// Supabase anon key for the function. Empty until the project exists.
-const String catalogAnonKey = '';
+/// Supabase publishable key, sent as the function's apikey header.
+const String catalogAnonKey = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
 
 /// The catalogue the app actually runs on.
 ///

@@ -92,6 +92,20 @@ class FakeSocialBackend implements SocialBackend {
   }
 
   @override
+  Future<void> deleteAccount() async {
+    final me = _requireSignedIn();
+    // Same effect as migration 0002's cascade: everything published under the
+    // account goes, then the session.
+    _store.trees.remove(me.handle);
+    _store.reactions.remove(me.handle);
+    for (final list in _store.reactions.values) {
+      list.removeWhere((r) => r.fromProfileId == me.id);
+    }
+    _store.follows.remove(me.id);
+    _profile = null;
+  }
+
+  @override
   Future<void> publish({
     required List<PublishedGame> games,
     required int level,
