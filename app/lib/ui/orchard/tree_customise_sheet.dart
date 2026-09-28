@@ -25,7 +25,6 @@ Future<void> showTreeCustomiseSheet(
 }) =>
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Tokens.palette.surface,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => TreeCustomiseSheet(

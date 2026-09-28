@@ -46,7 +46,6 @@ Future<RatingChoice?> showRatingSheet(
 }) =>
     showModalBottomSheet<RatingChoice>(
       context: context,
-      backgroundColor: Tokens.palette.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(Tokens.radius.card),

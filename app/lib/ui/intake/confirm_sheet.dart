@@ -37,7 +37,6 @@ Future<IntakeChoice?> showIntakeSheet(
     showModalBottomSheet<IntakeChoice>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Tokens.palette.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(Tokens.radius.card),

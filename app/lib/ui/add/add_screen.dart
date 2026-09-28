@@ -177,7 +177,6 @@ class _AddScreenState extends State<AddScreen> {
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: Tokens.palette.surface,
       duration: const Duration(seconds: 2),
       content: Text(
         // Says which thing happened. "Added" on a game that was already there

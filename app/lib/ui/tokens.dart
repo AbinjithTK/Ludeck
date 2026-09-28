@@ -170,10 +170,15 @@ class _Orchard {
 
 class _Palette {
   const _Palette();
-  final Color bg = const Color(0xFF0E0F11);
-  final Color surface = const Color(0xFF181A1D);
+  // Night, not neutral grey (2026-09-28): the orchard is a night scene, and
+  // every screen that opens off it (profile, library, friends, the sheets)
+  // used to drop into a flat charcoal from a different app. bg is the
+  // meadow's deepest shade, surface its hill, textDim a moonlit lilac grey
+  // (still ~7:1 on bg), so a screen reads as the same night as home.
+  final Color bg = const Color(0xFF0D0A1C);
+  final Color surface = const Color(0xFF1A1531);
   final Color text = const Color(0xFFF2F3F5);
-  final Color textDim = const Color(0xFF8B9099);
+  final Color textDim = const Color(0xFF9A96B0);
   final Color accent = const Color(0xFFE8B84B);
   final Color danger = const Color(0xFFD4553F);
 }

@@ -37,15 +37,11 @@ class LibraryScreen extends StatelessWidget {
   /// total here would read as a contradiction of it -- 10 vs 8. Breaking the
   /// count out (8 games, 2 buds) makes the two numbers agree instead of fight,
   /// and honours DECISIONS.md's rule that a bud is a wish, not a game.
-  static String _libraryTitle(List<TreeItem> items) {
-    if (items.isEmpty) return 'Your library';
+  static String _librarySubtitle(List<TreeItem> items) {
     final buds = items.where((i) => i.isSeed).length;
     final games = items.length - buds;
-    if (buds == 0) {
-      return 'Your library \u00B7 $games ${games == 1 ? 'game' : 'games'}';
-    }
-    return 'Your library \u00B7 $games ${games == 1 ? 'game' : 'games'}, '
-        '$buds on your wishlist';
+    final g = '$games ${games == 1 ? 'game' : 'games'}';
+    return buds == 0 ? g : '$g, $buds on your wishlist';
   }
 
   @override
@@ -70,15 +66,32 @@ class LibraryScreen extends StatelessWidget {
                 // Pushed from the orchard's top buttons: its way back.
                 if (Navigator.of(context).canPop())
                   BackButton(color: Tokens.palette.text),
-                Expanded(child: Text(
-                _libraryTitle(items),
-                style: TextStyle(
-                  fontFamily: Tokens.type.displayFamily,
-                  fontSize: Tokens.type.title,
-                  letterSpacing: Tokens.type.trackingTitle,
-                  color: Tokens.palette.text,
-                ),
-              )),
+                Expanded(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Your library',
+                      style: TextStyle(
+                        fontFamily: Tokens.type.displayFamily,
+                        fontSize: Tokens.type.title,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: Tokens.type.trackingTitle,
+                        color: Tokens.palette.text,
+                      ),
+                    ),
+                    // The count on its own line: as one headline it wrapped
+                    // mid-phrase ("... 3 on your / wishlist").
+                    if (items.isNotEmpty)
+                      Text(
+                        _librarySubtitle(items),
+                        style: TextStyle(
+                            fontSize: Tokens.type.caption,
+                            fontWeight: FontWeight.w500,
+                            color: Tokens.palette.textDim),
+                      ),
+                  ],
+                )),
               ]),
             ),
             Expanded(

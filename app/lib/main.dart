@@ -145,6 +145,49 @@ class LudeckApp extends StatelessWidget {
             color: Tokens.palette.textDim,
           ),
         ),
+        // One surface for everything that rises over the orchard. The game
+        // sheet and the share sheet were already night-purple glass with a
+        // continuous corner; the tree menu, the shelf, the customise and
+        // rating sheets, dialogs and snackbars were a flat grey from another
+        // app (2026-09-28, "overall theme should be more polished"). They all
+        // take the night surface from here now, not a colour of their own.
+        bottomSheetTheme: BottomSheetThemeData(
+          backgroundColor: Tokens.cosmos.hillTop,
+          modalBackgroundColor: Tokens.cosmos.hillTop,
+          surfaceTintColor: Tokens.cosmos.hillTop.withValues(alpha: 0),
+          shape: RoundedSuperellipseBorder(
+              borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(Tokens.radius.sheet))),
+        ),
+        dialogTheme: DialogThemeData(
+          backgroundColor: Tokens.cosmos.hillTop,
+          surfaceTintColor: Tokens.cosmos.hillTop.withValues(alpha: 0),
+          shape: RoundedSuperellipseBorder(
+              borderRadius: BorderRadius.circular(Tokens.radius.sheet)),
+          titleTextStyle: TextStyle(
+            fontFamily: t.displayFamily,
+            fontSize: t.title,
+            fontWeight: FontWeight.w700,
+            color: Tokens.palette.text,
+          ),
+        ),
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: Tokens.cosmos.hillTop,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedSuperellipseBorder(
+              borderRadius: BorderRadius.circular(Tokens.radius.panel)),
+          contentTextStyle: TextStyle(
+              fontFamily: t.ui, fontSize: t.body, color: Tokens.palette.text),
+        ),
+        listTileTheme: ListTileThemeData(
+          iconColor: Tokens.palette.text,
+          textColor: Tokens.palette.text,
+          titleTextStyle: TextStyle(
+              fontFamily: t.ui,
+              fontSize: t.body,
+              fontWeight: FontWeight.w500,
+              color: Tokens.palette.text),
+        ),
       ),
       home: _StartupGate(
         child: TreeScreen(
@@ -412,7 +455,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     final n = choice.accepted.length;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Tokens.palette.surface,
         content: Text(
           n == 1
               ? tree != null
@@ -482,7 +524,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Tokens.palette.surface,
         duration: const Duration(seconds: 2),
         content: Text(
           branchName == null
@@ -511,7 +552,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
       case AddAction.pasteLink:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: Tokens.palette.surface,
             duration: const Duration(seconds: 4),
             content: Text(
               // Points at the thing that already works rather than opening a box
@@ -599,7 +639,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     HapticFeedback.selectionClick();
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Tokens.palette.surface,
       builder: (sheet) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           Padding(
@@ -706,7 +745,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Tokens.palette.surface,
         duration: const Duration(seconds: 4),
         content: Text(
           subCount > 0
@@ -764,7 +802,6 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
     final name = shape[toTree]?.name ?? 'that tree';
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        backgroundColor: Tokens.palette.surface,
         duration: const Duration(seconds: 3),
         content: Text('${item.game.title} moved to $name.',
             style: TextStyle(color: Tokens.palette.text)),

@@ -394,7 +394,6 @@ class _NameDialogState extends State<_NameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: Tokens.palette.surface,
       title: Text(widget.title, style: Theme.of(context).textTheme.titleMedium),
       content: Form(
         key: _formKey,
@@ -440,7 +439,6 @@ Future<void> _confirmDelete(
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      backgroundColor: Tokens.palette.surface,
       title: Text('Delete ${branch.name}?',
           style: Theme.of(context).textTheme.titleMedium),
       content: Text(

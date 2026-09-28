@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../data/repository.dart';
-import '../tokens.dart';
 
 /// Asks for a short name and returns it trimmed, or null on cancel/empty.
 ///
@@ -64,7 +63,6 @@ class _NameDialogState extends State<NameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: Tokens.palette.surface,
       title: Text(widget.title),
       content: TextField(
         controller: _controller,

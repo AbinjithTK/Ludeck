@@ -282,7 +282,6 @@ class CanopyViewState extends State<CanopyView> {
             .toList();
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Tokens.palette.surface,
       builder: (sheet) => SafeArea(
         child: ListView(shrinkWrap: true, children: [
           for (final b in hidden)

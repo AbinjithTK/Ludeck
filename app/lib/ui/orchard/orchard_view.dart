@@ -933,7 +933,6 @@ class _OrchardViewState extends State<OrchardView>
   void _openShelf(Branch tree, List<TreeItem> games) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Tokens.palette.surface,
       isScrollControlled: true,
       builder: (context) => _Shelf(
         title: tree.name,
