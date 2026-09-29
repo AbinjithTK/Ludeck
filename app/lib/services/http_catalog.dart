@@ -110,6 +110,14 @@ class HttpCatalogTransport implements CatalogTransport {
 /// POST a JSON body of `{endpoint, query}` where `endpoint` is one of its
 /// allow-listed IGDB endpoints and `query` is an Apicalypse string. The response
 /// is IGDB's own JSON array.
+/// Where the proxy function runs. Supabase runs a function next to the CALLER
+/// by default, but every call makes a second hop to IGDB, which lives in the
+/// US; from India that put the proxy in ap-south-1 and the long leg across the
+/// Pacific. Pinned next to IGDB, the long leg is paid once instead:
+/// measured from India, warm median 1392ms (default, ap-south-1) vs 663ms
+/// (us-west-1) vs 771ms (us-east-1). A header, not a secret.
+const String kProxyRegion = 'us-west-1';
+
 /// What a search asks for. Shared by single and batched searches so the two
 /// can never drift apart.
 const String _searchFields = 'id,name,first_release_date,cover.url,total_rating';
@@ -313,6 +321,7 @@ class HttpCatalog implements CatalogSource, BatchSearch {
         {
           if (anonKey case final String key) 'Authorization': 'Bearer $key',
           if (anonKey case final String key) 'apikey': key,
+          'x-region': kProxyRegion,
         },
       );
 

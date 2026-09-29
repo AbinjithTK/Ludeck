@@ -361,7 +361,24 @@ void main() {
       );
 
       await catalog.byId(1);
-      expect(transport.headers.single, isEmpty);
+      // No credential of any kind; only the region pin, which is not one.
+      expect(transport.headers.single, {'x-region': kProxyRegion});
+    });
+
+    test('every request pins the proxy next to IGDB', () async {
+      final transport = FakeTransport('[]');
+      final catalog = HttpCatalog(
+        baseUrl: Uri.parse('https://example.test/igdb'),
+        transport: transport,
+        anonKey: 'k',
+      );
+      await catalog.byId(1);
+      await catalog.search('x');
+      await catalog.searchMany(['a', 'b'], broad: 1);
+      expect(transport.headers, isNotEmpty);
+      for (final h in transport.headers) {
+        expect(h['x-region'], startsWith('us-'));
+      }
     });
 
     test('an anon key is sent as both headers Supabase wants', () async {
