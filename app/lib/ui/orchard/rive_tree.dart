@@ -248,9 +248,14 @@ class _RiveTreeState extends State<RiveTree> {
     final after = _hung.map((g) => g.igdbId).toList();
     if (_sameIds(before, after)) {
       // Same fruit. A game whose state changed (started, finished) repaints
-      // its card in place; nothing re-pops.
+      // its card in place; nothing re-pops. So does one whose cover just
+      // arrived: covers are backfilled in the background AFTER the tree has
+      // hung its lettered cards, and without this they stayed letters until
+      // the next cold start.
+      final oldGames = old.games.take(kTreeSlots).toList();
       for (var i = 0; i < after.length; i++) {
-        if (_lookAt(old.looks, i) != _lookAt(widget.looks, i)) {
+        if (_lookAt(old.looks, i) != _lookAt(widget.looks, i) ||
+            oldGames[i].coverUrl != _hung[i].coverUrl) {
           _loadCover(i, _generation);
         }
       }

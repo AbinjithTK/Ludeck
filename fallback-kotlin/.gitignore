@@ -26,3 +26,6 @@ app/build/
 .idea/
 *.iml
 .DS_Store
+
+# Supabase CLI local link cache (project ref, pooler URL) -- machine-local
+supabase/.temp/

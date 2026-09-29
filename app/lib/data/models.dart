@@ -213,30 +213,30 @@ List<TreeItem> fixtureTree() {
   return [
     TreeItem(
       game: const Game(
-          igdbId: 1020,
+          igdbId: 14593,
           title: 'Hollow Knight',
           releaseYear: 2017,
           timeToBeatSeconds: 93600),
-      entry: e(1020, Ownership.owned, Progress.playing),
-      copies: [c(1020, Platform.pc), c(1020, Platform.switch_)],
+      entry: e(14593, Ownership.owned, Progress.playing),
+      copies: [c(14593, Platform.pc), c(14593, Platform.switch_)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 11208,
+          igdbId: 11737,
           title: 'Outer Wilds',
           releaseYear: 2019,
           timeToBeatSeconds: 50400),
-      entry: e(11208, Ownership.owned, Progress.untouched),
-      copies: [c(11208, Platform.pc)],
+      entry: e(11737, Ownership.owned, Progress.untouched),
+      copies: [c(11737, Platform.pc)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 7597,
+          igdbId: 26226,
           title: 'Celeste',
           releaseYear: 2018,
           timeToBeatSeconds: 28800),
-      entry: e(7597, Ownership.owned, Progress.untouched),
-      copies: [c(7597, Platform.switch_)],
+      entry: e(26226, Ownership.owned, Progress.untouched),
+      copies: [c(26226, Platform.switch_)],
     ),
     TreeItem(
       game: const Game(
@@ -249,39 +249,39 @@ List<TreeItem> fixtureTree() {
     ),
     TreeItem(
       game: const Game(
-          igdbId: 26192,
+          igdbId: 26472,
           title: 'Disco Elysium',
           releaseYear: 2019,
           timeToBeatSeconds: 118800),
-      entry: e(26192, Ownership.owned, Progress.abandoned),
-      copies: [c(26192, Platform.pc)],
+      entry: e(26472, Ownership.owned, Progress.abandoned),
+      copies: [c(26472, Platform.pc)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 134595,
+          igdbId: 23733,
           title: 'Tunic',
           releaseYear: 2022,
           timeToBeatSeconds: 41400),
-      entry: e(134595, Ownership.owned, Progress.untouched),
-      copies: [c(134595, Platform.xbox)],
+      entry: e(23733, Ownership.owned, Progress.untouched),
+      copies: [c(23733, Platform.xbox)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 19560,
+          igdbId: 303811,
           title: 'Astro Bot',
           releaseYear: 2024,
           timeToBeatSeconds: 43200),
-      entry: e(19560, Ownership.owned, Progress.untouched),
-      copies: [c(19560, Platform.playstation)],
+      entry: e(303811, Ownership.owned, Progress.untouched),
+      copies: [c(303811, Platform.playstation)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 96437,
+          igdbId: 126098,
           title: 'Half-Life: Alyx',
           releaseYear: 2020,
           timeToBeatSeconds: 39600),
-      entry: e(96437, Ownership.owned, Progress.installed),
-      copies: [c(96437, Platform.quest)],
+      entry: e(126098, Ownership.owned, Progress.installed),
+      copies: [c(126098, Platform.quest)],
     ),
     // Owned, spanning every console so the demo tree shows real platform
     // variety and the detail sheet's platform line has something to say. Real
@@ -298,12 +298,12 @@ List<TreeItem> fixtureTree() {
     ),
     TreeItem(
       game: const Game(
-          igdbId: 119177,
-          title: "Baldur's Gate 3",
+          igdbId: 119171,
+          title: "Baldur's Gate III",
           releaseYear: 2023,
           timeToBeatSeconds: 259200),
-      entry: e(119177, Ownership.owned, Progress.playing),
-      copies: [c(119177, Platform.pc), c(119177, Platform.steamDeck)],
+      entry: e(119171, Ownership.owned, Progress.playing),
+      copies: [c(119171, Platform.pc), c(119171, Platform.steamDeck)],
     ),
     TreeItem(
       game: const Game(
@@ -329,75 +329,75 @@ List<TreeItem> fixtureTree() {
     ),
     TreeItem(
       game: const Game(
-          igdbId: 231540,
+          igdbId: 251833,
           title: 'Balatro',
           releaseYear: 2024,
           timeToBeatSeconds: 90000),
-      entry: e(231540, Ownership.owned, Progress.playing),
-      copies: [c(231540, Platform.switch_), c(231540, Platform.steamDeck)],
+      entry: e(251833, Ownership.owned, Progress.playing),
+      copies: [c(251833, Platform.switch_), c(251833, Platform.steamDeck)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 234160,
+          igdbId: 127044,
           title: "Marvel's Spider-Man 2",
           releaseYear: 2023,
           timeToBeatSeconds: 90000),
-      entry: e(234160, Ownership.owned, Progress.finished),
-      copies: [c(234160, Platform.playstation)],
+      entry: e(127044, Ownership.owned, Progress.finished),
+      copies: [c(127044, Platform.playstation)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 25076,
+          igdbId: 186725,
           title: 'Vampire Survivors',
           releaseYear: 2022,
           timeToBeatSeconds: 54000),
-      entry: e(25076, Ownership.owned, Progress.installed),
-      copies: [c(25076, Platform.steamDeck), c(25076, Platform.ios)],
+      entry: e(186725, Ownership.owned, Progress.installed),
+      copies: [c(186725, Platform.steamDeck), c(186725, Platform.ios)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 7331,
+          igdbId: 7346,
           title: 'The Legend of Zelda: Breath of the Wild',
           releaseYear: 2017,
           timeToBeatSeconds: 180000),
-      entry: e(7331, Ownership.owned, Progress.abandoned),
-      copies: [c(7331, Platform.switch_)],
+      entry: e(7346, Ownership.owned, Progress.abandoned),
+      copies: [c(7346, Platform.switch_)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 1985,
+          igdbId: 8900,
           title: 'Monument Valley',
           releaseYear: 2014,
           timeToBeatSeconds: 7200),
-      entry: e(1985, Ownership.owned, Progress.finished),
-      copies: [c(1985, Platform.ios), c(1985, Platform.android)],
+      entry: e(8900, Ownership.owned, Progress.finished),
+      copies: [c(8900, Platform.ios), c(8900, Platform.android)],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 1029,
+          igdbId: 141503,
           title: 'Forza Horizon 5',
           releaseYear: 2021,
           timeToBeatSeconds: 90000),
-      entry: e(1029, Ownership.owned, Progress.installed),
-      copies: [c(1029, Platform.xbox), c(1029, Platform.pc)],
+      entry: e(141503, Ownership.owned, Progress.installed),
+      copies: [c(141503, Platform.xbox), c(141503, Platform.pc)],
     ),
     // Seeds. Recommended, not owned. No platform, so no branch.
     TreeItem(
       game: const Game(
-          igdbId: 119171,
+          igdbId: 204623,
           title: 'Pentiment',
           releaseYear: 2022,
           timeToBeatSeconds: 68400),
-      entry: e(119171, Ownership.spotted, Progress.untouched, by: 'Priya'),
+      entry: e(204623, Ownership.spotted, Progress.untouched, by: 'Priya'),
       copies: const [],
     ),
     TreeItem(
       game: const Game(
-          igdbId: 125174,
+          igdbId: 149657,
           title: 'Blue Prince',
           releaseYear: 2025,
           timeToBeatSeconds: 90000),
-      entry: e(125174, Ownership.spotted, Progress.untouched, by: 'a TikTok clip'),
+      entry: e(149657, Ownership.spotted, Progress.untouched, by: 'a TikTok clip'),
       copies: const [],
     ),
   ];

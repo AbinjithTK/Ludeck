@@ -321,10 +321,17 @@ class LudeckStore extends ChangeNotifier {
     var filled = 0;
     for (final g in missing) {
       String? url;
+      final want = normaliseTitle(g.title);
       try {
-        url = (await catalog.byId(g.igdbId))?.coverUrl;
+        // An id hit only counts when it names the same game: a stored id that
+        // points at a different IGDB game (a bad seed id did exactly this --
+        // "Hollow Knight" 1020 is GTA V) would otherwise paint the wrong cover,
+        // and a wrong cover is worse than none.
+        final byId = await catalog.byId(g.igdbId);
+        if (byId != null && normaliseTitle(byId.title) == want) {
+          url = byId.coverUrl;
+        }
         if (url == null) {
-          final want = normaliseTitle(g.title);
           for (final hit in await catalog.search(g.title)) {
             if (normaliseTitle(hit.title) == want && hit.coverUrl != null) {
               url = hit.coverUrl;
