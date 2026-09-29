@@ -8,6 +8,7 @@ import 'package:ludeck/services/social/fake_social_backend.dart';
 import 'package:ludeck/services/social/social_backend.dart';
 import 'package:ludeck/ui/account/account_flow.dart';
 import 'package:ludeck/ui/account/profile_setup_screen.dart';
+import 'package:ludeck/ui/gamified/primitives.dart';
 
 /// Holds what ensureAccount returned, so a test can assert on it.
 class _Result {
@@ -261,6 +262,21 @@ void main() {
     expect(result.returned, isTrue);
     expect(result.profile, isNull);
     expect(backend.currentProfile, isNull);
+  });
+
+  testWidgets('the sky fills the whole screen, however short the form',
+      (tester) async {
+    // 2026-09-29, on device: a Scaffold body is loose in height, so the
+    // backdrop shrank to the form and bare background showed below it.
+    // A Pixel 8 screen, tall enough that the form ends above the bottom.
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 2.625;
+    addTearDown(tester.view.reset);
+    await _pump(tester, backend);
+    final screen = tester.view.physicalSize / tester.view.devicePixelRatio;
+    final sky = tester.getSize(find.byType(CosmosBackdrop).last);
+    expect(sky.height, screen.height);
+    expect(sky.width, screen.width);
   });
 
   testWidgets('a build without accounts says so and offers only Not now',

@@ -96,6 +96,17 @@ void main() {
     expect(backend.currentProfile!.id, _uid);
   });
 
+  test('a session restored at launch reads the real profile row', () async {
+    // A fresh backend over a client that already holds a session: the
+    // initial auth event should trigger one profile read.
+    respond = (r) => r.url.path == '/rest/v1/profiles'
+        ? ok(_profileRow(_uid, 'aabi'))
+        : ok([]);
+    final fresh = SupabaseSocialBackend(client);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(fresh.currentProfile!.handle, 'aabi');
+  });
+
   group('profile', () {
     test('updateProfile PATCHes only the changed columns, then caches the row',
         () async {
@@ -329,8 +340,11 @@ void main() {
       final feed = await backend.friendsActivity();
       expect(bodyOf(only('POST', '/rest/v1/rpc/friends_activity')),
           contains('since'));
-      expect(only('GET', '/rest/v1/profiles').url.queryParameters['id'],
-          'in.("$_bobId")');
+      final actorRead = sent.singleWhere((r) =>
+          r.method == 'GET' &&
+          r.url.path == '/rest/v1/profiles' &&
+          (r.url.queryParameters['id'] ?? '').startsWith('in.'));
+      expect(actorRead.url.queryParameters['id'], 'in.("$_bobId")');
       expect(feed.single.actor.handle, 'bob');
       expect(feed.single.kind, ActivityKind.harvested);
     });

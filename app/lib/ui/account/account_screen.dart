@@ -201,36 +201,64 @@ class _AccountScreenState extends State<AccountScreen> {
       child: Scaffold(
         body: CosmosBackdrop(
           sky: Sky.deep,
-          child: SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(Tokens.space.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (widget.onDone == null && Navigator.of(context).canPop())
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: BackButton(color: Tokens.palette.text),
-                    ),
-                  SizedBox(height: Tokens.space.md),
-                  if (!backend.isConfigured)
-                    _notConfigured()
-                  else if (_checkEmail != null)
-                    _checkInbox()
-                  else if (_waitingForGoogle)
-                    _waiting()
-                  else
-                    _form(),
-                  SizedBox(height: Tokens.space.lg),
-                  TextButton(
-                    key: const Key('account-not-now'),
-                    onPressed: () => _done(null),
-                    child: Text(
-                      'Not now',
-                      style: TextStyle(color: Tokens.palette.textDim),
+          // Expand: a Scaffold body is loose in height, and a scroll view on
+          // a short form shrinks to the form, so the sky stopped halfway down
+          // and the bare background showed under it (2026-09-29, on device).
+          child: SizedBox.expand(
+            child: SafeArea(
+              child: LayoutBuilder(
+                builder: (context, viewport) => SingleChildScrollView(
+                  padding: EdgeInsets.symmetric(horizontal: Tokens.space.lg),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: viewport.maxHeight),
+                    child: IntrinsicHeight(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            height: kToolbarHeight,
+                            child: widget.onDone == null &&
+                                    Navigator.of(context).canPop()
+                                ? Align(
+                                    alignment: Alignment.centerLeft,
+                                    child:
+                                        BackButton(color: Tokens.palette.text),
+                                  )
+                                : null,
+                          ),
+                          const Spacer(),
+                          Center(
+                            child: GlowOrb(
+                              diameter: 72,
+                              glow: 0.7,
+                              child: Icon(Icons.park_outlined,
+                                  size: 32, color: Tokens.palette.text),
+                            ),
+                          ),
+                          SizedBox(height: Tokens.space.md),
+                          if (!backend.isConfigured)
+                            _notConfigured()
+                          else if (_checkEmail != null)
+                            _checkInbox()
+                          else if (_waitingForGoogle)
+                            _waiting()
+                          else
+                            _form(),
+                          const Spacer(flex: 2),
+                          TextButton(
+                            key: const Key('account-not-now'),
+                            onPressed: () => _done(null),
+                            child: Text(
+                              'Not now',
+                              style: TextStyle(color: Tokens.palette.textDim),
+                            ),
+                          ),
+                          SizedBox(height: Tokens.space.sm),
+                        ],
+                      ),
                     ),
                   ),
-                ],
+                ),
               ),
             ),
           ),

@@ -37,6 +37,14 @@ class SupabaseSocialBackend implements SocialBackend {
     // screen waiting for it, and how a failed hand-off becomes a message
     // rather than a silent nothing.
     _client.auth.onAuthStateChange.listen(_onAuth, onError: _onAuthError);
+    // A session saved from last time: read the row in the background so
+    // currentProfile shows the chosen ID, not the derived 'g...' one (seen on
+    // device 2026-09-29: Settings said @g08c8ee8795 for @aabi). Nothing waits
+    // on it, so launch never waits on the network; offline, the derived
+    // profile simply stands until the next read.
+    if (_client.auth.currentUser != null) {
+      refreshMyProfile().then((_) {}, onError: (Object _) {});
+    }
   }
 
   /// Initialise Supabase and return a wired backend. Call once at startup only
@@ -114,6 +122,13 @@ class SupabaseSocialBackend implements SocialBackend {
     final msg = e is AuthException ? e.message.toLowerCase() : '';
     if (code == 'bad_oauth_state' || msg.contains('state')) {
       return 'Google sign-in took too long. Try again.';
+    }
+    // Supabase could not trade Google's code for a session: the Google
+    // client secret or redirect on the server side is wrong. Retrying from
+    // the phone cannot fix that, so say so and point at email.
+    if (msg.contains('exchange external code')) {
+      return "Google sign-in isn't working on our side right now. Use email "
+          'for now.';
     }
     if (code == 'otp_expired' || msg.contains('expired')) {
       return 'That link has expired. Ask for a new one.';
