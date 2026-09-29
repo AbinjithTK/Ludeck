@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Ludeck mark: a gold crescent cradling the first fruit. -->
+  <rect width="100" height="100" fill="#140F2A"/>
+  <circle cx="22" cy="24" r="1.6" fill="#E6E0F5"/>
+  <circle cx="80" cy="30" r="1.1" fill="#E6E0F5" fill-opacity=".7"/>
+  <circle cx="74" cy="17" r="0.9" fill="#E6E0F5" fill-opacity=".5"/>
+  <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="100" height="100"><rect width="100" height="100" fill="#fff"/><circle cx="56" cy="46" r="27" fill="#000"/></mask>
+  <circle cx="50" cy="52" r="31" fill="#E8B84B" mask="url(#cut)"/>
+  <circle cx="56" cy="47" r="17" fill="#C8457A"/>
+  <path d="M56 30 a17 17 0 0 1 0 34 a13 17 0 0 0 0 -34 z" fill="#A8386A"/>
+  <path d="M47 39 a10 10 0 0 1 7 -4" stroke="#F7C6DA" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M56 31 c0 -5 1 -8 3 -10" stroke="#3B2338" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+  <path d="M58.5 25 c6 -6 12 -6 15 -4 c-3 6 -9 8 -15 4 z" fill="#3FA36E"/></svg>

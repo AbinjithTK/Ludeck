@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The icon's night sky (Tokens.cosmos). -->
+    <color name="ic_launcher_background">#140F2A</color>
+    <!-- The app's own background (Tokens.palette.bg), so the splash hands
+         over to the first frame with no flash. -->
+    <color name="splash_background">#0D0A1C</color>
+</resources>
