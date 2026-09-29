@@ -24,6 +24,10 @@ const ALLOWED_ENDPOINTS = new Set([
   "genres",
   "game_time_to_beats",
   "search",
+  // The exact path: a Twitch clip's or Steam page's own id mapped to the game.
+  // The app has always called this (HttpCatalog.byExternalId); leaving it off
+  // the list meant every such share silently fell back to title guessing.
+  "external_games",
 ]);
 
 const CORS = {

@@ -180,6 +180,17 @@ class TitleKeys {
       // The acronym of the WHOLE thing, subtitle included: "tlozbotw" is a real
       // way people write it.
       addAcronym(n);
+
+      // The series as initials, the subtitle in words: "COD Vanguard", "GTA San
+      // Andreas", "AC Valhalla". This is how video titles and hashtags name a
+      // sequel far more often than either the full title or a pure acronym.
+      final series = normaliseTitle(parts.first);
+      final rest = normaliseTitle(parts.skip(1).join(' '));
+      final initials = acronym(series);
+      if (initials.length >= 2 && rest.isNotEmpty) {
+        acronyms.add(initials + rest.replaceAll(' ', ''));
+        acronyms.add(initials + arabicNumerals(rest).replaceAll(' ', ''));
+      }
     }
   }
 

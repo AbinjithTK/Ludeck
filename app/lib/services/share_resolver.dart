@@ -102,22 +102,69 @@ class ShareResolver {
     // credentials at all, only looking a game UP does. A link that carries no game
     // id now resolves through what the page calls itself.
     final reader = _metadata;
+    // Every link's title is read at once, and then EVERY candidate phrase --
+    // from those titles and from the prose -- goes to the catalogue in one
+    // batch. This used to be one sequential search per phrase: a long video
+    // title makes ~40 phrases, and at ~1s per round trip that was a
+    // half-minute share. Scoring below is unchanged; only the lookups moved.
+    final titled = <(SharedLink, String)>[];
+    // Games a title named as a WHOLE segment ("| COD Vanguard"). When one
+    // exists, a game found only inside a longer segment is a weaker guess.
+    final segmentHits = <int>{};
     if (reader != null) {
-      for (final link in parsed.links) {
-        if (link.carriesGameId && byId.isNotEmpty) continue;
-        final pageTitle = await reader.titleFor(link.uri);
-        if (pageTitle == null) continue;
+      final links = [
+        for (final link in parsed.links)
+          if (!(link.carriesGameId && byId.isNotEmpty)) link,
+      ];
+      final titles =
+          await Future.wait(links.map((l) => reader.titleFor(l.uri)));
+      for (final (i, t) in titles.indexed) {
+        if (t != null) titled.add((links[i], t));
+      }
+    }
+    final titlePhrases = {
+      for (final (_, t) in titled) t: videoTitlePhrases(t),
+    };
+    // Whole title segments and the prose phrases first: they get IGDB's full
+    // relevance search (acronyms, alternative names). Every other window only
+    // needs an exact-name hit, which the batch answers in one request.
+    final broadFirst = <String>{
+      for (final (_, t) in titled) ...videoTitleSegments(t),
+      ...parsed.phrases,
+    };
+    final hitsFor = await searchAll(
+      _catalog,
+      [
+        ...broadFirst,
+        for (final ps in titlePhrases.values) ...ps,
+      ],
+      broad: broadFirst.length.clamp(1, 5),
+    );
 
+    for (final (link, pageTitle) in titled) {
+      {
         // Gaming context is read from the PAGE TITLE, not from the shared prose,
         // because a bare link has no prose. "Control walkthrough" carries its own
         // corroboration; "the best controller settings" does not.
         final pageContext = parseShare(pageTitle).hasGamingContext;
 
-        for (final phrase in videoTitlePhrases(pageTitle)) {
-          final hits = await _catalog.search(phrase);
-          if (hits.isEmpty) continue;
+        final segments = {
+          for (final s in videoTitleSegments(pageTitle)) normaliseTitle(s),
+        };
 
-          for (final game in hits.take(2)) {
+        for (final phrase in titlePhrases[pageTitle]!) {
+          final hits = hitsFor[phrase] ?? const [];
+          if (hits.isEmpty) continue;
+          final whole = segments.contains(normaliseTitle(phrase));
+          // "Elden Ring" names Elden Ring, not its Collector's Edition or
+          // Nightreign, even though both match through their series name. When
+          // some hit's full title IS the phrase, only those hits count.
+          final want = normaliseTitle(phrase);
+          final fullHits =
+              hits.where((g) => normaliseTitle(g.title) == want).toList();
+          final pool = fullHits.isNotEmpty ? fullHits : hits.take(10);
+
+          for (final game in pool) {
             // Only an exact or acronym hit is trusted from a page title. A
             // substring hit off a noisy video title is how "Part 1 of my Control
             // playthrough" would confidently offer the wrong game -- the phrase
@@ -126,6 +173,7 @@ class ShareResolver {
             if (tier == null) continue;
             if (tier != MatchTier.exact && tier != MatchTier.acronym) continue;
 
+            if (whole) segmentHits.add(game.igdbId);
             offer(Candidate(
               title: game.title,
               igdbId: game.igdbId,
@@ -135,6 +183,7 @@ class ShareResolver {
                 phrase: phrase,
                 link: link,
                 hasGamingContext: pageContext,
+                wholeSegment: whole,
               ),
               link: link,
             ));
@@ -147,7 +196,7 @@ class ShareResolver {
     // corroboration rule decides whether a hit is trustworthy.
     final quoted = _quotedPhrases(parsed.prose);
     for (final phrase in parsed.phrases) {
-      final hits = await _catalog.search(phrase);
+      final hits = hitsFor[phrase] ?? const [];
       if (hits.isEmpty) continue;
 
       final normalisedPhrase = normaliseTitle(phrase);
@@ -170,6 +219,33 @@ class ShareResolver {
     }
 
     var candidates = [...byId.values, ...byTitle.values];
+
+    // "(PS5) Merville 1944 Behind Enemy Lines | ... | COD Vanguard" names one
+    // game, in its own segment. "Behind Enemy Lines" is also a real game, found
+    // inside a longer segment. Both stay on the sheet, but only the one the
+    // creator set apart is pre-ticked -- otherwise one share adds two games.
+    if (segmentHits.isNotEmpty) {
+      candidates = [
+        for (final c in candidates)
+          // A single word lifted out of a longer segment ("Enemy", "Ghost",
+          // "PASS") next to a game the title actually named is noise, not an
+          // alternative worth showing.
+          if (!(c.method == MatchMethod.metadata &&
+              !segmentHits.contains(c.igdbId) &&
+              (!c.title.trim().contains(' ') || c.confidence < 0.52)))
+            c.method == MatchMethod.metadata &&
+                  !segmentHits.contains(c.igdbId) &&
+                  c.confidence >= kAutoTickThreshold
+              ? Candidate(
+                  title: c.title,
+                  igdbId: c.igdbId,
+                  method: c.method,
+                  confidence: kAutoTickThreshold - 0.05,
+                  link: c.link,
+                )
+              : c,
+      ];
+    }
 
     // Last resort. Ships as a no-op; see `Interpreter`.
     //

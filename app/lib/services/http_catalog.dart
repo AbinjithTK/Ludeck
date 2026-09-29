@@ -110,12 +110,40 @@ class HttpCatalogTransport implements CatalogTransport {
 /// POST a JSON body of `{endpoint, query}` where `endpoint` is one of its
 /// allow-listed IGDB endpoints and `query` is an Apicalypse string. The response
 /// is IGDB's own JSON array.
-class HttpCatalog implements CatalogSource {
-  const HttpCatalog({
+/// What a search asks for. Shared by single and batched searches so the two
+/// can never drift apart.
+const String _searchFields = 'id,name,first_release_date,cover.url,total_rating';
+
+class _SearchCache {
+  _SearchCache(this.max);
+  final int max;
+  final Map<String, List<Game>> _map = {};
+
+  List<Game>? get(String key) {
+    final hit = _map.remove(key);
+    if (hit != null) _map[key] = hit; // most recent last
+    return hit;
+  }
+
+  void put(String key, List<Game> value) {
+    _map.remove(key);
+    if (_map.length >= max) _map.remove(_map.keys.first);
+    _map[key] = value;
+  }
+}
+
+class HttpCatalog implements CatalogSource, BatchSearch {
+  HttpCatalog({
     required this.baseUrl,
     required this.transport,
     this.anonKey,
   });
+
+  /// Search results by exact phrase, for the life of this catalogue (the app
+  /// builds one). The same phrases recur constantly -- a second share of the
+  /// same video, the user retyping a search -- and a hit here is a network
+  /// round trip not made. Bounded so a long session cannot grow it forever.
+  final _SearchCache _searchCache = _SearchCache(256);
 
   final Uri baseUrl;
   final CatalogTransport transport;
@@ -129,18 +157,118 @@ class HttpCatalog implements CatalogSource {
   Future<List<Game>> search(String query) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
+    final cached = _searchCache.get(trimmed);
+    if (cached != null) return cached;
 
     // Apicalypse. `search` with a where clause rather than a name match, so
     // IGDB's own relevance does the ranking.
     final body = jsonEncode({
       'endpoint': 'games',
       'query': 'search "${_escape(trimmed)}"; '
-          'fields id,name,first_release_date,cover.url,'
-          'time_to_beat,total_rating; '
+          // No `time_to_beat`: IGDB removed it from `games` (it lives on the
+          // separate game_time_to_beats endpoint now), and naming a field that
+          // no longer exists makes IGDB reject the WHOLE query with a 400.
+          'fields $_searchFields; '
           'limit 25;',
     });
 
-    return _games(await _post(body));
+    final games = _games(await _post(body));
+    _searchCache.put(trimmed, games);
+    return games;
+  }
+
+  /// Many searches in few requests.
+  ///
+  /// IGDB's multiquery would be the obvious tool, but it silently answers an
+  /// empty array for any sub-query that uses `search` -- measured, not assumed.
+  /// So: the first [broad] phrases get a real relevance search each, all at
+  /// once (these are the ones likely to BE a title, and the only way to reach
+  /// acronyms like "botw" or "cod vanguard"), and EVERY phrase is also matched
+  /// on exact name in ONE request (`where name ~ "a" | name ~ "b" ...`), which
+  /// IGDB answers in the time of a single call. A resolved video title went
+  /// from ~20 sequential ~1s calls to one parallel wave.
+  ///
+  /// A failed request yields empty results for its phrases rather than failing
+  /// the batch: resolving a share must degrade, not break.
+  @override
+  Future<Map<String, List<Game>>> searchMany(List<String> queries,
+      {int broad = 6}) async {
+    final out = <String, List<Game>>{};
+    final todo = <String>[];
+    for (final q in queries) {
+      final t = q.trim();
+      final cached = t.isEmpty ? const <Game>[] : _searchCache.get(t);
+      if (cached != null) {
+        out[q] = cached;
+      } else {
+        todo.add(q);
+      }
+    }
+    if (todo.isEmpty) return out;
+
+    final wide = todo.take(broad).toList();
+    final wideHits = <String, List<Game>>{};
+    final exact = <String, List<Game>>{for (final q in todo) q: []};
+
+    Future<void> broadOne(String q) async {
+      try {
+        wideHits[q] = await search(q);
+      } on CatalogException {
+        wideHits[q] = const [];
+      }
+    }
+
+    Future<void> exactChunk(List<String> chunk) async {
+      final where = chunk.map((q) => 'name ~ "${_escape(q.trim())}"').join(' | ');
+      try {
+        final games = _games(await _post(jsonEncode({
+          'endpoint': 'games',
+          'query': 'fields $_searchFields; where $where; limit 500;',
+        })));
+        for (final g in games) {
+          final key = g.title.toLowerCase();
+          for (final q in chunk) {
+            if (q.trim().toLowerCase() == key) exact[q]!.add(g);
+          }
+        }
+      } on CatalogException {
+        // Leave these phrases empty.
+      }
+    }
+
+    // Chunked by query length: the proxy caps a query at 2000 characters.
+    final chunks = <List<String>>[];
+    var current = <String>[];
+    var length = 0;
+    for (final q in todo) {
+      final cost = q.length + 14;
+      if (current.isNotEmpty && length + cost > 1700) {
+        chunks.add(current);
+        current = [];
+        length = 0;
+      }
+      current.add(q);
+      length += cost;
+    }
+    if (current.isNotEmpty) chunks.add(current);
+
+    await Future.wait([
+      ...wide.map(broadOne),
+      ...chunks.map(exactChunk),
+    ]);
+
+    for (final q in todo) {
+      final seen = <int>{};
+      final games = [
+        for (final g in [...?wideHits[q], ...exact[q]!])
+          if (seen.add(g.igdbId)) g,
+      ];
+      out[q] = games;
+      // Only a broad result is a complete answer for that phrase; an
+      // exact-only answer must not stand in for a later full search.
+      if (wideHits.containsKey(q)) _searchCache.put(q.trim(), games);
+    }
+    return out;
   }
 
   @override
@@ -148,7 +276,7 @@ class HttpCatalog implements CatalogSource {
     final body = jsonEncode({
       'endpoint': 'games',
       'query': 'where id = $igdbId; '
-          'fields id,name,first_release_date,cover.url,time_to_beat; '
+          'fields id,name,first_release_date,cover.url; '
           'limit 1;',
     });
     final games = _games(await _post(body));

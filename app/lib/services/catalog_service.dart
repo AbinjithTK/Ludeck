@@ -51,6 +51,46 @@ class CatalogException implements Exception {
       'CatalogException(${failure.name}${detail == null ? '' : ': $detail'})';
 }
 
+/// A source that can answer many searches in far fewer round trips.
+///
+/// Resolving one shared video title tries dozens of candidate phrases. Asked one
+/// at a time over the network that was ~20 sequential ~1s calls, which is why a
+/// share took half a minute. The live catalogue implements this with IGDB's
+/// multiquery, ten searches per request.
+abstract class BatchSearch {
+  /// Results for every phrase in [queries], keyed by the phrase as given.
+  ///
+  /// The first [broad] queries get a full relevance search (which also finds
+  /// acronyms and alternative names); the rest are matched on exact name only,
+  /// all in one request. Callers put the phrases most likely to BE a title --
+  /// a video title's whole segments -- first.
+  Future<Map<String, List<Game>>> searchMany(List<String> queries,
+      {int broad = 6});
+}
+
+/// Every phrase in [queries] searched at once, keyed by phrase.
+///
+/// Uses [BatchSearch] when [catalog] has it, otherwise runs single searches
+/// concurrently. A phrase whose search fails maps to an empty list, the same
+/// "found nothing" a single failed lookup always meant to the resolver.
+Future<Map<String, List<Game>>> searchAll(
+    CatalogSource catalog, Iterable<String> queries,
+    {int broad = 6}) async {
+  final unique = queries.toSet().toList();
+  if (unique.isEmpty) return const {};
+  if (catalog is BatchSearch) {
+    return (catalog as BatchSearch).searchMany(unique, broad: broad);
+  }
+  final results = await Future.wait(unique.map((q) async {
+    try {
+      return await catalog.search(q);
+    } on CatalogException {
+      return const <Game>[];
+    }
+  }));
+  return {for (final (i, q) in unique.indexed) q: results[i]};
+}
+
 /// A lookup of games. Never writes; the repository owns writes.
 abstract class CatalogSource {
   /// Games whose title matches [query], best first. Empty when nothing matches.

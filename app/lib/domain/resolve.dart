@@ -458,6 +458,7 @@ double metadataConfidence({
   required String phrase,
   required SharedLink link,
   required bool hasGamingContext,
+  bool wholeSegment = false,
 }) {
   if (isAmbiguous(phrase) && !hasGamingContext) return 0;
 
@@ -474,6 +475,12 @@ double metadataConfidence({
   // A link that at least identified itself (a known host with an id in the path)
   // is marginally better evidence than a bare page.
   final linkBonus = link.id != null ? 0.02 : 0.0;
-  final score = base + lengthBonus + linkBonus;
+  // Creators set the game name apart: "Elden Ring | Full Game", "... [4K]
+  // COD Vanguard". A phrase that is a WHOLE segment is the name they chose;
+  // one word cut out of the middle of a sentence ("Enemy" from "Behind Enemy
+  // Lines", "Ghost" from "Ghost of Tsushima") is almost always a coincidence,
+  // so it drops below the auto-tick line -- still shown, never pre-ticked.
+  final segment = wholeSegment ? 0.10 : (words == 1 ? -0.25 : 0.0);
+  final score = base + lengthBonus + linkBonus + segment;
   return score > 0.92 ? 0.92 : score;
 }

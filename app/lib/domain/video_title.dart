@@ -85,6 +85,33 @@ bool _isNoise(String word) {
 bool _allNoise(String phrase) =>
     phrase.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).every(_isNoise);
 
+/// The title's separator-delimited segments, cleaned and in order: the whole
+/// phrases most likely to BE a game name ("Elden Ring", "COD Vanguard"). The
+/// resolver gives these the expensive relevance search; every smaller window
+/// gets the cheap exact-name lookup.
+List<String> videoTitleSegments(String raw) => raw
+    .replaceAll(_decoration, ' ')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .split(_separators)
+    .map(_trimEdgeNoise)
+    .where((s) => s.length >= 2 && !_allNoise(s))
+    .toList();
+
+/// A segment without the noise at its edges: "Hollow Knight Walkthrough" ->
+/// "Hollow Knight", "Ghost of Tsushima PS5" -> "Ghost of Tsushima". Only the
+/// EDGES: "Call of Duty" keeps its "of".
+String _trimEdgeNoise(String segment) {
+  final words = segment.trim().split(' ').where((w) => w.isNotEmpty).toList();
+  var start = 0, end = words.length;
+  while (start < end && _isNoise(words[start])) {
+    start++;
+  }
+  while (end > start && _isNoise(words[end - 1])) {
+    end--;
+  }
+  return words.sublist(start, end).join(' ');
+}
+
 /// Candidate game names found in [raw], longest first.
 ///
 /// Every contiguous run of words is a candidate. That sounds crude and is the
@@ -98,9 +125,12 @@ bool _allNoise(String phrase) =>
 /// scores a longer match higher, so "Hades II" beats "Hades" on a video about the
 /// sequel without either being special-cased.
 ///
-/// [limit] is generous because each candidate costs one in-memory lookup against
-/// precomputed keys, and cutting the list short is how the right answer gets lost.
-List<String> videoTitlePhrases(String raw, {int limit = 40}) {
+/// [limit] is generous because windows now cost almost nothing: they are
+/// matched on exact name in one batched request. A low cap is what lost the
+/// game in LONG titles -- a twelve-word first segment alone makes 78 windows,
+/// so "COD Vanguard" at the end of "(PS5) Merville 1944 Behind Enemy Lines |
+/// Ultra Realistic Gameplay [4K60FPS] COD Vanguard" was never tried.
+List<String> videoTitlePhrases(String raw, {int limit = 150}) {
   if (raw.trim().isEmpty) return const [];
 
   final cleaned = raw.replaceAll(_decoration, ' ').replaceAll(RegExp(r'\s+'), ' ');

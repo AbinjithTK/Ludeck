@@ -14,7 +14,7 @@ import '../data/models.dart';
 import '../domain/title_match.dart';
 import 'catalog_service.dart';
 
-class LayeredCatalog implements CatalogSource {
+class LayeredCatalog implements CatalogSource, BatchSearch {
   LayeredCatalog({required this.primary, required this.fallback});
 
   /// Asked first. Its answers rank above the fallback's.
@@ -22,6 +22,26 @@ class LayeredCatalog implements CatalogSource {
 
   /// Asked always, and merged in beneath. Expected to be local and cheap.
   final CatalogSource fallback;
+
+  /// The batch form of [search], with the same lead-and-fill merge per phrase.
+  /// Only the primary is batched: it is the network one. A primary failure
+  /// already maps to empty lists inside [searchAll], so the bundle still fills.
+  @override
+  Future<Map<String, List<Game>>> searchMany(List<String> queries,
+      {int broad = 6}) async {
+    final live = await searchAll(primary, queries, broad: broad);
+    final local = await searchAll(fallback, queries);
+    return {
+      for (final q in queries)
+        q: () {
+          final seen = <String>{};
+          return [
+            for (final g in [...?live[q], ...?local[q]])
+              if (seen.add(catalogDedupKey(g.title))) g,
+          ];
+        }(),
+    };
+  }
 
   @override
   Future<List<Game>> search(String query) async {

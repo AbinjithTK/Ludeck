@@ -8,6 +8,8 @@
 // Nothing in this file touches the network. The transport is injected, so every
 // oEmbed shape and every failure mode is a recorded string.
 
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/data/models.dart';
@@ -293,6 +295,68 @@ void main() {
         greaterThan(metadataConfidence(
             tier: MatchTier.exact, phrase: 'solo', link: bareLink, hasGamingContext: false)),
       );
+    });
+  });
+
+  group('long and noisy video titles (real shares that used to fail)', () {
+    // Recorded from real YouTube videos. These were a half-minute share that
+    // then offered the wrong game, or nothing.
+    CatalogSource catalog() => FixtureCatalog.of([
+          Game(igdbId: 10, title: 'Call of Duty: Vanguard', releaseYear: 2021),
+          Game(igdbId: 11, title: 'Behind Enemy Lines', releaseYear: 1997),
+          Game(igdbId: 12, title: 'Enemy', releaseYear: 2018),
+          Game(igdbId: 13, title: 'Hollow Knight', releaseYear: 2017),
+          Game(igdbId: 14, title: 'Hollow', releaseYear: 2017),
+          Game(igdbId: 15, title: 'Ghost of Tsushima', releaseYear: 2020),
+          Game(igdbId: 16, title: 'Ghost', releaseYear: 2014),
+        ]);
+
+    Future<ShareResolution> resolveTitle(String title) => ShareResolver(
+          catalog: catalog(),
+          metadata: LinkMetadataReader(
+            transport: _FakeTransport({
+              'youtube.com/oembed': _json('{"title":${jsonEncode(title)}}'),
+            }),
+          ),
+        ).resolve('https://youtu.be/abcdefghijk');
+
+    test('the game named at the END of a long title is found', () async {
+      // Twelve words before the game name: the old 40-window cap never
+      // reached "COD Vanguard", and the series initials were not a key.
+      final r = await resolveTitle(
+          '(PS5) Merville 1944 Behind Enemy Lines | Ultra Realistic Gameplay '
+          '[4K60FPS] COD Vanguard');
+      expect(r.candidates.first.title, 'Call of Duty: Vanguard');
+      expect(r.candidates.first.shouldAutoTick, isTrue);
+      // "Behind Enemy Lines" is a real game inside a longer segment: shown,
+      // never pre-ticked, so one share cannot add two games.
+      final bel = r.candidates.where((c) => c.title == 'Behind Enemy Lines');
+      expect(bel.every((c) => !c.shouldAutoTick), isTrue);
+      // A lone word cut from the sentence is not offered at all.
+      expect(r.candidates.map((c) => c.title), isNot(contains('Enemy')));
+    });
+
+    test('a segment padded with noise still counts as naming the game',
+        () async {
+      final hk = await resolveTitle(
+          "Hollow Knight Walkthrough - King's Pass Beginner Guide");
+      expect(hk.candidates.map((c) => c.title), ['Hollow Knight']);
+      final got = await resolveTitle(
+          'Ghost of Tsushima PS5 - Ruthless Samurai - 4K HDR 60FPS');
+      expect(got.candidates.map((c) => c.title), ['Ghost of Tsushima']);
+    });
+
+    test('segments are trimmed of edge noise, never of inner words', () {
+      expect(
+          videoTitleSegments('Ghost of Tsushima PS5 - 4K HDR 60FPS | Call of Duty'),
+          ['Ghost of Tsushima', 'Call of Duty']);
+    });
+
+    test('series initials plus subtitle is an acronym match', () {
+      expect(TitleKeys('Call of Duty: Vanguard').tierFor('COD Vanguard'),
+          MatchTier.acronym);
+      expect(TitleKeys('Grand Theft Auto: San Andreas').tierFor('GTA San Andreas'),
+          MatchTier.acronym);
     });
   });
 

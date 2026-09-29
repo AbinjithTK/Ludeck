@@ -94,6 +94,49 @@ void main() {
       expect(games.first.hours, 26);
     });
 
+    test('many phrases cost a few requests, and repeats cost none', () async {
+      // A long video title is ~100 candidate phrases. One request each was the
+      // half-minute share; the batch is a few broad searches plus exact-name
+      // lookups chunked under the proxy's 2000-character cap.
+      final transport = FakeTransport(_searchBody);
+      final catalog = HttpCatalog(
+        baseUrl: Uri.parse('https://example.test/igdb'),
+        transport: transport,
+      );
+      final phrases = [for (var i = 0; i < 100; i++) 'phrase number $i'];
+      final hits = await catalog.searchMany(phrases, broad: 5);
+
+      expect(hits.keys, containsAll(phrases));
+      expect(transport.requests.length, lessThanOrEqualTo(8));
+      for (final body in transport.requests) {
+        expect((jsonDecode(body) as Map)['query'].toString().length,
+            lessThan(2000));
+      }
+
+      final before = transport.requests.length;
+      await catalog.searchMany(phrases.take(5).toList(), broad: 5);
+      expect(transport.requests.length, before,
+          reason: 'the broad-searched phrases are cached');
+    });
+
+    test('no query asks IGDB for the removed time_to_beat field', () async {
+      // IGDB dropped `time_to_beat` from `games`; naming it made IGDB reject
+      // every search and id lookup with a 400, so no covers ever arrived.
+      final transport = FakeTransport(_searchBody);
+      final catalog = HttpCatalog(
+        baseUrl: Uri.parse('https://example.test/igdb'),
+        transport: transport,
+      );
+      await catalog.search('hollow');
+      await catalog.byId(14593);
+
+      expect(transport.requests, hasLength(2));
+      for (final body in transport.requests) {
+        expect(body, isNot(contains('time_to_beat')));
+        expect(body, contains('cover.url'));
+      }
+    });
+
     test('handles the object form of time_to_beat', () async {
       final catalog = HttpCatalog(
         baseUrl: Uri.parse('https://example.test/igdb'),
