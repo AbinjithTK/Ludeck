@@ -6,7 +6,7 @@
 // Fill these in after docs/DEPLOY-COMMUNITY.md step 5. Until then the page
 // says the orchard can't be loaded yet instead of pretending.
 window.LUDECK = {
-  supabaseUrl: "",          // https://<ref>.supabase.co
-  publishableKey: "",       // sb_publishable_...
+  supabaseUrl: "https://xmwjmajmsqjpenegqyrq.supabase.co",
+  publishableKey: "sb_publishable_xMSu0kgEgttlYFkr_Gkvsg_t8LLmNF3",
   playPackage: "com.ludeck.android",
 };
