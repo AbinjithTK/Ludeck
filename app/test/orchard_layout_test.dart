@@ -233,6 +233,20 @@ void main() {
     expect(s.height, greaterThanOrEqualTo(44));
     expect(find.bySemanticsLabel('Settings'), findsWidgets);
 
+    // Share is a headline action, so it sits in the header right beside
+    // Settings instead of three taps deep inside it.
+    final share = find.byKey(const Key('orchard-action-share'));
+    expect(share, findsOneWidget);
+    final sh = tester.getRect(share);
+    final st = tester.getRect(settings);
+    expect(sh.width, greaterThanOrEqualTo(44));
+    expect(sh.height, greaterThanOrEqualTo(44));
+    expect(sh.right, lessThanOrEqualTo(st.left),
+        reason: 'Share sits to the left of Settings, not over it');
+    expect((sh.center.dy - st.center.dy).abs(), lessThan(1),
+        reason: 'Share and Settings share one header row');
+    expect(find.bySemanticsLabel('Share'), findsWidgets);
+
     await tester.tap(find.bySemanticsLabel('Tree 1. Tree options'));
     await tester.pumpAndSettle();
     expect(find.text('Colours and wood'), findsOneWidget);
