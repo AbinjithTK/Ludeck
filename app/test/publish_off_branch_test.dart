@@ -152,6 +152,10 @@ void main() {
         await tester.tap(find.text('Save and share'));
       });
       await tester.pumpAndSettle();
+      // Signed out, so the account screen comes first.
+      await tester.runAsync(
+          () => tester.tap(find.byKey(const Key('account-google'))));
+      await tester.pumpAndSettle();
 
       final handle = backend.currentProfile!.handle;
       late PublishedTree published;

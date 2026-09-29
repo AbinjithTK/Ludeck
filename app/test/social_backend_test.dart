@@ -113,6 +113,9 @@ void main() {
 
   group('follows', () {
     test('follow then unfollow', () async {
+      // You can only follow someone who exists (0003: follows target profiles).
+      FakeSocialBackend.sharedStore.addProfile(
+          const SocialProfile(id: 'v1', handle: 'bo', displayName: 'Bo'));
       final me = FakeSocialBackend(signedInAs: _me);
       await me.setFollowing('bo', true);
       expect(await me.following(), contains('bo'));

@@ -4,6 +4,7 @@ import 'package:ludeck/data/enums.dart';
 import 'package:ludeck/services/social/fake_social_backend.dart';
 import 'package:ludeck/services/social/social_backend.dart';
 import 'package:ludeck/services/social/supabase_social_backend.dart';
+import 'package:ludeck/ui/account/account_settings_screen.dart';
 import 'package:ludeck/ui/profile/profile_screen.dart';
 import 'package:provider/provider.dart';
 
@@ -52,7 +53,7 @@ void main() {
     });
   });
 
-  group('the profile control', () {
+  group('the account settings control', () {
     setUp(FakeSocialBackend.resetShared);
 
     Future<void> pump(WidgetTester tester, SocialBackend backend) async {
@@ -62,23 +63,35 @@ void main() {
       await tester.pumpWidget(Provider<SocialBackend>.value(
         value: backend,
         child: MaterialApp(
-          home: ProfileBody(items: const [], branches: 0, hero: Container()),
+          home: Builder(
+            builder: (context) => Scaffold(body: TextButton(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const AccountSettingsScreen())),
+              child: const Text('open'),
+            )),
+          ),
         ),
       ));
+      await tester.tap(find.text('open'));
       await tester.pumpAndSettle();
     }
 
-    testWidgets('signed out, there is no account to delete', (tester) async {
-      await pump(tester, FakeSocialBackend());
-      expect(find.byKey(const Key('profile-delete-account')), findsNothing);
+    testWidgets('the profile shows no account control when signed out',
+        (tester) async {
+      await tester.pumpWidget(Provider<SocialBackend>.value(
+        value: FakeSocialBackend(),
+        child: MaterialApp(
+          home: ProfileBody(items: const [], branches: 0, hero: Container()),
+        ),
+      ));
+      expect(find.byKey(const Key('profile-account')), findsNothing);
     });
 
-    testWidgets('signed in, delete asks first and keeping changes nothing',
-        (tester) async {
+    testWidgets('delete asks first and keeping changes nothing', (tester) async {
       final b = FakeSocialBackend();
       await b.signIn();
       await pump(tester, b);
-      await tester.tap(find.byKey(const Key('profile-delete-account')));
+      await tester.tap(find.byKey(const Key('account-delete')));
       await tester.pumpAndSettle();
       expect(find.text('Delete your account?'), findsOneWidget);
       await tester.tap(find.text('Keep account'));
@@ -86,17 +99,18 @@ void main() {
       expect(b.currentProfile, isNotNull);
     });
 
-    testWidgets('confirming deletes the account', (tester) async {
+    testWidgets('confirming deletes the account and leaves the screen',
+        (tester) async {
       final b = FakeSocialBackend();
       await b.signIn();
       await pump(tester, b);
-      await tester.tap(find.byKey(const Key('profile-delete-account')));
+      await tester.tap(find.byKey(const Key('account-delete')));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('confirm-delete-account')));
       await tester.pumpAndSettle();
       expect(b.currentProfile, isNull);
       expect(find.text('Your account has been deleted.'), findsOneWidget);
-      expect(find.byKey(const Key('profile-delete-account')), findsNothing);
+      expect(find.byKey(const Key('account-delete')), findsNothing);
     });
   });
 }

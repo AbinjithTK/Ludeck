@@ -324,6 +324,12 @@ a walkable landscape: that is a second world with its own lighting and camera,
 and it is not what makes Follow reachable. No counts, no feed -- the freeze above
 still holds, and all three options were drawn to respect it.
 
+**Amended 2026-09-29 (direction B, the quiet feed).** One finite list is allowed:
+Lately, friends' real events (planted, finished, rated) from the last two weeks,
+ending with a line that says so. Still no public counts anywhere: a hype is seen
+by the owner alone, a visitor sees only their own reactions, and follower
+numbers show only on your own page. Seeds sent to you wait in an inbox.
+
 **Wishlist games become BUDS on the tree; the soil strip becomes an inbox.**
 A seed does not become an apple on a tree that already exists -- it grows its own
 tree. The real mechanism for "a friend recommended this, it is mine now, and I

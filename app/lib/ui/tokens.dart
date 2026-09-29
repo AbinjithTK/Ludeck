@@ -402,6 +402,15 @@ class TreeSkin {
 class _Skins {
   const _Skins();
 
+  /// The skin a person picked as their avatar (profiles.avatar_seed), or the
+  /// active skin when the seed is unknown or unset.
+  TreeSkin named(String? name) => switch (name) {
+        'midnight' => midnight,
+        'twilight' => twilight,
+        'neon' => neon,
+        _ => biolume,
+      };
+
   /// WHAT SHIPS TODAY. The muted night tree. Kept as the safe fallback and the
   /// regression baseline, so a skin swap can be reverted to exactly this.
   final TreeSkin midnight = const TreeSkin(

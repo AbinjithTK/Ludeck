@@ -42,9 +42,13 @@ class GameSheet extends StatelessWidget {
     required this.onOwnership,
     required this.onTree,
     this.onRate,
+    this.onSend,
     this.onRemove,
     this.onClose,
   });
+
+  /// Opens "Send to a friend". Null hides it (no accounts on this build).
+  final VoidCallback? onSend;
 
   final TreeItem item;
 
@@ -143,6 +147,23 @@ class GameSheet extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               fontSize: Tokens.type.caption, color: p.textDim)),
+                      if (e.recommendedBy case final by? when by.isNotEmpty) ...[
+                        SizedBox(height: Tokens.space.xxs),
+                        Row(children: [
+                          Icon(Icons.spa_outlined,
+                              size: Tokens.type.caption + 2, color: p.textDim),
+                          SizedBox(width: Tokens.space.xxs),
+                          Expanded(
+                            child: Text('From $by',
+                                key: const Key('sheet-from'),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: Tokens.type.caption,
+                                    color: p.textDim)),
+                          ),
+                        ]),
+                      ],
                       if (_platforms case final plats?) ...[
                         SizedBox(height: Tokens.space.xxs),
                         Row(children: [
@@ -229,6 +250,19 @@ class GameSheet extends StatelessWidget {
                     ),
                   ],
                 ),
+              if (onSend != null)
+                _Section(
+                  title: 'Tell a friend',
+                  children: [
+                    _Choice(
+                      key: const Key('sheet-send'),
+                      label: 'Send to a friend',
+                      icon: Icons.send_rounded,
+                      selected: false,
+                      onTap: onSend!,
+                    ),
+                  ],
+                ),
               // Removing the game entirely: the honest hard delete, apart from
               // every other choice because it is not a status and it cannot be
               // undone. Quiet, at the very bottom, so it is reachable but never
@@ -276,6 +310,7 @@ class _Section extends StatelessWidget {
 /// not gold: gold means finished, and a selected "Want it" is not a finish.
 class _Choice extends StatelessWidget {
   const _Choice({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,

@@ -141,7 +141,8 @@ void main() {
       expect(find.bySemanticsLabel('Admire'), findsOneWidget);
       expect(find.bySemanticsLabel('Wishlist'), findsOneWidget);
       expect(find.bySemanticsLabel('Played too'), findsOneWidget);
-      expect(find.bySemanticsLabel('Follow'), findsOneWidget);
+      // This is the visitor's own tree, and you do not follow yourself.
+      expect(find.bySemanticsLabel('Follow'), findsNothing);
       // Plant is the one thing a visitor can do to a row.
       expect(find.bySemanticsLabel(RegExp('Plant')), findsWidgets);
 

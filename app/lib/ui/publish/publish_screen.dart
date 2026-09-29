@@ -17,6 +17,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../account/account_flow.dart';
 import '../../data/models.dart';
 import '../../domain/level.dart';
 import '../../domain/season.dart';
@@ -150,7 +151,11 @@ class _PublishBodyState extends State<PublishBody> {
     });
     try {
       if (!_signedIn) {
-        await widget.backend.signIn();
+        final me = await ensureAccount(context, backend: widget.backend);
+        if (me == null) {
+          if (mounted) setState(() => _saving = false);
+          return;
+        }
       }
       await widget.backend.publish(
         games: widget.games,
@@ -180,9 +185,15 @@ class _PublishBodyState extends State<PublishBody> {
       case SocialFailure.offline:
         return "Couldn't reach the network. Nothing was shared.";
       case SocialFailure.unauthorized:
+      case SocialFailure.emailNotConfirmed:
         return 'Sign-in was needed and did not complete.';
+      case SocialFailure.rateLimited:
+        return 'Too many tries just now. Wait a minute and try again.';
       case SocialFailure.malformed:
       case SocialFailure.notFound:
+      case SocialFailure.conflict:
+      case SocialFailure.invalid:
+      case SocialFailure.forbidden:
         return 'Something went wrong on our side. Nothing was shared.';
     }
   }

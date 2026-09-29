@@ -29,7 +29,28 @@ class SettingsScreen extends StatelessWidget {
     required this.onLibrary,
     required this.onFriends,
     required this.onProfile,
+    this.onAccount,
+    this.accountSubtitle,
+    this.onLately,
+    this.onInbox,
+    this.unreadInbox,
   });
+
+  /// What friends planted, finished and rated lately.
+  final VoidCallback? onLately;
+
+  /// Seeds sent to you, and follows and hypes.
+  final VoidCallback? onInbox;
+
+  /// How many inbox items are new. Shown to you only, on this row.
+  final Future<int> Function()? unreadInbox;
+
+  /// Sign in, or edit your profile once signed in. Optional so a test can
+  /// mount the screen without accounts.
+  final VoidCallback? onAccount;
+
+  /// Read at build time, so the row says who is signed in right now.
+  final String Function()? accountSubtitle;
 
   /// Your whole collection: owned games and wishlist.
   final VoidCallback onLibrary;
@@ -43,6 +64,13 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final destinations = <SettingsDestination>[
+      if (onAccount != null)
+        (
+          icon: Icons.account_circle_outlined,
+          title: 'Account',
+          subtitle: accountSubtitle?.call() ?? 'Sign in or create an account',
+          onTap: onAccount!,
+        ),
       (
         icon: Icons.person_rounded,
         title: 'You',
@@ -61,6 +89,13 @@ class SettingsScreen extends StatelessWidget {
         subtitle: "Open someone's tree by their handle",
         onTap: onFriends,
       ),
+      if (onLately != null)
+        (
+          icon: Icons.local_florist_outlined,
+          title: 'Lately',
+          subtitle: 'What friends planted, finished and rated',
+          onTap: onLately!,
+        ),
     ];
 
     return Scaffold(
@@ -90,6 +125,25 @@ class SettingsScreen extends StatelessWidget {
                   _SettingsRow(destination: d),
                   SizedBox(height: Tokens.space.sm),
                 ],
+                if (onInbox != null)
+                  FutureBuilder<int>(
+                    future: unreadInbox?.call() ?? Future.value(0),
+                    builder: (context, snap) {
+                      final n = snap.data ?? 0;
+                      return _SettingsRow(
+                        destination: (
+                          icon: n > 0
+                              ? Icons.mark_email_unread_outlined
+                              : Icons.inbox_outlined,
+                          title: 'Inbox',
+                          subtitle: n == 0
+                              ? 'Games friends send you, follows and hypes'
+                              : '$n new',
+                          onTap: onInbox!,
+                        ),
+                      );
+                    },
+                  ),
               ],
             ),
           ),

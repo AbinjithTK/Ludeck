@@ -46,7 +46,7 @@ void main() {
       games: const [], level: 1, isPublic: true);
 
   group('reactions', () {
-    testWidgets('admiring shows a live count, and re-admiring does not stack',
+    testWidgets('admiring is saved once, and a visitor is shown no count',
         (tester) async {
       final owner = FakeSocialBackend(
           signedInAs: const SocialProfile(id: 'owner', handle: 'ada', displayName: 'Ada'));
@@ -60,16 +60,22 @@ void main() {
 
       await tester.runAsync(() => tester.tap(find.text('Admire')));
       await tester.pumpAndSettle();
-      expect(find.text('Admire 1'), findsOneWidget);
-
       // Same visitor, same kind, again.
-      await tester.runAsync(() => tester.tap(find.text('Admire 1')));
+      await tester.runAsync(() => tester.tap(find.text('Admire')));
       await tester.pumpAndSettle();
-      expect(find.text('Admire 1'), findsOneWidget); // still 1, not 2.
-      expect(find.text('Admire 2'), findsNothing);
+
+      // No public counts (direction B): the visitor sees their own choice
+      // highlighted, never a tally.
+      expect(find.text('Admire 1'), findsNothing);
+      final admire = tester.widget<Semantics>(find.byWidgetPredicate(
+          (w) => w is Semantics && w.properties.label == 'Admire'));
+      expect(admire.properties.selected, isTrue);
+      late List<TreeReaction> saved;
+      await tester.runAsync(() async => saved = await owner.reactionsFor('ada'));
+      expect(saved.where((r) => r.kind == ReactionKind.admire), hasLength(1));
     });
 
-    testWidgets('a signed-out visitor is signed in automatically before reacting',
+    testWidgets('a signed-out visitor is asked to sign in, then the reaction lands',
         (tester) async {
       final owner = FakeSocialBackend(
           signedInAs: const SocialProfile(id: 'owner', handle: 'ada', displayName: 'Ada'));
@@ -83,8 +89,35 @@ void main() {
       await tester.runAsync(() => tester.tap(find.text('Wishlist')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Wishlist 1'), findsOneWidget);
+      // The account screen, not a silent sign-in.
+      expect(find.byKey(const Key('account-google')), findsOneWidget);
+      await tester.runAsync(
+          () => tester.tap(find.byKey(const Key('account-google'))));
+      await tester.pumpAndSettle();
+
       expect(visitor.currentProfile, isNotNull);
+      late List<TreeReaction> saved;
+      await tester.runAsync(() async => saved = await owner.reactionsFor('ada'));
+      expect(saved.single.kind, ReactionKind.wishlist);
+    });
+
+    testWidgets('choosing Not now sends nothing and stays signed out',
+        (tester) async {
+      final owner = FakeSocialBackend(
+          signedInAs: const SocialProfile(id: 'owner', handle: 'ada', displayName: 'Ada'));
+      await publishEmptyTree(owner, 'ada');
+      final visitor = FakeSocialBackend();
+
+      await pump(tester, visitor, 'ada');
+      await tester.runAsync(() => tester.tap(find.text('Wishlist')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('account-not-now')));
+      await tester.pumpAndSettle();
+
+      expect(visitor.currentProfile, isNull);
+      late List<TreeReaction> saved;
+      await tester.runAsync(() async => saved = await owner.reactionsFor('ada'));
+      expect(saved, isEmpty);
     });
   });
 

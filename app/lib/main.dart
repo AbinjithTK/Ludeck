@@ -28,6 +28,13 @@ import 'ui/friends/friends_screen.dart';
 import 'ui/harvest/rating_sheet.dart';
 import 'ui/library/library_screen.dart';
 import 'ui/onboarding/onboarding_screen.dart';
+import 'ui/account/account_flow.dart';
+import 'ui/account/account_screen.dart';
+import 'ui/account/account_settings_screen.dart';
+import 'ui/social/inbox_screen.dart';
+import 'ui/social/lately_screen.dart';
+import 'ui/social/send_seed_sheet.dart';
+import 'services/social/activity_recorder.dart';
 import 'ui/profile/profile_screen.dart';
 import 'ui/settings/settings_screen.dart';
 import 'ui/tokens.dart';
@@ -62,6 +69,7 @@ Future<void> main() async {
   // which would grant Pro for free).
   const revenueCatKey = String.fromEnvironment('REVENUECAT_GOOGLE_KEY');
   final entitlements = await resolveEntitlementService(revenueCatKey);
+  await ActivitySharing.load();
   runApp(LudeckApp(repo: repo, social: social, entitlements: entitlements));
 }
 
@@ -70,6 +78,10 @@ Future<void> main() async {
 /// subscribes; a single-subscription stream throws on the second. Top-level
 /// finals are lazy, so nothing touches the platform until the first listen.
 final Stream<String> _appVisits = appVisitLinks().asBroadcastStream();
+
+/// The app's navigator, so a sign-in no screen is waiting for (an email link,
+/// a password reset link) can still open setup or the new-password screen.
+final _appNavigator = GlobalKey<NavigatorState>();
 
 class LudeckApp extends StatelessWidget {
   const LudeckApp(
@@ -91,7 +103,13 @@ class LudeckApp extends StatelessWidget {
     // have to be handed it explicitly through a route argument.
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider<LudeckStore>(create: (_) => LudeckStore(repo)..load()),
+        ChangeNotifierProvider<LudeckStore>(create: (_) {
+          final store = LudeckStore(repo)..load();
+          // Your plants, harvests and ratings, to friends who may see them
+          // (activity_recorder.dart). Lives exactly as long as the store.
+          ActivityRecorder.forStore(store, social).attach();
+          return store;
+        }),
         Provider<SocialBackend>.value(value: social),
         if (entitlements != null)
           Provider<EntitlementService>.value(value: entitlements!)
@@ -101,7 +119,10 @@ class LudeckApp extends StatelessWidget {
             dispose: (_, s) => s.dispose(),
           ),
       ],
+      child: AuthEventsListener(
+      navigatorKey: _appNavigator,
       child: MaterialApp(
+      navigatorKey: _appNavigator,
       title: 'Ludeck',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -198,6 +219,7 @@ class LudeckApp extends StatelessWidget {
         ),
       ),
       ),
+      ),
     );
   }
 }
@@ -218,6 +240,9 @@ class _StartupGate extends StatefulWidget {
 class _StartupGateState extends State<_StartupGate> {
   late Future<bool> _seen;
 
+  /// Set when the intro has just finished and an account is on offer.
+  bool _offerAccount = false;
+
   @override
   void initState() {
     super.initState();
@@ -228,6 +253,14 @@ class _StartupGateState extends State<_StartupGate> {
   Widget build(BuildContext context) => FutureBuilder<bool>(
         future: _seen,
         builder: (context, snapshot) {
+          if (_offerAccount) {
+            // One screen for sign in and sign up, with "Not now" leading
+            // straight to the orchard. Setup runs inside it after a sign-up.
+            return AccountScreen(
+              firstRun: true,
+              onDone: (_) => setState(() => _offerAccount = false),
+            );
+          }
           // While the flag itself is loading, show the real screen underneath
           // rather than a blank frame -- if onboarding is needed, it appears a
           // moment later; nothing is lost by not blocking on this read.
@@ -244,8 +277,11 @@ class _StartupGateState extends State<_StartupGate> {
               // _StartupGate's own wiring (test/startup_gate_test.dart now
               // does).
               onDone: () {
+                final social = context.read<SocialBackend>();
                 setState(() {
                   _seen = Future.value(true);
+                  _offerAccount =
+                      social.isConfigured && social.currentProfile == null;
                 });
               },
             );
@@ -902,6 +938,9 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
               // snack bar would open behind it.
               onTree: (id) => _fileGame(store, live, id, quiet: true),
               onRate: () => closeThen(() => _askForRating(store, live)),
+              onSend: context.read<SocialBackend?>()?.isConfigured ?? false
+                  ? () => closeThen(() => showSendSeedSheet(context, live.game))
+                  : null,
               onRemove: () =>
                   closeThen(() => _confirmRemoveGame(store, live)),
               onClose: () => Navigator.of(sheetContext).pop(),
@@ -1047,7 +1086,44 @@ class _TreeScreenState extends State<TreeScreen> with WidgetsBindingObserver {
             onLibrary: _openLibrary,
             onFriends: _openFriends,
             onProfile: _openProfile,
+            onAccount: _openAccount,
+            accountSubtitle: () {
+              final me = context.read<SocialBackend>().currentProfile;
+              return me == null
+                  ? 'Sign in or create an account'
+                  : 'Signed in as @${me.handle}';
+            },
+            onLately: () => _openSocial(const LatelyScreen()),
+            onInbox: () => _openSocial(const InboxScreen()),
+            unreadInbox: () async {
+              final social = context.read<SocialBackend>();
+              if (social.currentProfile == null) return 0;
+              try {
+                return await social.unreadNotificationCount();
+              } on SocialException {
+                return 0;
+              }
+            },
           )));
+
+  /// Lately and Inbox need an account; ask first when there is none.
+  Future<void> _openSocial(Widget screen) async {
+    final me = await ensureAccount(context);
+    if (me == null || !mounted) return;
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
+
+  /// Signed out: the account screen. Signed in: the profile section.
+  Future<void> _openAccount() async {
+    final social = context.read<SocialBackend>();
+    if (social.currentProfile == null) {
+      final me = await ensureAccount(context);
+      if (me == null || !mounted) return;
+    }
+    await Navigator.of(context).push(MaterialPageRoute<void>(
+        builder: (_) => const AccountSettingsScreen()));
+  }
 
   /// The games on no branch (and not shelved), for the orchard's ground pile.
   List<TreeItem> _unfiled(List<TreeItem> items, LudeckStore store) {

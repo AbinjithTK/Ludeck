@@ -47,6 +47,7 @@ import '../orchard/fruit_look.dart';
 import '../orchard/orchard_portrait.dart';
 import '../orchard/orchard_view.dart' show treesOf, gamesOnTree;
 import '../orchard/tree_style.dart';
+import '../account/account_settings_screen.dart';
 import '../publish/share_sheet.dart';
 import '../tokens.dart';
 
@@ -80,11 +81,13 @@ class ProfileScreen extends StatelessWidget {
       //
       // Passed in rather than constructed inside the body so the body stays
       // testable without a canvas.
-      hero: OrchardPortrait(trees: _portraitTrees(store, items)),
+      hero: OrchardPortrait(trees: portraitTrees(store, items)),
     );
   }
 
-  static List<PortraitTree> _portraitTrees(LudeckStore store, List<TreeItem> items) {
+  /// The orchard portrait's trees, as home draws them. Shared with the public
+  /// profile page so both show the same picture.
+  static List<PortraitTree> portraitTrees(LudeckStore store, List<TreeItem> items) {
     final trees = treesOf(store.branches);
     final styles = resolveTreeStyles(
         trees.map((b) => b.id).toList(), store.treeStyles);
@@ -352,102 +355,32 @@ class _ShareButtonState extends State<_ShareButton> {
   }
 }
 
-/// Signed-in only: sign out, or delete the account (Google Play's in-app
-/// account deletion requirement). Signed out, there is no account, so nothing
-/// shows: the app never creates one until you publish.
-class _AccountRow extends StatefulWidget {
+/// Signed-in only: who you are, and the way to your account settings (sign
+/// out and account deletion live there now). Signed out, nothing shows: the
+/// app never creates an account until you ask for one.
+class _AccountRow extends StatelessWidget {
   const _AccountRow();
 
   @override
-  State<_AccountRow> createState() => _AccountRowState();
-}
-
-class _AccountRowState extends State<_AccountRow> {
-  bool _busy = false;
-
-  SocialBackend? get _backend {
-    try {
-      return Provider.of<SocialBackend>(context, listen: false);
-    } on ProviderNotFoundException {
-      return null;
-    }
-  }
-
-  Future<void> _signOut(SocialBackend b) async {
-    setState(() => _busy = true);
-    try {
-      await b.signOut();
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _delete(SocialBackend b) async {
-    final sure = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Delete your account?'),
-        content: const Text(
-            'This removes your public orchard, your reactions and follows, and '
-            'your account from our server. It cannot be undone. The games on '
-            'this phone stay exactly as they are.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(c).pop(false),
-              child: const Text('Keep account')),
-          TextButton(
-            key: const Key('confirm-delete-account'),
-            onPressed: () => Navigator.of(c).pop(true),
-            style: TextButton.styleFrom(foregroundColor: Tokens.palette.danger),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (sure != true || !mounted) return;
-    setState(() => _busy = true);
-    final messenger = ScaffoldMessenger.maybeOf(context);
-    try {
-      await b.deleteAccount();
-      messenger?.showSnackBar(
-          const SnackBar(content: Text('Your account has been deleted.')));
-    } on SocialException {
-      messenger?.showSnackBar(const SnackBar(
-          content: Text('Could not delete right now. Nothing was removed.')));
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final b = _backend;
+    SocialBackend? b;
+    try {
+      b = Provider.of<SocialBackend>(context, listen: false);
+    } on ProviderNotFoundException {
+      b = null;
+    }
     final me = b?.currentProfile;
-    if (b == null || me == null) return const SizedBox.shrink();
-    final dim = TextStyle(fontSize: Tokens.type.caption, color: Tokens.palette.textDim);
+    if (me == null) return const SizedBox.shrink();
     return Padding(
       padding: EdgeInsets.only(top: Tokens.space.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Signed in as ${me.displayName}', style: dim, textAlign: TextAlign.center),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              TextButton(
-                onPressed: _busy ? null : () => _signOut(b),
-                style: TextButton.styleFrom(foregroundColor: Tokens.palette.textDim),
-                child: const Text('Sign out'),
-              ),
-              TextButton(
-                key: const Key('profile-delete-account'),
-                onPressed: _busy ? null : () => _delete(b),
-                style: TextButton.styleFrom(foregroundColor: Tokens.palette.danger),
-                child: const Text('Delete account'),
-              ),
-            ],
-          ),
-        ],
+      child: Center(
+        child: TextButton(
+          key: const Key('profile-account'),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => const AccountSettingsScreen())),
+          style: TextButton.styleFrom(foregroundColor: Tokens.palette.textDim),
+          child: Text('Signed in as @${me.handle}. Account settings'),
+        ),
       ),
     );
   }

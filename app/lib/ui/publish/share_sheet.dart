@@ -30,6 +30,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../account/account_flow.dart';
 import '../../data/models.dart';
 import '../../domain/level.dart';
 import '../../domain/season.dart';
@@ -182,7 +183,14 @@ class _ShareSheetState extends State<ShareSheet> {
       _error = null;
     });
     try {
-      if (widget.backend.currentProfile == null) await widget.backend.signIn();
+      if (widget.backend.currentProfile == null) {
+        final me = await ensureAccount(context, backend: widget.backend);
+        if (me == null) {
+          // "Not now": nothing was shared, and that is not an error.
+          if (mounted) setState(() => _working = false);
+          return;
+        }
+      }
       await widget.backend.publish(
           games: widget.games, level: widget.level, isPublic: public);
       if (!mounted) return;
