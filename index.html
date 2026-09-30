@@ -3,29 +3,93 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ludeck: your games, grown into an orchard</title>
-<meta name="description" content="Save games from anywhere, hang them on trees you plant, and shake a tree to decide what to play tonight.">
+<title>Ludeck: never lose a game worth playing</title>
+<meta name="description" content="Save games you spot in videos, posts and friends' links. Hang them on trees you plant, shake a tree when you can't decide, and share your taste with friends.">
 <meta property="og:title" content="Ludeck">
-<meta property="og:description" content="Your games, grown into an orchard.">
-<meta property="og:image" content="og.png">
+<meta property="og:description" content="Never lose a game worth playing.">
+<meta property="og:image" content="https://abinjithtk.github.io/Ludeck/og.png">
+<meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#0f0c22">
+<meta name="theme-color" content="#1b0a19">
 <link rel="icon" href="icon.png">
+<link rel="preload" href="fonts/BricolageGrotesque-ExtraBold.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
 <main class="wrap">
-  <header class="hero">
-    <img src="icon.png" alt="" width="72" height="72" style="border-radius:18px">
-    <h1 style="margin-top:20px">Ludeck</h1>
-    <p class="sub">Your games, grown into an orchard. Save a game from any link, hang it
-    on a tree you planted, and shake the tree when you can't decide what to play.</p>
+  <nav class="bar">
+    <a class="brand" href="./"><img src="img/wordmark.png" alt="Ludeck" width="726" height="165"></a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+
+  <header class="hero-grid">
+    <div>
+      <p class="eyebrow rise">For Android</p>
+      <h1 class="rise d1">Never lose a game <em>worth playing.</em></h1>
+      <p class="sub rise d2">You see a great game in a video, a post, or a link a friend sends.
+      By the time you want to play, it's gone. Ludeck keeps every one of them, on trees you plant.</p>
+      <a class="play rise d3" href="https://play.google.com/store/apps/details?id=com.ludeck.android&amp;referrer=utm_source%3Dludeck_site%26utm_medium%3Dhome">
+        <img src="img/google-play-badge.png" alt="Get it on Google Play" width="646" height="250">
+      </a>
+      <p class="note">Free. No ads. Your collection stays on your phone.</p>
+    </div>
+    <div class="phone rise d2"><img src="img/01_orchard.jpg" alt="A Ludeck tree with game covers hanging from it" width="540" height="1171"></div>
   </header>
-  <div class="ctas">
-    <a class="btn primary" href="https://play.google.com/store/apps/details?id=com.ludeck.android&amp;referrer=utm_source%3Dludeck_site%26utm_medium%3Dhome">Get it on Google Play</a>
-  </div>
+
+  <section class="features">
+    <article class="feature">
+      <div class="copy">
+        <p class="eyebrow">Collect</p>
+        <h2>Save it the moment you see it.</h2>
+        <p>Share a link from YouTube, TikTok, Reddit or a friend's message to Ludeck. It finds the game and keeps it in your finds, ready to drag onto a tree.</p>
+      </div>
+      <div class="phone"><img src="img/02_new_find.jpg" alt="Hades II found from a shared link, ready to go onto a tree" width="540" height="1200" loading="lazy"></div>
+    </article>
+    <article class="feature">
+      <div class="copy">
+        <p class="eyebrow">Pick</p>
+        <h2>Can't decide? Shake your phone.</h2>
+        <p>A game falls from the tree. Don't like it? Shake again. Nothing withers and nothing nags you.</p>
+      </div>
+      <div class="phone"><img src="img/04_shake_pick.jpg" alt="Celeste has fallen from the tree after a shake" width="540" height="1171" loading="lazy"></div>
+    </article>
+    <article class="feature">
+      <div class="copy">
+        <p class="eyebrow">Tonight</p>
+        <h2>Your console. Your time.</h2>
+        <p>Set what you're playing on and how long you've got, and Ludeck nudges you when your time is up.</p>
+      </div>
+      <div class="phone"><img src="img/03_tonight.jpg" alt="The Tonight sheet with a time and a console chosen" width="540" height="1171" loading="lazy"></div>
+    </article>
+    <article class="feature">
+      <div class="copy">
+        <p class="eyebrow">Make it yours</p>
+        <h2>Trees that look the way you want.</h2>
+        <p>Pick the blossom, the wood and what grows around it. Every tree in your orchard can look different.</p>
+      </div>
+      <div class="phone"><img src="img/06_customise_decor.jpg" alt="Choosing flowers to grow around a tree" width="540" height="1171" loading="lazy"></div>
+    </article>
+    <article class="feature">
+      <div class="copy">
+        <p class="eyebrow">Share</p>
+        <h2>Your taste, with your name on it.</h2>
+        <p>Finished games turn gold. Turn a tree into a card, follow friends, and send them a game in your own words.</p>
+      </div>
+      <div class="phone"><img src="img/07_share_card.jpg" alt="A shareable card of a Ludeck orchard" width="540" height="1171" loading="lazy"></div>
+    </article>
+  </section>
+
+  <section class="closer">
+    <img class="icon" src="icon.png" alt="Ludeck app icon" width="96" height="96">
+    <h2>Every game you spotted.<br>All in one place.</h2>
+    <a class="play" href="https://play.google.com/store/apps/details?id=com.ludeck.android&amp;referrer=utm_source%3Dludeck_site%26utm_medium%3Dclose">
+      <img src="img/google-play-badge.png" alt="Get it on Google Play" width="646" height="250">
+    </a>
+  </section>
+
   <footer class="foot">
-    <p><a href="privacy.html">Privacy policy</a> · Game data and cover art from IGDB.com</p>
+    <p><a href="privacy.html">Privacy policy</a> · <a href="privacy.html#delete">Delete your data</a> · <a href="mailto:abinjith87@gmail.com">Contact</a></p>
+    <p>Game data and cover art from IGDB.com. Google Play and the Google Play logo are trademarks of Google LLC.</p>
   </footer>
 </main>
 </body>
